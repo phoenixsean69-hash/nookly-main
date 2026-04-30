@@ -236,7 +236,7 @@ const Profile = () => {
     },
     {
       icon: icons.chat,
-      label: "Messages",
+      label: "Nookly Assistant",
       route: "/message",
       color: "#10B981",
     },
@@ -492,7 +492,7 @@ const Profile = () => {
         <TouchableOpacity
           onPress={handleLogout}
           disabled={logoutLoading}
-          className="flex-row items-center justify-center py-4 rounded-2xl mb-6"
+          className="flex-row items-center justify-center mb-10 py-4 rounded-2xl "
           style={{
             backgroundColor: theme.danger + "20",
             borderWidth: 1,

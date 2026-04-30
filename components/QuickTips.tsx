@@ -45,7 +45,7 @@ const QuickTips = () => {
             className="text-2xl font-rubik-bold"
             style={{ color: theme.text }}
           >
-            Pro Tips 💡
+            Pro Tips
           </Text>
           <Text className="text-sm text-gray-500 font-rubik">
             Make smarter property decisions

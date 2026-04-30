@@ -1,7 +1,10 @@
 // app/match.tsx
 import ContactModal from "@/components/ContactModal";
+
 import { Colors } from "@/constants/Colors";
 import {
+  client,
+  config,
   createMatchProfile,
   getMatchProfiles,
   getUserMatchProfile,
@@ -129,12 +132,55 @@ const Match = () => {
     checkUserProfile();
   }, []);
 
+  useEffect(() => {
+    if (!myProfile) return;
+
+    const unsubscribe = client.subscribe(
+      `databases.${config.databaseId}.collections.${config.matchProfilesCollectionId}.documents`,
+      (response) => {
+        console.log("🔥 Realtime:", response);
+
+        if (
+          response.events.includes(
+            "databases.*.collections.*.documents.*.create",
+          )
+        ) {
+          const payload = response.payload;
+
+          if (!isMatchProfile(payload)) return;
+
+          const newProfile = payload;
+          const isSameLocation = newProfile.preferredLocation
+            ?.toLowerCase()
+            .includes(myProfile.preferredLocation.toLowerCase());
+
+          const genderMatch =
+            (newProfile.preferredGender === "any" ||
+              newProfile.preferredGender === myProfile.gender) &&
+            (myProfile.preferredGender === "any" ||
+              myProfile.preferredGender === newProfile.gender);
+
+          const budgetMatch =
+            Math.abs(newProfile.budget - myProfile.budget) <=
+            Math.max(newProfile.budget, myProfile.budget) * 0.2;
+
+          if (isSameLocation && genderMatch && budgetMatch) {
+            setMatches((prev) => {
+              const exists = prev.find((p) => p.$id === newProfile.$id);
+              if (exists) return prev;
+              return [newProfile, ...prev];
+            });
+          }
+        }
+      },
+    );
+
+    return () => unsubscribe();
+  }, [myProfile]);
+
   useFocusEffect(
     useCallback(() => {
-      // Mark matches as viewed - this will clear the badge globally
       markMatchesAsViewed();
-
-      // Also refresh the count to ensure it's 0
       if (user?.accountId) {
         fetchMatchCount(user.accountId);
       }
@@ -179,6 +225,10 @@ const Match = () => {
     setLoading(false);
   };
 
+  const isMatchProfile = (data: any): data is MatchProfile => {
+    return data && typeof data === "object" && "preferredLocation" in data;
+  };
+
   const loadMatches = async (profile: MatchProfile) => {
     if (!user?.accountId) return;
 
@@ -193,7 +243,15 @@ const Match = () => {
 
     const filtered = profiles.filter((p: any) => p.userId !== user?.accountId);
 
-    setMatches(filtered as unknown as MatchProfile[]);
+    setMatches((prev) => {
+      const combined = [...prev];
+      filtered.forEach((p: MatchProfile) => {
+        const exists = combined.find((m) => m.$id === p.$id);
+        if (!exists) combined.push(p);
+      });
+      return combined;
+    });
+
     setLoading(false);
   };
 
@@ -289,6 +347,11 @@ const Match = () => {
 
       if (hasProfile && myProfile) {
         await updateMatchProfile(myProfile.$id, profileData);
+
+        // ✅ Clear stale matches and reload with updated profile
+        setMatches([]);
+        await loadMatches({ ...myProfile, ...profileData } as MatchProfile);
+
         Alert.alert("Success", "Your profile has been updated!");
       } else {
         await createMatchProfile(profileData);
@@ -413,7 +476,7 @@ const Match = () => {
         </View>
 
         <View className="mb-4">
-          {/* My Gender Section - Card Style */}
+          {/* My Gender Section */}
           <View
             className="p-4 rounded-2xl mb-4"
             style={{
@@ -475,7 +538,7 @@ const Match = () => {
             </View>
           </View>
 
-          {/* Looking For Section - Card Style */}
+          {/* Looking For Section */}
           <View
             className="p-4 rounded-2xl"
             style={{
@@ -769,7 +832,7 @@ const Match = () => {
             </View>
           </View>
 
-          {/* Month Selector - Dropdown Picker */}
+          {/* Month Selector */}
           <View className="mb-4">
             <Text
               className="text-xs font-rubik-medium mb-1"
@@ -902,7 +965,12 @@ const Match = () => {
                 }}
               >
                 <Text
-                  className={`text-center ${formData.lookingFor === option ? "text-white" : ""}`}
+                  className={`text-center ${
+                    formData.lookingFor === option ? "text-white" : ""
+                  }`}
+                  style={{
+                    color: formData.lookingFor === option ? "#fff" : theme.text,
+                  }}
                 >
                   {option}
                 </Text>
@@ -1027,7 +1095,7 @@ const Match = () => {
                     className="text-xs mt-1"
                     style={{ color: theme.primary[300] }}
                   >
-                    Looking in: {item.preferredLocation}
+                    Searching in: {item.preferredLocation}
                   </Text>
                 </View>
               </View>
@@ -1060,7 +1128,10 @@ const Match = () => {
                   className="flex-1 py-2 rounded-full border"
                   style={{ borderColor: theme.primary[300] }}
                 >
-                  <Text className="text-primary-300 text-center font-rubik-medium text-sm">
+                  <Text
+                    className="text-center font-rubik-medium text-sm"
+                    style={{ color: theme.primary[300] }}
+                  >
                     Email
                   </Text>
                 </TouchableOpacity>
@@ -1128,7 +1199,7 @@ const Match = () => {
     </Modal>
   );
 
-  // No profile yet - show form
+  // No profile yet - show prompt
   if (!hasProfile && !showProfileForm && !loading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
@@ -1208,7 +1279,7 @@ const Match = () => {
     );
   }
 
-  // Main view - show profile summary and matches
+  // Main view
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
       {/* Header */}
@@ -1237,6 +1308,7 @@ const Match = () => {
         </TouchableOpacity>
       </View>
 
+      {/* Profile Summary Card */}
       <View
         className="mx-5 mt-4 p-4 rounded-2xl"
         style={{
@@ -1257,7 +1329,7 @@ const Match = () => {
               {myProfile?.userType === "student"
                 ? "Student"
                 : myProfile?.userType}{" "}
-              looking in {myProfile?.preferredLocation}
+              Searching in {myProfile?.preferredLocation}
             </Text>
             <Text className="text-sm mt-1" style={{ color: theme.muted }}>
               Budget: ${myProfile?.budget}/month • Looking for:{" "}
@@ -1265,7 +1337,7 @@ const Match = () => {
             </Text>
           </View>
 
-          {/* Match Found Toggle Button */}
+          {/* Active/Paused Toggle */}
           <View className="items-end">
             <TouchableOpacity
               onPress={handleToggleActiveStatus}
@@ -1303,6 +1375,7 @@ const Match = () => {
       ) : (
         renderMatchesList()
       )}
+
       {selectedMatch && (
         <ContactModal
           visible={contactModalVisible}

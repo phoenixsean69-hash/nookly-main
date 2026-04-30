@@ -29,7 +29,7 @@ interface NotificationItem {
   id: string;
   title: string;
   message: string;
-  type: "like" | "message" | "review" | "system" | "event";
+  type: "like" | "message" | "review" | "system" | "request" | "event";
   read: boolean;
   createdAt: Date;
   data?: any;
@@ -280,6 +280,13 @@ export default function NotificationsScreen() {
         if (propertyId) {
           router.push(`/properties/${propertyId}`);
         }
+      } else if (notification.type === "request") {
+        const propertyId = notification.data?.propertyId;
+        if (propertyId) {
+          router.push(`/properties/${propertyId}`);
+        } else {
+          router.push("/landlord/Landrequests");
+        }
       } else if (notification.type === "message") {
         router.push("/message");
       }
@@ -297,6 +304,8 @@ export default function NotificationsScreen() {
         return icons.chat;
       case "review":
         return icons.star;
+      case "request":
+        return icons.bell;
       case "event":
         return icons.calendar;
       default:
@@ -312,6 +321,8 @@ export default function NotificationsScreen() {
         return "#3B82F6";
       case "review":
         return "#F59E0B";
+      case "request":
+        return "#8B5CF6";
       case "event":
         return "#10B981";
       default:

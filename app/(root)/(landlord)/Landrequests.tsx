@@ -1,8 +1,10 @@
 // app/(root)/landlord-requests.tsx
 import { Colors } from "@/constants/Colors";
 import { getAvatarSource } from "@/constants/data";
+
 import icons from "@/constants/icons";
-import { config, databases } from "@/lib/appwrite";
+import { config, createNotification, databases } from "@/lib/appwrite";
+import notificationService from "@/services/notification.service";
 import useAuthStore from "@/store/auth.store";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
@@ -178,22 +180,15 @@ export default function LandlordRequests() {
                 requestId,
               );
 
-              // Create notification for tenant about deletion
-              await databases.createDocument(
-                config.databaseId!,
-                config.notificationsCollectionId!,
-                "unique()",
+              await createNotification(
+                request.tenantId,
+                "📋 Request Removed",
+                `Your rental request for "${request.propertyName}" has been removed by the landlord.`,
+                "system",
                 {
-                  userId: request.tenantId,
-                  title: "📋 Request Removed",
-                  message: `Your rental request for "${request.propertyName}" has been removed by the landlord.`,
-                  type: "system",
-                  data: JSON.stringify({
-                    propertyId: request.propertyId,
-                    propertyName: request.propertyName,
-                    status: "deleted",
-                  }),
-                  read: false,
+                  propertyId: request.propertyId,
+                  propertyName: request.propertyName,
+                  status: "deleted",
                 },
               );
 
@@ -232,11 +227,11 @@ export default function LandlordRequests() {
       const request = requests.find((r) => r.$id === requestId);
 
       if (request) {
-        // Create notification for tenant
+        // Create in-app notification for tenant
         const notificationTitle =
           action === "accepted"
-            ? "✅ Rental Request Accepted!"
-            : "❌ Rental Request Declined";
+            ? "Rental Request Accepted!"
+            : "Rental Request Declined";
 
         const notificationMessage =
           action === "accepted"
@@ -262,11 +257,25 @@ export default function LandlordRequests() {
           },
         );
 
-        // Update local state
-        setRequests((prev) =>
-          prev.map((r) => (r.$id === requestId ? { ...r, status: action } : r)),
-        );
+        // 🚀 SEND PUSH NOTIFICATION TO TENANT
+        try {
+          await notificationService.sendRequestResponseNotification(
+            request.tenantId,
+            request.propertyName,
+            action,
+          );
+          console.log(
+            `✅ Push notification sent to tenant for ${action} request`,
+          );
+        } catch (pushError) {
+          console.error("Failed to send push notification:", pushError);
+          // Don't throw - push notification failure shouldn't break the flow
+        }
 
+        // Update local state - remove the request from list since it's processed
+        setRequests((prev) => prev.filter((r) => r.$id !== requestId));
+
+        // Show success message
         Alert.alert(
           "Success",
           `Request ${action === "accepted" ? "accepted" : "rejected"} successfully!`,
@@ -279,7 +288,6 @@ export default function LandlordRequests() {
       setProcessingId(null);
     }
   };
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + " at " + date.toLocaleTimeString();

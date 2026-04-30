@@ -267,7 +267,7 @@ const LandLordProfile = () => {
     },
     {
       icon: icons.chat,
-      label: "Help from Chat",
+      label: "Nookly Assistant",
       route: "/landChat",
       color: "#10B981",
     },
@@ -560,7 +560,7 @@ const LandLordProfile = () => {
         <TouchableOpacity
           onPress={handleLogout}
           disabled={logoutLoading}
-          className="flex-row items-center justify-center py-4 rounded-2xl mb-6"
+          className="flex-row items-center justify-center py-4 rounded-2xl mb-10"
           style={{
             backgroundColor: theme.danger + "20",
             borderWidth: 1,

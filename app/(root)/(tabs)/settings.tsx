@@ -1,12 +1,12 @@
 // app/(root)/settings.tsx
 import { Colors } from "@/constants/Colors";
 import icons from "@/constants/icons";
-import { logout } from "@/lib/appwrite";
+import { logout, updateUserPushToken } from "@/lib/appwrite";
+import { registerForPushNotificationsAsync } from "@/lib/pushNotifications";
 import useAuthStore from "@/store/auth.store";
 import { useNotificationStore } from "@/store/notification.store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import * as Updates from "expo-updates";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -39,8 +39,7 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
-  const [darkMode, setDarkMode] = useState(colorScheme === "dark");
-  const [biometricEnabled, setBiometricEnabled] = useState(false);
+
   const [clearDataLoading, setClearDataLoading] = useState(false);
 
   // Load saved preferences
@@ -52,13 +51,9 @@ export default function SettingsScreen() {
     try {
       const push = await AsyncStorage.getItem("push_notifications");
       const email = await AsyncStorage.getItem("email_notifications");
-      const dark = await AsyncStorage.getItem("dark_mode");
-      const bio = await AsyncStorage.getItem("biometric_enabled");
 
       if (push !== null) setPushEnabled(push === "true");
       if (email !== null) setEmailEnabled(email === "true");
-      if (dark !== null) setDarkMode(dark === "true");
-      if (bio !== null) setBiometricEnabled(bio === "true");
     } catch (error) {
       console.error("Error loading settings:", error);
     }
@@ -75,7 +70,22 @@ export default function SettingsScreen() {
   const handlePushToggle = async (value: boolean) => {
     setPushEnabled(value);
     await saveSetting("push_notifications", value);
-    // Here you would also update your push notification service
+
+    if (user?.$id) {
+      try {
+        if (value) {
+          const token = await registerForPushNotificationsAsync();
+          if (token) {
+            await updateUserPushToken(user.$id, token);
+          }
+        } else {
+          await updateUserPushToken(user.$id, null);
+        }
+      } catch (error) {
+        console.error("Error updating push notification token:", error);
+      }
+    }
+
     Alert.alert(
       "Notifications",
       value ? "Push notifications enabled" : "Push notifications disabled",
@@ -85,26 +95,6 @@ export default function SettingsScreen() {
   const handleEmailToggle = async (value: boolean) => {
     setEmailEnabled(value);
     await saveSetting("email_notifications", value);
-  };
-
-  const handleDarkModeToggle = async (value: boolean) => {
-    setDarkMode(value);
-    await saveSetting("dark_mode", value);
-    // Note: Actual theme switching would require app-wide state management
-    Alert.alert("Theme", value ? "Dark mode enabled" : "Light mode enabled", [
-      { text: "Restart app to apply changes" },
-    ]);
-  };
-
-  const handleBiometricToggle = async (value: boolean) => {
-    setBiometricEnabled(value);
-    await saveSetting("biometric_enabled", value);
-    if (value) {
-      Alert.alert(
-        "Biometric Authentication",
-        "You can now use fingerprint/face ID to unlock the app",
-      );
-    }
   };
 
   const handleClearAllData = async () => {
@@ -135,8 +125,7 @@ export default function SettingsScreen() {
               await AsyncStorage.multiRemove([
                 "push_notifications",
                 "email_notifications",
-                "dark_mode",
-                "biometric_enabled",
+
               ]);
 
               // Clear avatar cache
@@ -177,33 +166,6 @@ export default function SettingsScreen() {
     ]);
   };
 
-  const handleCheckForUpdates = async () => {
-    try {
-      const update = await Updates.checkForUpdateAsync();
-      if (update.isAvailable) {
-        Alert.alert(
-          "Update Available",
-          "A new version of the app is available. Would you like to update now?",
-          [
-            { text: "Later", style: "cancel" },
-            {
-              text: "Update",
-              onPress: async () => {
-                await Updates.fetchUpdateAsync();
-                await Updates.reloadAsync();
-              },
-            },
-          ],
-        );
-      } else {
-        Alert.alert("No Updates", "You're running the latest version");
-      }
-    } catch (error) {
-      console.error("Error checking for updates:", error);
-      Alert.alert("Error", "Failed to check for updates");
-    }
-  };
-
   const handleExportData = async () => {
     Alert.alert(
       "Export Data",
@@ -219,7 +181,6 @@ export default function SettingsScreen() {
                 preferences: {
                   pushNotifications: pushEnabled,
                   emailNotifications: emailEnabled,
-                  darkMode: darkMode,
                 },
                 notificationsCount: notifications.length,
                 exportDate: new Date().toISOString(),
@@ -306,48 +267,7 @@ export default function SettingsScreen() {
         },
       ] as SettingItem[],
     },
-    {
-      title: "Appearance",
-      items: [
-        {
-          icon: icons.sun,
-          title: "Dark Mode",
-          subtitle: "Toggle dark/light theme",
-          onPress: () => {},
-          rightElement: (
-            <Switch
-              value={darkMode}
-              onValueChange={handleDarkModeToggle}
-              trackColor={{ false: "#767577", true: theme.primary[300] }}
-            />
-          ),
-        },
-      ] as SettingItem[],
-    },
-    {
-      title: "Privacy & Security",
-      items: [
-        {
-          icon: icons.lock,
-          title: "Biometric Authentication",
-          subtitle: "Use fingerprint/face ID",
-          onPress: () => {},
-          rightElement: (
-            <Switch
-              value={biometricEnabled}
-              onValueChange={handleBiometricToggle}
-              trackColor={{ false: "#767577", true: theme.primary[300] }}
-            />
-          ),
-        },
-        {
-          icon: icons.eye,
-          title: "Privacy Policy",
-          subtitle: "Read our privacy policy",
-          onPress: () => router.push("/about"),
-        },
-      ] as SettingItem[],
-    },
+
     {
       title: "Data & Storage",
       items: [
@@ -363,12 +283,6 @@ export default function SettingsScreen() {
           subtitle: "Delete all app data",
           onPress: handleClearAllData,
           danger: true,
-        },
-        {
-          icon: icons.refresh,
-          title: "Check for Updates",
-          subtitle: "App version 1.0.0",
-          onPress: handleCheckForUpdates,
         },
       ] as SettingItem[],
     },

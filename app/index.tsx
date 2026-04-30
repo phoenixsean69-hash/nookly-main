@@ -91,24 +91,23 @@ export default function Index() {
       setOfflineMessageShown(false);
 
       if (isAuthenticated && user?.userMode === "tenant") {
+        // Debug: Log cached user data when online
+        console.log("🔍 Online - Cached User Data:", user);
+        console.log("👤 User Name:", user.name);
+        console.log("🏠 User Mode:", user.userMode);
         router.replace("/tenantHome");
       } else if (isAuthenticated && user?.userMode === "landlord") {
+        // Debug: Log cached user data when online
+        console.log("🔍 Online - Cached User Data:", user);
+        console.log("👤 User Name:", user.name);
+        console.log("🏠 User Mode:", user.userMode);
         router.replace("/landHome");
       } else if (!isAuthenticated) {
         router.replace("/sign-up");
       }
     } else {
-      // Offline
-      if (!isAuthenticated) {
-        setOfflineMessageShown(true);
-      } else {
-        // Authenticated + offline → route to their home
-        if (user?.userMode === "tenant") {
-          router.replace("/tenantHome");
-        } else if (user?.userMode === "landlord") {
-          router.replace("/landHome");
-        }
-      }
+      // Offline - show offline screen regardless of auth status
+      setOfflineMessageShown(true);
     }
   }, [isLoading, isConnected, isAuthenticated, user, isInitialized]);
 
@@ -143,110 +142,210 @@ export default function Index() {
     });
   };
 
-  // Offline screen for unauthenticated users
-  if (offlineMessageShown && !isAuthenticated) {
-    return (
-      <View style={{ flex: 1, backgroundColor: theme.navBackground }}>
-        {/* Animated Background */}
-        <Animated.Image
-          source={backgroundImages[currentImageIndex]}
-          style={{
-            position: "absolute",
-            width: width,
-            height: height,
-            opacity: fadeAnim,
-          }}
-          resizeMode="cover"
-        />
+  // Offline screen
+  if (offlineMessageShown) {
+    if (isAuthenticated && user) {
+      // Personalized offline screen for authenticated users
+      return (
+        <View style={{ flex: 1, backgroundColor: theme.navBackground }}>
+          {/* Animated Background */}
+          <Animated.Image
+            source={backgroundImages[currentImageIndex]}
+            style={{
+              position: "absolute",
+              width: width,
+              height: height,
+              opacity: fadeAnim,
+            }}
+            resizeMode="cover"
+          />
 
-        {/* Dark Overlay */}
-        <View
-          style={{
-            position: "absolute",
-            width: width,
-            height: height,
-            backgroundColor: "rgba(0,0,0,0.6)",
-          }}
-        />
+          {/* Dark Overlay */}
+          <View
+            style={{
+              position: "absolute",
+              width: width,
+              height: height,
+              backgroundColor: "rgba(0,0,0,0.6)",
+            }}
+          />
 
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          showsVerticalScrollIndicator={false}
-        >
-          <View className="flex-1 items-center justify-center px-6 py-12 min-h-screen">
-            {/* Logo */}
-            <View className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-lg items-center justify-center mb-6">
-              <Image source={images.icon} className="w-12 h-12" />
-            </View>
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View className="flex-1 items-center justify-center px-6 py-12 min-h-screen">
+              {/* Logo */}
+              <View className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-lg items-center justify-center mb-6">
+                <Image source={images.icon} className="w-12 h-12" />
+              </View>
 
-            <Text className="text-3xl font-rubik-bold text-center mb-2 text-white">
-              Welcome to Nookly
-            </Text>
-
-            <Text className="text-base text-center mb-8 text-white/90">
-              Your cozy corner in the world of renting
-            </Text>
-
-            <View className="mb-8">
-              <Text className="text-xl font-rubik-bold text-center mb-3 text-white">
-                Our Story
+              <Text className="text-3xl font-rubik-bold text-center mb-2 text-white">
+                Hi {user.name}!
               </Text>
-              <Text className="text-sm text-center leading-6 text-white/90">
-                Nookly was born from a simple idea: finding a home
-                shouldn&apos;t feel like a job. We believe everyone deserves a
-                cozy nook to call their own.
-              </Text>
-            </View>
 
-            <View className="mb-8">
-              <Text className="text-xl font-rubik-bold text-center mb-3 text-white">
-                Our Mission
+              <Text className="text-base text-center mb-8 text-white/90">
+                You're currently offline
               </Text>
-              <Text className="text-sm text-center leading-6 text-white/90">
-                To connect tenants with their perfect space and empower
-                landlords with tools that make property management effortless.
-              </Text>
-            </View>
 
-            <View className="bg-white/20 backdrop-blur-lg rounded-2xl p-4 mb-8 w-full">
-              <Text className="text-center text-sm text-white">
-                You&apos;re currently offline
-              </Text>
-              <Text className="text-center text-xs mt-1 text-white/80">
-                Connect to the internet to explore Nookly
-              </Text>
-            </View>
-
-            {/* Action Buttons */}
-            <View className="flex-row gap-4 w-full">
-              <TouchableOpacity
-                onPress={handleRetry}
-                className="bg-primary-300 py-3 rounded-full flex-1"
-              >
-                <Text className="text-white font-rubik-bold text-center">
-                  Retry
+              <View className="bg-white/20 backdrop-blur-lg rounded-2xl p-4 mb-8 w-full">
+                <Text className="text-center text-sm text-white">
+                  You can still browse cached content and favorites.
                 </Text>
-              </TouchableOpacity>
+              </View>
 
-              {user?.userMode !== "landlord" && (
+              {/* Action Buttons */}
+              <View className="flex-row gap-4 w-full">
                 <TouchableOpacity
-                  onPress={() => router.replace("/offline-favorites")}
-                  className="bg-orange-500 py-3 rounded-full flex-1"
+                  onPress={handleRetry}
+                  className="bg-primary-300 py-3 rounded-full flex-1"
                 >
                   <Text className="text-white font-rubik-bold text-center">
-                    See Favorites
+                    Retry Connection
                   </Text>
                 </TouchableOpacity>
-              )}
-            </View>
 
-            <Text className="text-center text-xs mt-8 text-white/60">
-              Nookly v1.0.0 • Find Your Cozy Corner
-            </Text>
-          </View>
-        </ScrollView>
-      </View>
-    );
+                {user.userMode === "tenant" && (
+                  <TouchableOpacity
+                    onPress={() => router.replace("/offline-favorites")}
+                    className="bg-orange-500 py-3 rounded-full flex-1"
+                  >
+                    <Text className="text-white font-rubik-bold text-center">
+                      See Favorites
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {user.userMode !== "tenant" && (
+                  <TouchableOpacity
+                    onPress={() =>
+                      router.replace(
+                        user.userMode === "landlord"
+                          ? "/landHome"
+                          : "/tenantHome",
+                      )
+                    }
+                    className="bg-green-500 py-3 rounded-full flex-1"
+                  >
+                    <Text className="text-white font-rubik-bold text-center">
+                      Continue Offline
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <Text className="text-center text-xs mt-8 text-white/60">
+                Nookly v1.0.0 • Find Your Cozy Corner
+              </Text>
+            </View>
+          </ScrollView>
+        </View>
+      );
+    } else {
+      // Welcome screen for unauthenticated users
+      return (
+        <View style={{ flex: 1, backgroundColor: theme.navBackground }}>
+          {/* Animated Background */}
+          <Animated.Image
+            source={backgroundImages[currentImageIndex]}
+            style={{
+              position: "absolute",
+              width: width,
+              height: height,
+              opacity: fadeAnim,
+            }}
+            resizeMode="cover"
+          />
+
+          {/* Dark Overlay */}
+          <View
+            style={{
+              position: "absolute",
+              width: width,
+              height: height,
+              backgroundColor: "rgba(0,0,0,0.6)",
+            }}
+          />
+
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View className="flex-1 items-center justify-center px-6 py-12 min-h-screen">
+              {/* Logo */}
+              <View className="w-24 h-24 rounded-full bg-white/20 backdrop-blur-lg items-center justify-center mb-6">
+                <Image source={images.icon} className="w-12 h-12" />
+              </View>
+
+              <Text className="text-3xl font-rubik-bold text-center mb-2 text-white">
+                Welcome to Nookly
+              </Text>
+
+              <Text className="text-base text-center mb-8 text-white/90">
+                Your cozy corner in the world of renting
+              </Text>
+
+              <View className="mb-8">
+                <Text className="text-xl font-rubik-bold text-center mb-3 text-white">
+                  Our Story
+                </Text>
+                <Text className="text-sm text-center leading-6 text-white/90">
+                  Nookly was born from a simple idea: finding a home
+                  shouldn&apos;t feel like a job. We believe everyone deserves a
+                  cozy nook to call their own.
+                </Text>
+              </View>
+
+              <View className="mb-8">
+                <Text className="text-xl font-rubik-bold text-center mb-3 text-white">
+                  Our Mission
+                </Text>
+                <Text className="text-sm text-center leading-6 text-white/90">
+                  To connect tenants with their perfect space and empower
+                  landlords with tools that make property management effortless.
+                </Text>
+              </View>
+
+              <View className="bg-white/20 backdrop-blur-lg rounded-2xl p-4 mb-8 w-full">
+                <Text className="text-center text-sm text-white">
+                  You&apos;re currently offline
+                </Text>
+                <Text className="text-center text-xs mt-1 text-white/80">
+                  Connect to the internet to explore Nookly
+                </Text>
+              </View>
+
+              {/* Action Buttons */}
+              <View className="flex-row gap-4 w-full">
+                <TouchableOpacity
+                  onPress={handleRetry}
+                  className="bg-primary-300 py-3 rounded-full flex-1"
+                >
+                  <Text className="text-white font-rubik-bold text-center">
+                    Retry
+                  </Text>
+                </TouchableOpacity>
+
+                {user?.userMode !== "landlord" && (
+                  <TouchableOpacity
+                    onPress={() => router.replace("/offline-favorites")}
+                    className="bg-orange-500 py-3 rounded-full flex-1"
+                  >
+                    <Text className="text-white font-rubik-bold text-center">
+                      See Favorites
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <Text className="text-center text-xs mt-8 text-white/60">
+                Nookly v1.0.0 • Find Your Cozy Corner
+              </Text>
+            </View>
+          </ScrollView>
+        </View>
+      );
+    }
   }
 
   // Loading screen

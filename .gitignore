@@ -47,3 +47,5 @@ replay_pid*.log
 # Instant files
 instant.perms.ts
 instant.schema.ts
+.env
+.env.local

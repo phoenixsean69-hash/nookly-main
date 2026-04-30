@@ -6,6 +6,7 @@ import {
   getDefaultAvatarUrl,
 } from "@/lib/appwrite";
 import { getData, removeData, storeData } from "@/lib/cache";
+import notificationService from "@/services/notification.service";
 import * as SecureStore from "expo-secure-store";
 import { ID, Query } from "react-native-appwrite";
 import { create } from "zustand";
@@ -28,6 +29,7 @@ interface User {
   phone: string;
   avatar?: string;
   customAvatar?: string;
+  expoPushToken?: string;
 }
 
 interface AuthState {
@@ -328,7 +330,8 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       const accountId = createValidAppwriteId();
       const userDocumentId = createValidAppwriteId();
-      const avatarUrl = userData.avatar?.trim() || getDefaultAvatarUrl(userData.name);
+      const avatarUrl =
+        userData.avatar?.trim() || getDefaultAvatarUrl(userData.name);
       const newAccount = await account.create(
         accountId,
         userData.email,
@@ -406,36 +409,29 @@ const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
+  // store/auth.store.ts - Update signOut method
+
   signOut: async () => {
     try {
-      // Try to delete the current session
-      try {
-        await account.deleteSession("current");
-      } catch (sessionError: any) {
-        // If error is about missing scopes or no session, that's fine
-        if (
-          sessionError?.message?.includes("missing scopes") ||
-          sessionError?.message?.includes("guest")
-        ) {
-          console.log("No active session to delete");
-        } else {
-          console.error("Error deleting session:", sessionError);
+      const { user } = get();
+
+      // Remove push token before logging out
+      if (user?.accountId) {
+        const token = notificationService.getExpoPushToken();
+        if (token) {
+          await notificationService.removePushToken(user.accountId, token);
         }
       }
 
-      // Clear all cached data
+      await account.deleteSession("current");
       await get().clearCache();
-
-      // Reset state
       set({ user: null, isAuthenticated: false, isLoading: false });
-
       return { success: true };
     } catch (error: any) {
-      console.error("Sign out error:", error);
-      // Still return success since we want to clear local state
-      await get().clearCache();
-      set({ user: null, isAuthenticated: false, isLoading: false });
-      return { success: true };
+      return {
+        success: false,
+        error: error?.message || "An error occurred during sign out",
+      };
     }
   },
 }));

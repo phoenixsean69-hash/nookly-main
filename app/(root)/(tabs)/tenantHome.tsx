@@ -1,4 +1,3 @@
-// app/(root)/tenantHome.tsx
 import DealsAlerts from "@/components/DealsAlerts";
 import FeaturedModal from "@/components/FeaturedModal";
 import QuickActions from "@/components/QuickActions";
@@ -133,26 +132,25 @@ const Home = () => {
       }
     }, [userId]),
   );
-  // Load avatar when screen focused (with caching)
-  useFocusEffect(
-    useCallback(() => {
-      let isActive = true;
 
-      const loadAvatar = async () => {
-        const saved = await getSavedAvatar();
-        if (isActive) {
-          setAvatarId(saved || "human-1");
-          setLoadingAvatar(false);
-        }
-      };
+  // Load avatar once on mount
+  useEffect(() => {
+    let isActive = true;
 
-      loadAvatar();
+    const loadAvatar = async () => {
+      const saved = await getSavedAvatar();
+      if (isActive) {
+        setAvatarId(saved || "human-1");
+        setLoadingAvatar(false);
+      }
+    };
 
-      return () => {
-        isActive = false;
-      };
-    }, []),
-  );
+    loadAvatar();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   // Fetch best properties for Featured section
   const fetchBestProperties = async () => {

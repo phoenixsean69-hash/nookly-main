@@ -1,4 +1,3 @@
-// app/(auth)/sign-in.tsx
 import CustomInput from "@/components/CustomInput";
 import ErrorModal from "@/components/ErrorModal";
 import { Colors } from "@/constants/Colors";
@@ -9,7 +8,6 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   Image,
   KeyboardAvoidingView,
@@ -328,26 +326,6 @@ const SignIn = () => {
                   secureTextEntry
                   error={getFieldError("password")}
                 />
-
-                {/* Forgot Password Link */}
-                <TouchableOpacity
-                  className="self-end mt-2"
-                  onPress={() => {
-                    // Handle forgot password
-                    Alert.alert(
-                      "Forgot Password",
-                      "Password reset feature coming soon. Please contact support if you need assistance.",
-                      [{ text: "OK" }],
-                    );
-                  }}
-                >
-                  <Text
-                    className="text-sm font-medium"
-                    style={{ color: theme.primary[300] }}
-                  >
-                    Forgot Password?
-                  </Text>
-                </TouchableOpacity>
 
                 {/* Sign In Button */}
                 <TouchableOpacity

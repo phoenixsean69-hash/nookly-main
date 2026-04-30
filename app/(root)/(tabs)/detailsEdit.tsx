@@ -469,7 +469,10 @@ export default function ChangeUserInfoScreen() {
         className="flex-row items-center px-5 py-4 border-b"
         style={{ borderBottomColor: theme.muted + "30" }}
       >
-        <TouchableOpacity onPress={() => router.back()} className="mr-4 p-2">
+        <TouchableOpacity
+          onPress={() => router.push("/profile")}
+          className="mr-4 p-2"
+        >
           <Image
             source={icons.backArrow}
             className="w-6 h-6"

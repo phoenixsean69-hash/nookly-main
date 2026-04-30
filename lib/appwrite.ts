@@ -1,3 +1,4 @@
+import notificationService from "@/services/notification.service";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as Linking from "expo-linking";
@@ -123,6 +124,8 @@ export const config = {
   requestsCollectionId: process.env.EXPO_PUBLIC_APPWRITE_REQUESTS_COLLECTION,
   matchProfilesCollectionId:
     process.env.EXPO_PUBLIC_MATCH_PROFILES_COLLECTION_ID,
+  pushTokensCollectionId:
+    process.env.EXPO_PUBLIC_APPWRITE_PUSH_TOKENS_COLLECTION_ID,
 };
 
 interface CreateUserParams {
@@ -153,6 +156,92 @@ export const getDefaultAvatarUrl = (name: string): string => {
   const encodedName = encodeURIComponent(name.trim() || "User");
   return `https://ui-avatars.com/api/?name=${encodedName}&background=random&color=fff&size=100&bold=true&format=png`;
 };
+
+const expoPushEndpoint =
+  process.env.EXPO_PUBLIC_PUSH_ENDPOINT ||
+  "https://exp.host/--/api/v2/push/send";
+
+interface AppwriteUserDocument {
+  $id: string;
+  accountId: string;
+  expoPushToken?: string;
+}
+
+async function getUserDocumentByIdOrAccountId(
+  userId: string,
+): Promise<AppwriteUserDocument | null> {
+  try {
+    let response = await databases.listDocuments(
+      config.databaseId!,
+      config.usersCollectionId!,
+      [Query.equal("$id", userId), Query.limit(1)],
+    );
+
+    if (response.documents.length > 0) {
+      return response.documents[0] as unknown as AppwriteUserDocument;
+    }
+
+    response = await databases.listDocuments(
+      config.databaseId!,
+      config.usersCollectionId!,
+      [Query.equal("accountId", userId), Query.limit(1)],
+    );
+
+    return response.documents.length > 0
+      ? (response.documents[0] as unknown as AppwriteUserDocument)
+      : null;
+  } catch (error) {
+    console.error("Error resolving user document by ID or accountId:", error);
+    return null;
+  }
+}
+
+export async function sendExpoPushToUser(
+  userId: string,
+  title: string,
+  body: string,
+  data: Record<string, unknown> = {},
+) {
+  try {
+    const userDoc = await getUserDocumentByIdOrAccountId(userId);
+    const token = userDoc?.expoPushToken;
+
+    if (!token) {
+      console.log("No Expo push token for user:", userId);
+      return false;
+    }
+
+    const response = await fetch(expoPushEndpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        to: token,
+        sound: "default",
+        title,
+        body,
+        data: {
+          notificationTitle: title,
+          notificationBody: body,
+          ...data,
+        },
+        priority: "high",
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Expo push failed: ${response.status} ${text}`);
+    }
+
+    console.log("✅ Expo push sent to user:", userId);
+    return true;
+  } catch (error) {
+    console.error("❌ Error sending Expo push:", error);
+    return false;
+  }
+}
 
 // ---------------- USER ----------------
 // createUser function
@@ -253,6 +342,24 @@ export const createUser = async ({
   }
 };
 
+export const updateUserPushToken = async (
+  userDocId: string,
+  token: string | null,
+) => {
+  try {
+    await databases.updateDocument(
+      config.databaseId!,
+      config.usersCollectionId!,
+      userDocId,
+      {
+        expoPushToken: token || "",
+      },
+    );
+  } catch (error: any) {
+    console.error("Error updating user push token:", error);
+  }
+};
+
 export const signIn = async ({ email, password }: SignInParams) => {
   try {
     return await account.createEmailPasswordSession(email, password);
@@ -326,7 +433,7 @@ export async function AddListing(
     agent?: string;
     creatorId?: string;
   },
-  onSuccess?: (newListing: any) => void, // Callback function
+  onSuccess?: (newListing: any) => void,
 ) {
   try {
     console.log("Creating listing with agent (user $id):", listing.agent);
@@ -360,6 +467,65 @@ export async function AddListing(
       id: response.$id,
       agent: response.agent,
     });
+
+    // 🚀 SEND PUSH NOTIFICATIONS TO TENANTS IN THE SAME AREA
+    try {
+      // Extract city/area from address
+      const addressParts = listing.address.split(",");
+      const city =
+        addressParts[addressParts.length - 2]?.trim() ||
+        addressParts[addressParts.length - 1]?.trim() ||
+        "Unknown";
+
+      // Get all tenants
+      const tenants = await databases.listDocuments(
+        config.databaseId!,
+        config.usersCollectionId!,
+        [Query.equal("userMode", "tenant")],
+      );
+
+      // Filter tenants who might be interested (based on saved searches or preferences)
+      // For now, send to all tenants in the same city
+      const interestedTenants = tenants.documents.filter((tenant) => {
+        // You could add more sophisticated matching here based on:
+        // - Tenant's preferred location from their match profile
+        // - Tenant's budget range
+        // - Tenant's saved searches
+        return true; // Send to all tenants for now
+      });
+
+      // Send notifications in batches to avoid overwhelming the API
+      const batchSize = 10;
+      for (let i = 0; i < interestedTenants.length; i += batchSize) {
+        const batch = interestedTenants.slice(i, i + batchSize);
+        const userIds = batch.map((tenant) => tenant.accountId);
+
+        await notificationService.sendBulkNotification(
+          userIds,
+          "New Property Listed!",
+          `${listing.propertyName} - $${listing.price}/month in ${city}`,
+          {
+            type: "property",
+            propertyId: response.$id,
+            screen: "explore",
+          },
+        );
+
+        console.log(
+          `📱 Sent notifications to ${userIds.length} tenants in batch ${i / batchSize + 1}`,
+        );
+      }
+
+      console.log(
+        `✅ Push notifications sent to ${interestedTenants.length} tenants`,
+      );
+    } catch (pushError) {
+      console.error(
+        "Failed to send push notifications for new listing:",
+        pushError,
+      );
+      // Don't throw - push notification failure shouldn't break the listing creation
+    }
 
     // Call the success callback if provided
     if (onSuccess) {
@@ -759,6 +925,27 @@ export const addReview = async (
         console.error(
           "❌ Failed to create review notification:",
           notificationError,
+        );
+      }
+
+      // After creating the review, send push notification
+      try {
+        await notificationService.sendNotificationToUser(
+          property.creatorId,
+          "New Review Received!",
+          `${currentUser.name || "Someone"} gave ${rating} star${rating !== 1 ? "s" : ""} to "${property.propertyName}"`,
+          {
+            type: "review",
+            propertyId: property.$id,
+            rating: rating,
+            screen: `/properties/${property.$id}`,
+          },
+        );
+        console.log("✅ Push notification sent to landlord about review");
+      } catch (pushError) {
+        console.error(
+          "Failed to send push notification for review:",
+          pushError,
         );
       }
     } else {
@@ -1292,6 +1479,25 @@ export async function toggleLike(propertyId: string, userId: string) {
         } catch (notificationError) {
           console.error("❌ Failed to create notification:", notificationError);
         }
+
+        try {
+          await notificationService.sendNotificationToUser(
+            property.creatorId,
+            "Someone liked your property!",
+            `${currentUser.name || "Someone"} liked "${property.propertyName}"`,
+            {
+              type: "like",
+              propertyId: property.$id,
+              screen: `/properties/${property.$id}`,
+            },
+          );
+          console.log("✅ Push notification sent to landlord about like");
+        } catch (pushError) {
+          console.error(
+            "Failed to send push notification for like:",
+            pushError,
+          );
+        }
       } else {
         console.log("⚠️ Skipping notification - conditions not met:", {
           hasCreatorId: !!property.creatorId,
@@ -1820,29 +2026,10 @@ export async function getUserNotifications(userId: string, limit: number = 50) {
   try {
     console.log("🔍 Fetching notifications for userId:", userId);
 
-    // Try to find the user's document ID if this is an accountId
-    let userDocId = userId;
+    const userDoc = await getUserDocumentByIdOrAccountId(userId);
+    const userDocId = userDoc?.$id || userId;
 
-    // Check if this is an accountId (starts with a specific pattern or is not a valid document ID)
-    // Appwrite document IDs are usually 20+ characters alphanumeric
-    if (userId.length < 36 || userId.includes("@")) {
-      console.log("📝 Looking up user by accountId:", userId);
-      const userDocs = await databases.listDocuments(
-        config.databaseId!,
-        config.usersCollectionId!,
-        [Query.equal("accountId", userId)],
-      );
-
-      if (userDocs.documents.length > 0) {
-        userDocId = userDocs.documents[0].$id;
-        console.log("✅ Found user document ID:", userDocId);
-      } else {
-        console.log("⚠️ No user found with accountId:", userId);
-        return [];
-      }
-    }
-
-    const notifications = await databases.listDocuments(
+    const notificationsByDocId = await databases.listDocuments(
       config.databaseId!,
       config.notificationsCollectionId!,
       [
@@ -1852,10 +2039,32 @@ export async function getUserNotifications(userId: string, limit: number = 50) {
       ],
     );
 
-    console.log("📊 Raw notifications count:", notifications.documents.length);
-    console.log("📊 Raw notifications:", notifications.documents);
+    let notificationDocs = [...notificationsByDocId.documents];
 
-    const formatted = notifications.documents.map((doc) => {
+    if (userDocId !== userId) {
+      const notificationsByAccountId = await databases.listDocuments(
+        config.databaseId!,
+        config.notificationsCollectionId!,
+        [
+          Query.equal("userId", userId),
+          Query.orderDesc("$createdAt"),
+          Query.limit(limit),
+        ],
+      );
+      notificationDocs = [
+        ...notificationDocs,
+        ...notificationsByAccountId.documents,
+      ];
+    }
+
+    const uniqueNotifications = Array.from(
+      new Map(notificationDocs.map((doc) => [doc.$id, doc])).values(),
+    );
+
+    console.log("📊 Raw notifications count:", uniqueNotifications.length);
+    console.log("📊 Raw notifications:", uniqueNotifications);
+
+    const formatted = uniqueNotifications.map((doc) => {
       let read = false;
       if (doc.read !== null && doc.read !== undefined) {
         read = doc.read === true || doc.read === "true";
@@ -1959,6 +2168,9 @@ export async function createNotification(
       title: notification.title,
     });
 
+    // Send real push notification after the in-app notification is stored
+    await sendExpoPushToUser(userDocId, title, message, data);
+
     return notification;
   } catch (error) {
     console.error("❌ Error creating notification:", error);
@@ -1987,8 +2199,6 @@ export async function testCreateNotification() {
     return null;
   }
 }
-
-// lib/appwrite.ts - Fix the requestProperty function
 
 export const requestProperty = async (
   propertyId: string,
@@ -2050,7 +2260,6 @@ export const requestProperty = async (
         tenantName: tenantName || "Tenant",
         tenantEmail: tenantEmail || "",
         status: "pending",
-        // Enhanced fields
         proposedPrice: requestData?.proposedPrice || property.price,
         originalPrice: property.price,
         message: requestData?.message || "",
@@ -2064,13 +2273,12 @@ export const requestProperty = async (
 
     console.log("✅ Request document created:", request.$id);
 
-    // First, get the landlord's user document ID
+    // Get landlord's user document ID for notifications
     let landlordUserDocId = property.creatorId;
 
     console.log("Looking up landlord with creatorId:", property.creatorId);
 
     // Check if property.creatorId is an accountId (not a document ID)
-    // Appwrite document IDs are typically longer and don't contain special chars
     if (property.creatorId && property.creatorId.length < 36) {
       console.log(
         "Looking up landlord document ID for accountId:",
@@ -2093,7 +2301,7 @@ export const requestProperty = async (
       }
     }
 
-    // Create notification for landlord using the correct document ID
+    // Create in-app notification for landlord
     if (landlordUserDocId) {
       const notificationMessage = `${tenantName || "A tenant"} has requested to rent "${property.propertyName}"${
         requestData?.proposedPrice &&
@@ -2102,9 +2310,9 @@ export const requestProperty = async (
           : ""
       }.`;
 
-      console.log("📧 Creating notification for landlord:", {
+      console.log("📧 Creating in-app notification for landlord:", {
         userId: landlordUserDocId,
-        title: "📝 New Rental Request",
+        title: "New Rental Request",
         message: notificationMessage,
       });
 
@@ -2113,8 +2321,8 @@ export const requestProperty = async (
         config.notificationsCollectionId!,
         "unique()",
         {
-          userId: landlordUserDocId, // Use the document ID from users collection
-          title: "📝 New Rental Request",
+          userId: landlordUserDocId,
+          title: "New Rental Request",
           message: notificationMessage,
           type: "request",
           data: JSON.stringify({
@@ -2130,7 +2338,23 @@ export const requestProperty = async (
         },
       );
 
-      console.log("✅ Notification created for landlord:", notification.$id);
+      console.log(
+        "✅ In-app notification created for landlord:",
+        notification.$id,
+      );
+
+      // 🚀 SEND PUSH NOTIFICATION TO LANDLORD
+      try {
+        await notificationService.sendRentalRequestNotification(
+          property.creatorId, // Landlord's account ID
+          tenantName || "A tenant",
+          property.propertyName,
+        );
+        console.log("✅ Push notification sent to landlord");
+      } catch (pushError) {
+        console.error("❌ Failed to send push notification:", pushError);
+        // Don't throw - push notification failure shouldn't break the request
+      }
     } else {
       console.error(
         "❌ Could not create notification - no landlord user ID found",
@@ -2148,24 +2372,8 @@ export const markAllNotificationsAsRead = async (userId: string) => {
   try {
     console.log("🔔 markAllNotificationsAsRead called for userId:", userId);
 
-    // Look up the user's document ID
-    let userDocId = userId;
-
-    if (userId.length < 36) {
-      const userDocs = await databases.listDocuments(
-        config.databaseId!,
-        config.usersCollectionId!,
-        [Query.equal("accountId", userId)],
-      );
-
-      if (userDocs.documents.length > 0) {
-        userDocId = userDocs.documents[0].$id;
-        console.log("📝 Found user document ID:", userDocId);
-      } else {
-        console.error("❌ User not found for ID:", userId);
-        return false;
-      }
-    }
+    const userDoc = await getUserDocumentByIdOrAccountId(userId);
+    const userDocId = userDoc?.$id || userId;
 
     // Get all unread notifications for this user
     const unreadNotifs = await databases.listDocuments(
@@ -2456,24 +2664,14 @@ export const cleanupOldAppwriteNotifications = async (userId: string) => {
   try {
     console.log("🧹 Cleaning up old Appwrite notifications...");
 
-    // Look up user's document ID
-    let userDocId = userId;
-    if (userId.length < 36) {
-      const userDocs = await databases.listDocuments(
-        config.databaseId!,
-        config.usersCollectionId!,
-        [Query.equal("accountId", userId)],
-      );
-      if (userDocs.documents.length > 0) {
-        userDocId = userDocs.documents[0].$id;
-      }
-    }
+    const userDoc = await getUserDocumentByIdOrAccountId(userId);
+    const userDocId = userDoc?.$id || userId;
 
     // Get read notifications older than 24 hours
     const oneDayAgo = new Date();
     oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-    const oldNotifications = await databases.listDocuments(
+    const notificationsByDocId = await databases.listDocuments(
       config.databaseId!,
       config.notificationsCollectionId!,
       [
@@ -2484,12 +2682,34 @@ export const cleanupOldAppwriteNotifications = async (userId: string) => {
       ],
     );
 
+    let oldNotifications = [...notificationsByDocId.documents];
+
+    if (userDocId !== userId) {
+      const notificationsByAccountId = await databases.listDocuments(
+        config.databaseId!,
+        config.notificationsCollectionId!,
+        [
+          Query.equal("userId", userId),
+          Query.equal("read", true),
+          Query.lessThan("$createdAt", oneDayAgo.toISOString()),
+          Query.limit(100),
+        ],
+      );
+      oldNotifications = Array.from(
+        new Map(
+          [...oldNotifications, ...notificationsByAccountId.documents].map(
+            (doc) => [doc.$id, doc],
+          ),
+        ).values(),
+      );
+    }
+
     console.log(
-      `📊 Found ${oldNotifications.documents.length} old notifications to delete`,
+      `📊 Found ${oldNotifications.length} old notifications to delete`,
     );
 
     // Delete them
-    const deletions = oldNotifications.documents.map((doc) =>
+    const deletions = oldNotifications.map((doc) =>
       databases.deleteDocument(
         config.databaseId!,
         config.notificationsCollectionId!,
@@ -2845,7 +3065,7 @@ export interface MatchProfile {
   avatar?: string;
   role: string;
   gender: "male" | "female";
-  preferredGender: "male" | "female";
+  preferredGender: "male" | "female" | "any";
   budget: number;
   preferredLocation: string;
   preferredRoommateType: string;
@@ -2871,6 +3091,63 @@ export const createMatchProfile = async (
           : profile.lifestyle,
       },
     );
+
+    // 🚀 SEND NOTIFICATIONS TO ALL TENANTS WHEN NEW MATCH PROFILE IS CREATED
+    try {
+      // Get all active match profiles (potential matches)
+      const allProfiles = await databases.listDocuments(
+        config.databaseId!,
+        config.matchProfilesCollectionId!,
+        [Query.equal("isActive", true)],
+      );
+
+      // Find compatible matches based on location, gender, and budget
+      const compatibleMatches = allProfiles.documents.filter((p) => {
+        if (p.userId === profile.userId) return false; // Skip self
+
+        // Location match (must be same or similar)
+        const locationMatch =
+          p.preferredLocation &&
+          profile.preferredLocation &&
+          (p.preferredLocation
+            .toLowerCase()
+            .includes(profile.preferredLocation.toLowerCase()) ||
+            profile.preferredLocation
+              .toLowerCase()
+              .includes(p.preferredLocation.toLowerCase()));
+
+        // Gender compatibility
+        const genderMatch =
+          (p.preferredGender === "any" ||
+            p.preferredGender === profile.gender) &&
+          (profile.preferredGender === "any" ||
+            profile.preferredGender === p.gender);
+
+        // Budget compatibility (within 20% range)
+        const budgetMatch =
+          p.budget &&
+          profile.budget &&
+          Math.abs(p.budget - profile.budget) <=
+            Math.max(p.budget, profile.budget) * 0.2;
+
+        return locationMatch && genderMatch && budgetMatch;
+      });
+
+      // Send notifications to each compatible match
+      for (const match of compatibleMatches) {
+        await notificationService.sendMatchNotification(
+          match.userId,
+          profile.name,
+          profile.preferredLocation,
+        );
+        console.log(`📱 Sent match notification to ${match.name}`);
+      }
+
+      console.log(`✅ Sent ${compatibleMatches.length} match notifications`);
+    } catch (notifyError) {
+      console.error("Error sending match notifications:", notifyError);
+    }
+
     return result;
   } catch (error) {
     console.error("Error creating match profile:", error);
@@ -2878,24 +3155,28 @@ export const createMatchProfile = async (
   }
 };
 
+// Store previous matches to detect new ones
+let previousMatchCache: Map<string, Set<string>> = new Map();
+
 export const getMatchProfiles = async (filters?: {
   location?: string;
   myGender?: "male" | "female";
   preferredGender?: "male" | "female";
   myBudget?: number;
+  currentUserId?: string; // Add current user ID to track matches
 }) => {
   try {
-    // Server-side: only active profiles + location
-    const queries: any[] = [Query.equal("isActive", true)];
+    console.log("🔍 getMatchProfiles called with filters:", filters);
 
-    if (filters?.location) {
-      queries.push(Query.search("preferredLocation", filters.location));
+    if (!filters?.location) {
+      console.log("⏳ Waiting for location...");
+      return []; // but ONLY if truly missing
     }
-
+    // Get all active profiles
     const result = await databases.listDocuments(
       config.databaseId!,
       config.matchProfilesCollectionId!,
-      queries,
+      [Query.equal("isActive", true)],
     );
 
     let profiles = result.documents.map((doc) => ({
@@ -2903,45 +3184,107 @@ export const getMatchProfiles = async (filters?: {
       lifestyle: doc.lifestyle
         ? (() => {
             try {
-              return JSON.parse(doc.lifestyle);
+              return JSON.parse((doc as any).lifestyle);
             } catch {
-              // fallback for old comma-separated format
-              return doc.lifestyle.split(", ").filter(Boolean);
+              return (doc as any).lifestyle?.split(", ").filter(Boolean) || [];
             }
           })()
         : [],
-    }));
+    })) as unknown as MatchProfile[];
 
-    // Client-side: mutual gender compatibility
-    if (filters?.myGender || filters?.preferredGender) {
+    let originalCount = profiles.length;
+    console.log(`📊 Total active profiles: ${originalCount}`);
+
+    // 1. FILTER BY LOCATION (REQUIRED)
+    if (filters?.location && filters.location.trim()) {
+      const normalizedLocation = filters.location.trim().toLowerCase();
       profiles = profiles.filter((p) => {
-        const profile = p as unknown as MatchProfile;
+        const locationValue = p.preferredLocation || "";
+        return locationValue.toLowerCase().includes(normalizedLocation);
+      });
+      console.log(
+        `📍 After location filter (${filters.location}): ${profiles.length} profiles (from ${originalCount})`,
+      );
+      originalCount = profiles.length;
+    } else {
+      console.log("⚠️ No location filter provided - returning empty");
+      return [];
+    }
 
+    // 2. FILTER BY GENDER COMPATIBILITY (REQUIRED)
+    if (filters?.myGender && filters?.preferredGender) {
+      profiles = profiles.filter((p) => {
+        if (!p.gender || !p.preferredGender) return false;
+
+        // They want me: their preferred gender matches my actual gender
         const theyWantMe =
-          !filters.myGender ||
-          profile.preferredGender === filters.myGender ||
-          (profile.preferredGender as any) === "any";
+          (p.preferredGender as string) === "any" ||
+          p.preferredGender === filters.myGender;
 
+        // I want them: my preferred gender matches their actual gender
         const iWantThem =
-          !filters.preferredGender ||
-          filters.preferredGender === profile.gender ||
-          filters.preferredGender === ("any" as any);
+          (filters.preferredGender as string) === "any" ||
+          filters.preferredGender === p.gender; // ✅ fixed
 
         return theyWantMe && iWantThem;
       });
+      console.log(`👥 After gender filter: ${profiles.length} profiles`);
+      originalCount = profiles.length;
+    } else {
+      console.log("⚠️ No gender filters provided - returning empty");
+      return [];
     }
 
-    // Client-side: budget within 50% of each other
-    if (filters?.myBudget) {
+    // 3. FILTER BY BUDGET (within 20% range)
+    if (filters?.myBudget && filters.myBudget > 0) {
       profiles = profiles.filter((p) => {
-        const profile = p as unknown as MatchProfile;
-        if (!profile.budget) return false;
-        const higher = Math.max(profile.budget, filters.myBudget!);
-        const lower = Math.min(profile.budget, filters.myBudget!);
-        return higher / lower <= 1.5;
+        if (!p.budget || p.budget <= 0) return false;
+
+        const difference = Math.abs(p.budget - filters.myBudget!);
+        const maxDifference = Math.max(p.budget, filters.myBudget!) * 0.2; // 20% tolerance
+
+        return difference <= maxDifference;
       });
+      console.log(`💰 After budget filter: ${profiles.length} profiles`);
     }
 
+    // 🚀 SEND PUSH NOTIFICATIONS FOR NEW MATCHES
+    if (filters?.currentUserId && profiles.length > 0) {
+      const cacheKey = `${filters.currentUserId}_${filters.location || ""}_${filters.myGender || ""}_${filters.preferredGender || ""}_${filters.myBudget || ""}`;
+      const previousMatches = previousMatchCache.get(cacheKey) || new Set();
+      const currentMatchIds = new Set(profiles.map((p) => p.userId));
+
+      // Find new matches (not in previous cache)
+      const newMatches = profiles.filter((p) => !previousMatches.has(p.userId));
+
+      if (newMatches.length > 0) {
+        console.log(
+          `🎯 Found ${newMatches.length} new matches for user ${filters.currentUserId}`,
+        );
+
+        // Send notifications for new matches
+        for (const match of newMatches) {
+          try {
+            await notificationService.sendMatchNotification(
+              filters.currentUserId,
+              match.name,
+              match.preferredLocation,
+            );
+            console.log(`📱 Sent match notification for: ${match.name}`);
+          } catch (notifyError) {
+            console.error(
+              `Failed to send notification for match ${match.name}:`,
+              notifyError,
+            );
+          }
+        }
+
+        // Update cache
+        previousMatchCache.set(cacheKey, currentMatchIds);
+      }
+    }
+
+    console.log(`✅ Final matches: ${profiles.length} profiles`);
     return profiles;
   } catch (error) {
     console.error("Error fetching match profiles:", error);

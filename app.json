@@ -39,6 +39,16 @@
       "favicon": "./assets/images/icon.png"
     },
     "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#3B82F6",
+          "sounds": [
+            "./assets/sounds/notification.wav"
+          ]
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",
@@ -61,7 +71,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "662a789c-62d2-4804-bbee-a76347d1bee6"
+        "projectId": "d78b4077-954b-49a5-8f31-01b64207fd8b"
       }
     },
     "owner": "phoenix69"

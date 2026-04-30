@@ -37,8 +37,7 @@ export default function SettingsScreen() {
   const [loading, setLoading] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
-  const [darkMode, setDarkMode] = useState(colorScheme === "dark");
-  const [biometricEnabled, setBiometricEnabled] = useState(false);
+
   const [clearDataLoading, setClearDataLoading] = useState(false);
 
   // Load saved preferences
@@ -50,13 +49,11 @@ export default function SettingsScreen() {
     try {
       const push = await AsyncStorage.getItem("push_notifications");
       const email = await AsyncStorage.getItem("email_notifications");
-      const dark = await AsyncStorage.getItem("dark_mode");
-      const bio = await AsyncStorage.getItem("biometric_enabled");
+
 
       if (push !== null) setPushEnabled(push === "true");
       if (email !== null) setEmailEnabled(email === "true");
-      if (dark !== null) setDarkMode(dark === "true");
-      if (bio !== null) setBiometricEnabled(bio === "true");
+
     } catch (error) {
       console.error("Error loading settings:", error);
     }
@@ -113,8 +110,6 @@ export default function SettingsScreen() {
               await AsyncStorage.multiRemove([
                 "push_notifications",
                 "email_notifications",
-                "dark_mode",
-                "biometric_enabled",
               ]);
 
               // Clear avatar cache
@@ -133,19 +128,6 @@ export default function SettingsScreen() {
     );
   };
 
-  const [checkingUpdates, setCheckingUpdates] = useState(false);
-
-  const handleCheckForUpdates = () => {
-    setCheckingUpdates(true);
-
-    setTimeout(() => {
-      setCheckingUpdates(false);
-      Alert.alert("Nookly", "You're running the latest version of Nookly!", [
-        { text: "OK" },
-      ]);
-    }, 1500);
-  };
-
   const handleExportData = async () => {
     Alert.alert(
       "Export Data",
@@ -161,7 +143,6 @@ export default function SettingsScreen() {
                 preferences: {
                   pushNotifications: pushEnabled,
                   emailNotifications: emailEnabled,
-                  darkMode: darkMode,
                 },
                 notificationsCount: notifications.length,
                 exportDate: new Date().toISOString(),
@@ -276,12 +257,6 @@ export default function SettingsScreen() {
           onPress: handleClearAllData,
           danger: true,
         },
-        {
-          icon: icons.refresh,
-          title: "Check for Updates",
-          subtitle: "App version 1.0.0",
-          onPress: handleCheckForUpdates,
-        },
       ] as SettingItem[],
     },
     {
@@ -342,9 +317,7 @@ export default function SettingsScreen() {
       >
         <TouchableOpacity
           onPress={() => {
-            router.replace(
-              user?.userMode === "landlord" ? "/landHome" : "/tenantHome",
-            );
+            router.back();
           }}
           className="mr-4 p-2"
         >

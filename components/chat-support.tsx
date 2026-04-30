@@ -316,7 +316,7 @@ class IntelligentResponseGenerator {
     if (location) response += `📍 Location: ${location}\n`;
     if (price) response += `💰 Budget: $${price}\n`;
     response += `🏠 Type: ${propertyType}\n\n`;
-    response += `**Quick Tips:**\n• Use filters on search page\n• Sort by newest or price\n• Save favorites with ❤️\n• Enable notifications for new listings\n\n`;
+    response += `**Quick Tips:**\n• Use filters on search page\n• Sort by newest or price\n• Save favorites \n• Enable notifications for new listings\n\n`;
 
     if (sentiment === "positive") {
       response +=
@@ -330,7 +330,7 @@ class IntelligentResponseGenerator {
   }
 
   private getFavoritesResponse(): string {
-    return `💖 **Your Favorites**\n\n• Tap ❤️ on any property to save\n• View all in 'My Favorites'\n• Get notified when price drops\n• Share favorites with friends\n• Remove by tapping ❤️ again\n\n💡 **Pro Tip:** Enable notifications to never miss updates on your favorite properties!`;
+    return `💖 **Your Favorites**\n\n• Tap Save,on each property to save it for offline view\n• View all in 'My Favorites'\n• Get notified when price drops\n• Share favorites with friends\n• Remove by tapping ❤️ again\n\n💡 **Pro Tip:** Enable notifications to never miss updates on your favorite properties!`;
   }
 
   private getContactResponse(): string {
