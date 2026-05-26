@@ -1,3 +1,4 @@
+import { client, config } from "@/lib/appwrite";
 import { Tabs, useFocusEffect } from "expo-router";
 import { useCallback, useEffect } from "react";
 import {
@@ -14,24 +15,18 @@ import useAuthStore from "@/store/auth.store";
 import { useMatchStore } from "@/store/match.store";
 import { Colors } from "../../../constants/Colors";
 
-// Ignore specific warnings that are not critical
 LogBox.ignoreLogs([
   "JSON Parse error",
   "Error parsing reviews",
   "Setting a timer",
-]);
-
-// Optional: Ignore all warnings in production
-if (!__DEV__) {
-  LogBox.ignoreAllLogs();
-}
-// Ignore specific Appwrite-related errors
-LogBox.ignoreLogs([
   "JSON Parse error: Unexpected character: G",
-  "Error parsing reviews",
   "Error fetchingagent",
   "Error checking like status",
 ]);
+
+if (!__DEV__) {
+  LogBox.ignoreAllLogs();
+}
 
 const TabIcon = ({
   focused,
@@ -64,7 +59,6 @@ const TabIcon = ({
         {title}
       </Text>
 
-      {/* Badge for Match tab */}
       {badgeCount !== undefined && badgeCount > 0 && (
         <View className="absolute -top-1 -right-2 bg-red-500 rounded-full min-w-[18px] h-[18px] px-1 items-center justify-center">
           <Text className="text-white text-xs font-bold">
@@ -78,22 +72,43 @@ const TabIcon = ({
 
 const TabsLayout = () => {
   const { user } = useAuthStore();
-  const { matchCount, fetchMatchCount, markMatchesAsViewed } = useMatchStore();
+  // ✅ Removed markMatchesAsViewed since it's unused here
+  const { matchCount, fetchMatchCount } = useMatchStore();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
 
+  // ✅ Merged into one effect, added fetchMatchCount to deps
   useEffect(() => {
-    if (user?.accountId) {
-      fetchMatchCount(user.accountId);
-    }
-  }, [user, fetchMatchCount]);
+    if (!user?.accountId) return;
 
+    fetchMatchCount(user.accountId);
+
+    const unsubscribe = client.subscribe(
+      `databases.${config.databaseId}.collections.${config.matchProfilesCollectionId}.documents`,
+      (response) => {
+        if (
+          response.events.includes(
+            "databases.*.collections.*.documents.*.create",
+          ) ||
+          response.events.includes(
+            "databases.*.collections.*.documents.*.update",
+          )
+        ) {
+          fetchMatchCount(user.accountId);
+        }
+      },
+    );
+
+    return () => unsubscribe();
+  }, [user?.accountId, fetchMatchCount]); // ✅ fetchMatchCount added to deps
+
+  // Keep focus effect for when user navigates back to tab layout
   useFocusEffect(
     useCallback(() => {
       if (user?.accountId) {
         fetchMatchCount(user.accountId);
       }
-    }, [user, fetchMatchCount]),
+    }, [user?.accountId, fetchMatchCount]),
   );
 
   return (

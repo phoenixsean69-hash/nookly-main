@@ -162,9 +162,9 @@ export const Card = ({ item, onPress }: Props) => {
         )}
 
         {/* Rating Badge - Top Right */}
-        <View className="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded-full flex-row items-center">
-          <Image source={icons.star} className="w-3 h-3" />
-          <Text className="text-xs font-rubik-bold text-primary-300 ml-0.5">
+        <View className="flex flex-row items-center bg-white/90 px-3 py-1.5 rounded-full absolute top-2 right-2 z-10">
+          <Image source={icons.star} className="size-3.5" />
+          <Text className="text-xs font-rubik-bold text-primary-300 ml-1">
             {rating.toFixed()}
           </Text>
         </View>

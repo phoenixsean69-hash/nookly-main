@@ -104,44 +104,50 @@ export const useMatchStore = create<MatchStore>((set, get) => ({
       }
 
       const myProfile = await getUserMatchProfile(userId);
-      if (myProfile?.preferredLocation) {
-        const matches = await getMatchProfiles({
-          location: myProfile.preferredLocation,
-        });
-        const filteredMatches = matches.filter((m: any) => m.userId !== userId);
-        const newMatchCount = filteredMatches.length;
-        const previousCount = get().previousMatchCount;
 
-        // Update count
-        set({ matchCount: newMatchCount, previousMatchCount: newMatchCount });
-
-        // Check for new matches and send notifications
-        if (newMatchCount > previousCount) {
-          // Find which matches are new
-          const previousMatchesKey = `previous_matches_${userId}`;
-          const previousMatchesStr =
-            await AsyncStorage.getItem(previousMatchesKey);
-          const previousMatchIds = previousMatchesStr
-            ? JSON.parse(previousMatchesStr)
-            : [];
-
-          const newMatches = filteredMatches.filter(
-            (m) => !previousMatchIds.includes(m.$id),
-          );
-
-          if (newMatches.length > 0) {
-            await get().checkAndNotifyNewMatches(userId, newMatches);
-          }
-
-          // Store current match IDs for next comparison
-          const currentMatchIds = filteredMatches.map((m) => m.$id);
-          await AsyncStorage.setItem(
-            previousMatchesKey,
-            JSON.stringify(currentMatchIds),
-          );
-        }
-      } else {
+      if (!myProfile?.preferredLocation) {
         set({ matchCount: 0, previousMatchCount: 0 });
+        return;
+      }
+
+      // ✅ Pass all required filters — same as match.tsx does
+      const matches = await getMatchProfiles({
+        location: myProfile.preferredLocation,
+        myGender: myProfile.gender as "male" | "female",
+        preferredGender: myProfile.preferredGender as "male" | "female",
+        myBudget: myProfile.budget,
+      });
+
+      const filteredMatches = matches.filter((m: any) => m.userId !== userId);
+      const newMatchCount = filteredMatches.length;
+      const previousCount = get().previousMatchCount;
+
+      // Update count
+      set({ matchCount: newMatchCount, previousMatchCount: newMatchCount });
+
+      // Check for new matches and notify
+      if (newMatchCount > previousCount) {
+        const previousMatchesKey = `previous_matches_${userId}`;
+        const previousMatchesStr =
+          await AsyncStorage.getItem(previousMatchesKey);
+        const previousMatchIds = previousMatchesStr
+          ? JSON.parse(previousMatchesStr)
+          : [];
+
+        const newMatches = filteredMatches.filter(
+          (m) => !previousMatchIds.includes(m.$id),
+        );
+
+        if (newMatches.length > 0) {
+          await get().checkAndNotifyNewMatches(userId, newMatches);
+        }
+
+        // Store current match IDs for next comparison
+        const currentMatchIds = filteredMatches.map((m) => m.$id);
+        await AsyncStorage.setItem(
+          previousMatchesKey,
+          JSON.stringify(currentMatchIds),
+        );
       }
     } catch (error) {
       console.error("Error fetching match count:", error);

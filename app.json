@@ -28,6 +28,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.shon1123.Nookly",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
@@ -71,7 +72,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "d78b4077-954b-49a5-8f31-01b64207fd8b"
+        "projectId": "3b5a1bef-a36d-43e0-8596-83755d6c179c"
       }
     },
     "owner": "phoenix69"

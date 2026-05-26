@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "102869032525",
+    "project_id": "nookly-b3229",
+    "storage_bucket": "nookly-b3229.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:102869032525:android:f6070722b8e832be130604",
+        "android_client_info": {
+          "package_name": "com.shon1123.Nookly"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkUdB1fBvrAn1e3ur0-XRcNjHEgta98FE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

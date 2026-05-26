@@ -473,9 +473,9 @@ export async function AddListing(
       // Extract city/area from address
       const addressParts = listing.address.split(",");
       const city =
-        addressParts[addressParts.length - 2]?.trim() ||
-        addressParts[addressParts.length - 1]?.trim() ||
-        "Unknown";
+        addressParts.length >= 2
+          ? `${addressParts[addressParts.length - 2]?.trim()}, ${addressParts[addressParts.length - 1]?.trim()}`
+          : addressParts[addressParts.length - 1]?.trim() || "Unknown";
 
       // Get all tenants
       const tenants = await databases.listDocuments(
@@ -1047,94 +1047,6 @@ export async function deleteProperty(propertyId: string) {
   }
 }
 
-export async function getProperties({
-  filter,
-  query,
-  limit,
-}: {
-  filter: string;
-  query: string;
-  limit?: number;
-}) {
-  try {
-    const buildQuery = [Query.orderDesc("$createdAt")];
-    // Inside getProperties, replace the search block with:
-    if (query && query.trim() !== "") {
-      const searchFields = [
-        Query.search("propertyName", query),
-        Query.search("facilities", query),
-        Query.search("description", query),
-        Query.search("address", query),
-        Query.search("type", query),
-        ...(!isNaN(Number(query)) ? [Query.equal("price", Number(query))] : []),
-      ].filter((q): q is string => q !== null);
-      buildQuery.push(Query.or(searchFields));
-    }
-    if (filter && filter !== "All")
-      buildQuery.push(Query.equal("type", filter));
-    const fetchLimit = query && query.trim() !== "" ? 50 : limit || 10;
-    buildQuery.push(Query.limit(fetchLimit));
-
-    const result = await databases.listDocuments(
-      config.databaseId!,
-      config.propertiesCollectionId!,
-      buildQuery,
-    );
-
-    let propertiesWithDetails = await Promise.all(
-      result.documents.map(async (property) => {
-        // Agent - Fetch from USERS collection
-        if (property.agent) {
-          try {
-            const agent = await databases.getDocument(
-              config.databaseId!,
-              config.usersCollectionId!,
-              property.agent,
-            );
-            property.agent = agent;
-          } catch (error) {
-            property.agent = null;
-          }
-        }
-
-        // Reviews → calculate average rating from JSON string
-        if (property.reviews) {
-          try {
-            const parsedReviews = JSON.parse(property.reviews);
-            if (parsedReviews.length > 0) {
-              const sum = parsedReviews.reduce(
-                (acc: number, r: any) => acc + (r.rating || 0),
-                0,
-              );
-              property.rating = Number((sum / parsedReviews.length).toFixed(1));
-            } else {
-              property.rating = 0;
-            }
-          } catch (e) {
-            property.rating = 0;
-          }
-        } else {
-          property.rating = 0;
-        }
-
-        // Resolve image file IDs into preview URLs
-        if (property.images && Array.isArray(property.images)) {
-          property.images = property.images.map((fileId: string) =>
-            storage.getFilePreview(config.bucketId!, fileId),
-          );
-        }
-
-        return property;
-      }),
-    );
-
-    return propertiesWithDetails;
-  } catch (error) {
-    console.error(error);
-    return [];
-  }
-}
-
 export async function getPropertiesByCreator(
   creatorId: string,
   limit: number = 10,
@@ -1256,7 +1168,7 @@ export async function getPropertyById({ id }: { id: string }) {
       }
     }
 
-    // ... rest of the code
+    // ... rest of the code ... //
     return property;
   } catch (error) {
     console.error("❌ Error in getPropertyById:", error);
@@ -1273,8 +1185,100 @@ export async function getLikesCount(propertyId: string) {
   );
   return res.total;
 }
-// lib/appwrite.ts - Update getLatestProperties
+// lib/appwrit - Properties
+export async function getProperties({
+  filter,
+  query,
+  limit,
+}: {
+  filter: string;
+  query: string;
+  limit?: number;
+}) {
+  try {
+    const buildQuery = [Query.orderDesc("$createdAt")];
+    // Inside getProperties, replace the search block with:
+    if (query && query.trim() !== "") {
+      const searchFields = [
+        Query.search("propertyName", query),
+        Query.search("facilities", query),
+        Query.search("description", query),
+        Query.search("address", query),
+        Query.search("type", query),
+        ...(!isNaN(Number(query)) ? [Query.equal("price", Number(query))] : []),
+      ].filter((q): q is string => q !== null);
+      buildQuery.push(Query.or(searchFields));
+    }
+    if (filter && filter !== "All")
+      buildQuery.push(Query.equal("type", filter));
+    const fetchLimit = query && query.trim() !== "" ? 50 : limit || 10;
+    buildQuery.push(Query.limit(fetchLimit));
 
+    const result = await databases.listDocuments(
+      config.databaseId!,
+      config.propertiesCollectionId!,
+      buildQuery,
+    );
+
+    let propertiesWithDetails = await Promise.all(
+      result.documents.map(async (property) => {
+        // Agent - Fetch from USERS collection
+        if (property.agent) {
+          try {
+            const agent = await databases.getDocument(
+              config.databaseId!,
+              config.usersCollectionId!,
+              property.agent,
+            );
+            property.agent = agent;
+          } catch (error) {
+            property.agent = null;
+          }
+        }
+
+        let rating = 0;
+        if (property.reviews) {
+          try {
+            if (typeof property.reviews === "string") {
+              const trimmed = property.reviews.trim();
+              if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+                const parsedReviews = JSON.parse(property.reviews);
+                if (Array.isArray(parsedReviews) && parsedReviews.length > 0) {
+                  const sum = parsedReviews.reduce(
+                    (acc: number, r: any) => acc + (r.rating || 0),
+                    0,
+                  );
+                  rating = Number((sum / parsedReviews.length).toFixed(1));
+                }
+              }
+            }
+          } catch (e) {
+            console.warn(
+              `⚠️ Error parsing reviews for property ${property.$id}:`,
+              e,
+            );
+            rating = 0;
+          }
+        }
+        property.rating = rating;
+
+        // Resolve image file IDs into preview URLs
+        if (property.images && Array.isArray(property.images)) {
+          property.images = property.images.map((fileId: string) =>
+            storage.getFilePreview(config.bucketId!, fileId),
+          );
+        }
+
+        return property;
+      }),
+    );
+
+    return propertiesWithDetails;
+  } catch (error) {
+    console.error(error);
+    return [];
+  }
+}
 export async function getLatestProperties() {
   try {
     const result = await databases.listDocuments(
@@ -1300,7 +1304,7 @@ export async function getLatestProperties() {
           }
         }
 
-        // ✅ ADD THIS: Calculate rating from reviews
+        // Calculating rating from reviews
         let rating = 0;
         if (property.reviews) {
           try {
@@ -1817,56 +1821,6 @@ function formatTimeAgo(date: Date): string {
   if (diffInSeconds < 86400)
     return `${Math.floor(diffInSeconds / 3600)} hours ago`;
   return `${Math.floor(diffInSeconds / 86400)} days ago`;
-}
-
-export async function getAvailableProperties({
-  filter,
-  query,
-  limit,
-  creatorId,
-}: {
-  filter?: string;
-  query?: string;
-  limit?: number;
-  creatorId?: string;
-}) {
-  try {
-    const buildQuery = [Query.orderDesc("$createdAt")];
-
-    if (creatorId) {
-      buildQuery.push(Query.equal("creatorId", creatorId));
-    }
-
-    if (filter && filter !== "All") {
-      buildQuery.push(Query.equal("type", filter));
-    }
-
-    if (query && query.trim() !== "") {
-      buildQuery.push(
-        Query.or([
-          Query.search("propertyName", query),
-          Query.search("address", query),
-          Query.search("description", query),
-          Query.search("type", query),
-        ]),
-      );
-    }
-
-    const fetchLimit = query && query.trim() !== "" ? 50 : limit || 10;
-    buildQuery.push(Query.limit(fetchLimit));
-
-    const result = await databases.listDocuments(
-      config.databaseId!,
-      config.propertiesCollectionId!,
-      buildQuery,
-    );
-
-    // ... (optional: process agents, reviews, images)
-    return result.documents;
-  } catch (error) {
-    console.error("Error in getAvailableProperties:", error);
-    return [];
-  }
 }
 
 // Get price drop properties (you'll need to track price history)
@@ -3343,3 +3297,79 @@ export const deleteMatchProfile = async (profileId: string) => {
     return false;
   }
 };
+
+export async function getAvailableProperties({
+  filter,
+  query,
+  limit,
+  creatorId,
+}: {
+  filter?: string;
+  query?: string;
+  limit?: number;
+  creatorId?: string;
+}) {
+  try {
+    const buildQuery = [Query.orderDesc("$createdAt")];
+
+    if (creatorId) {
+      buildQuery.push(Query.equal("creatorId", creatorId));
+    }
+
+    if (filter && filter !== "All") {
+      buildQuery.push(Query.equal("type", filter));
+    }
+
+    if (query && query.trim() !== "") {
+      buildQuery.push(
+        Query.or([
+          Query.search("propertyName", query),
+          Query.search("address", query),
+          Query.search("description", query),
+          Query.search("type", query),
+        ]),
+      );
+    }
+
+    const fetchLimit = query && query.trim() !== "" ? 50 : limit || 10;
+    buildQuery.push(Query.limit(fetchLimit));
+
+    const result = await databases.listDocuments(
+      config.databaseId!,
+      config.propertiesCollectionId!,
+      buildQuery,
+    );
+
+    // ✅ ADD THIS: Process documents to calculate ratings
+    const propertiesWithDetails = await Promise.all(
+      result.documents.map(async (property) => {
+        // Calculate rating from reviews
+        if (property.reviews) {
+          try {
+            const parsedReviews = JSON.parse(property.reviews);
+            if (parsedReviews.length > 0) {
+              const sum = parsedReviews.reduce(
+                (acc: number, r: any) => acc + (r.rating || 0),
+                0,
+              );
+              property.rating = Number((sum / parsedReviews.length).toFixed(1));
+            } else {
+              property.rating = 0;
+            }
+          } catch (e) {
+            property.rating = 0;
+          }
+        } else {
+          property.rating = 0;
+        }
+
+        return property;
+      }),
+    );
+
+    return propertiesWithDetails;
+  } catch (error) {
+    console.error("Error in getAvailableProperties:", error);
+    return [];
+  }
+}

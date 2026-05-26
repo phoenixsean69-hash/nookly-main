@@ -120,7 +120,7 @@ export default function LandlordDashboard() {
     {
       icon: icons.calendar,
       label: "Calendar",
-      onPress: () => router.push("/calendar"),
+      onPress: () => router.push("/landCalendar"),
       color: "#F59E0B",
     },
   ];

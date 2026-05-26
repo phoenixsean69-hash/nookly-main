@@ -1,6 +1,9 @@
 // app/match.tsx
 import ContactModal from "@/components/ContactModal";
-
+import ProfileHiddenModal from "@/components/ProfileHiddenModal";
+import ProfilePostedModal from "@/components/ProfilePostedModal";
+import ProfileUpdatedModal from "@/components/ProfileUpdatedModal";
+import ProfileVisibleModal from "@/components/ProfileVisibleModal";
 import { Colors } from "@/constants/Colors";
 import {
   client,
@@ -63,6 +66,10 @@ const Match = () => {
     "student" | "professional" | "tenant"
   >("student");
   const [isActive, setIsActive] = useState(true);
+  const [showProfileUpdated, setShowProfileUpdated] = useState(false);
+  const [showProfilePosted, setShowProfilePosted] = useState(false);
+  const [showProfileHidden, setShowProfileHidden] = useState(false);
+  const [showProfileVisible, setShowProfileVisible] = useState(false);
 
   // Date picker states
   const [day, setDay] = useState("");
@@ -288,21 +295,16 @@ const Match = () => {
 
     try {
       await updateMatchProfile(myProfile.$id, { isActive: newStatus });
-      Alert.alert(
-        newStatus ? "Search Activated" : "Search Deactivated",
-        newStatus
-          ? "Your profile is now visible to potential matches."
-          : "Your profile has been hidden. You can reactivate it anytime.",
-      );
 
       if (newStatus) {
+        setShowProfileVisible(true);
         loadMatches(myProfile as unknown as MatchProfile);
       } else {
+        setShowProfileHidden(true);
         setMatches([]);
       }
     } catch (error) {
       console.error("Error updating profile status:", error);
-      Alert.alert("Error", "Failed to update search status");
       setIsActive(!newStatus);
     }
   };
@@ -347,15 +349,12 @@ const Match = () => {
 
       if (hasProfile && myProfile) {
         await updateMatchProfile(myProfile.$id, profileData);
-
-        // ✅ Clear stale matches and reload with updated profile
         setMatches([]);
         await loadMatches({ ...myProfile, ...profileData } as MatchProfile);
-
-        Alert.alert("Success", "Your profile has been updated!");
+        setShowProfileUpdated(true);
       } else {
         await createMatchProfile(profileData);
-        Alert.alert("Success", "Your profile has been posted!");
+        setShowProfilePosted(true);
       }
 
       setShowProfileForm(false);
@@ -1310,62 +1309,198 @@ const Match = () => {
 
       {/* Profile Summary Card */}
       <View
-        className="mx-5 mt-4 p-4 rounded-2xl"
+        className="mx-5 mt-4 rounded-3xl overflow-hidden"
         style={{
-          borderColor: theme.muted + "30",
-          borderWidth: 1,
           backgroundColor: theme.surface,
+          borderWidth: 1,
+          borderColor: theme.primary[300] + "20",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.08,
+          shadowRadius: 12,
+          elevation: 5,
         }}
       >
-        <View className="flex-row justify-between items-start">
-          <View className="flex-1">
-            <Text className="text-sm text-white font-rubik-medium mb-2">
-              Your Search
-            </Text>
-            <Text
-              className="text-base font-rubik-bold"
-              style={{ color: theme.title }}
-            >
-              {myProfile?.userType === "student"
-                ? "Student"
-                : myProfile?.userType}{" "}
-              Searching in {myProfile?.preferredLocation}
-            </Text>
-            <Text className="text-sm mt-1" style={{ color: theme.muted }}>
-              Budget: ${myProfile?.budget}/month • Looking for:{" "}
-              {myProfile?.lookingFor}
-            </Text>
+        {/* Top Gradient Accent */}
+        <View
+          style={{
+            height: 6,
+            backgroundColor: theme.primary[300],
+          }}
+        />
+
+        <View className="p-5">
+          {/* Header */}
+          <View className="flex-row justify-between items-start">
+            <View className="flex-1 pr-3">
+              {/* Small Badge */}
+              <View
+                className="self-start px-3 py-1 rounded-full mb-3"
+                style={{
+                  backgroundColor: theme.primary[100],
+                }}
+              >
+                <Text
+                  className="text-xs font-rubik-bold"
+                  style={{ color: theme.primary[300] }}
+                >
+                  YOUR SEARCH PROFILE
+                </Text>
+              </View>
+
+              {/* Main Info */}
+              <Text
+                className="text-xl font-rubik-bold leading-8"
+                style={{ color: theme.title }}
+              >
+                {myProfile?.userType === "student"
+                  ? "🎓 Student"
+                  : myProfile?.userType === "professional"
+                    ? "💼 Professional"
+                    : "🏠 Tenant"}
+              </Text>
+
+              <View className="flex-row items-center mt-2">
+                <Ionicons
+                  name="location-outline"
+                  size={16}
+                  color={theme.primary[300]}
+                />
+                <Text
+                  className="ml-1 text-sm font-rubik-medium"
+                  style={{ color: theme.text }}
+                >
+                  {myProfile?.preferredLocation}
+                </Text>
+              </View>
+
+              <View className="flex-row flex-wrap mt-4 gap-2">
+                {/* Budget Pill */}
+                <View
+                  className="px-3 py-2 rounded-full flex-row items-center"
+                  style={{
+                    backgroundColor: theme.background,
+                  }}
+                >
+                  <Ionicons
+                    name="cash-outline"
+                    size={14}
+                    color={theme.primary[300]}
+                  />
+                  <Text
+                    className="ml-1 text-xs font-rubik-medium"
+                    style={{ color: theme.text }}
+                  >
+                    ${myProfile?.budget}/month
+                  </Text>
+                </View>
+
+                {/* Looking For */}
+                <View
+                  className="px-3 py-2 rounded-full flex-row items-center"
+                  style={{
+                    backgroundColor: theme.background,
+                  }}
+                >
+                  <Ionicons
+                    name="people-outline"
+                    size={14}
+                    color={theme.primary[300]}
+                  />
+                  <Text
+                    className="ml-1 text-xs font-rubik-medium"
+                    style={{ color: theme.text }}
+                  >
+                    {myProfile?.lookingFor}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Active Toggle */}
+            <View className="items-end">
+              <TouchableOpacity
+                onPress={handleToggleActiveStatus}
+                activeOpacity={0.8}
+                className="px-4 py-3 rounded-2xl flex-row items-center"
+                style={{
+                  backgroundColor: isActive ? "#16A34A" : "#9CA3AF",
+                  shadowColor: isActive ? "#16A34A" : "#9CA3AF",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.25,
+                  shadowRadius: 8,
+                  elevation: 4,
+                }}
+              >
+                <Ionicons
+                  name={isActive ? "checkmark-circle" : "pause-circle"}
+                  size={18}
+                  color="white"
+                />
+
+                <Text className="text-white text-xs font-rubik-bold ml-2">
+                  {isActive ? "ACTIVE" : "PAUSED"}
+                </Text>
+              </TouchableOpacity>
+
+              <Text
+                className="text-[11px] mt-2 text-center"
+                style={{ color: theme.muted }}
+              >
+                {isActive ? "Visible to matches" : "Hidden from matches"}
+              </Text>
+            </View>
           </View>
 
-          {/* Active/Paused Toggle */}
-          <View className="items-end">
+          {/* Bottom Actions */}
+          <View
+            className="flex-row justify-between items-center mt-5 pt-4"
+            style={{
+              borderTopWidth: 1,
+              borderTopColor: theme.muted + "15",
+            }}
+          >
+            <View className="flex-row items-center">
+              <View
+                className="w-2 h-2 rounded-full mr-2"
+                style={{
+                  backgroundColor: isActive ? "#16A34A" : "#9CA3AF",
+                }}
+              />
+
+              <Text
+                className="text-xs font-rubik-medium"
+                style={{ color: theme.muted }}
+              >
+                {isActive
+                  ? "Searching for matches..."
+                  : "Search currently paused"}
+              </Text>
+            </View>
+
             <TouchableOpacity
-              onPress={handleToggleActiveStatus}
-              className={`px-4 py-2 rounded-full flex-row items-center ${
-                isActive ? "bg-green-500" : "bg-gray-400"
-              }`}
+              onPress={() => setShowProfileForm(true)}
+              activeOpacity={0.7}
+              className="px-4 py-2 rounded-full flex-row items-center"
+              style={{
+                backgroundColor: theme.primary[100],
+              }}
             >
               <Ionicons
-                name={isActive ? "checkmark-circle" : "pause-circle"}
-                size={18}
-                color="white"
+                name="create-outline"
+                size={14}
+                color={theme.primary[300]}
               />
-              <Text className="text-white text-xs font-rubik-medium ml-1">
-                {isActive ? "Active" : "Paused"}
+
+              <Text
+                className="ml-1 text-xs font-rubik-bold"
+                style={{ color: theme.primary[300] }}
+              >
+                Edit Profile
               </Text>
             </TouchableOpacity>
-            <Text className="text-xs mt-1 text-gray-500">
-              {isActive ? "Your search is active" : "Your search is paused"}
-            </Text>
           </View>
         </View>
-
-        <TouchableOpacity
-          onPress={() => setShowProfileForm(true)}
-          className="mt-3 self-start"
-        >
-          <Text className="text-xs text-primary-300">Edit Profile</Text>
-        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -1375,6 +1510,24 @@ const Match = () => {
       ) : (
         renderMatchesList()
       )}
+
+      {/* Modals */}
+      <ProfileUpdatedModal
+        visible={showProfileUpdated}
+        onClose={() => setShowProfileUpdated(false)}
+      />
+      <ProfilePostedModal
+        visible={showProfilePosted}
+        onClose={() => setShowProfilePosted(false)}
+      />
+      <ProfileHiddenModal
+        visible={showProfileHidden}
+        onClose={() => setShowProfileHidden(false)}
+      />
+      <ProfileVisibleModal
+        visible={showProfileVisible}
+        onClose={() => setShowProfileVisible(false)}
+      />
 
       {selectedMatch && (
         <ContactModal

@@ -99,6 +99,21 @@ const FeaturedModal = ({
                   </Text>
 
                   <View className="flex-row items-center mb-1">
+                    <Text
+                      className="text-xs font-rubik-medium"
+                      style={{ color: theme.muted }}
+                    >
+                      {item.type}
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-center mb-1">
+                    <Text
+                      className="text-xs font-rubik-medium"
+                      style={{ color: theme.muted }}
+                    >
+                      Overall Rating:
+                    </Text>
                     <Image
                       source={icons.star}
                       className="w-3.5 h-3.5"
