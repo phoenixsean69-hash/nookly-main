@@ -268,7 +268,7 @@ const SignUp = () => {
             fileName: `avatar_${Date.now()}.jpg`,
             mimeType: "image/jpeg",
           });
-          console.log("✅ Avatar uploaded:", uploadedAvatarUrl);
+          console.log(" Avatar uploaded:", uploadedAvatarUrl);
         } catch (uploadError: any) {
           console.error("Error uploading avatar:", uploadError);
           // Don't block signup - show warning but continue

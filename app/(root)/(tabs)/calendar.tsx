@@ -933,7 +933,7 @@ export default function CalendarScreen() {
                 className="text-xl font-rubik-bold"
                 style={{ color: theme.title }}
               >
-                ✨ Add New Event
+                Add New Event
               </Text>
               <TouchableOpacity onPress={() => setAddModalVisible(false)}>
                 <Text className="text-2xl" style={{ color: theme.text }}>
@@ -949,7 +949,7 @@ export default function CalendarScreen() {
                   className="text-sm font-rubik-medium mb-1"
                   style={{ color: theme.muted }}
                 >
-                  📝 Title *
+                  Title
                 </Text>
                 <TextInput
                   value={newEvent.title}
@@ -973,20 +973,20 @@ export default function CalendarScreen() {
                   className="text-sm font-rubik-medium mb-2"
                   style={{ color: theme.muted }}
                 >
-                  🏷️ Event Type
+                  Event Type
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   {[
-                    { value: "viewing", label: "🔍 Viewing", color: "#3B82F6" },
+                    { value: "viewing", label: " Viewing", color: "#3B82F6" },
                     {
                       value: "maintenance",
-                      label: "🔧 Maintenance",
+                      label: " Maintenance",
                       color: "#F59E0B",
                     },
-                    { value: "meeting", label: "🤝 Meeting", color: "#8B5CF6" },
-                    { value: "payment", label: "💰 Payment", color: "#10B981" },
-                    { value: "move_in", label: "📦 Move-in", color: "#EF4444" },
-                    { value: "other", label: "📌 Other", color: "#6B7280" },
+                    { value: "meeting", label: " Meeting", color: "#8B5CF6" },
+                    { value: "payment", label: " Payment", color: "#10B981" },
+                    { value: "move_in", label: " Move-in", color: "#EF4444" },
+                    { value: "other", label: " Other", color: "#6B7280" },
                   ].map((type) => (
                     <TouchableOpacity
                       key={type.value}
@@ -1040,7 +1040,7 @@ export default function CalendarScreen() {
                   className="text-sm font-rubik-medium mb-1"
                   style={{ color: theme.muted }}
                 >
-                  📅 Date
+                  Date
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
@@ -1054,7 +1054,6 @@ export default function CalendarScreen() {
                   }}
                 >
                   <View className="flex-row items-center">
-                    <Text className="text-lg mr-2">📅</Text>
                     <Text style={{ color: theme.text, fontSize: 16 }}>
                       {formatDisplayDate(newEvent.date)}
                     </Text>
@@ -1117,7 +1116,7 @@ export default function CalendarScreen() {
                   className="text-sm font-rubik-medium mb-1"
                   style={{ color: theme.muted }}
                 >
-                  🏠 Property Name (Optional)
+                  Property Name (Optional)
                 </Text>
                 <TextInput
                   value={newEvent.propertyName}
@@ -1142,7 +1141,7 @@ export default function CalendarScreen() {
                     className="text-sm font-rubik-medium mb-1"
                     style={{ color: theme.muted }}
                   >
-                    👤 Tenant Name (Optional)
+                    Tenant Name (Optional)
                   </Text>
                   <TextInput
                     value={newEvent.tenantName}
@@ -1167,7 +1166,7 @@ export default function CalendarScreen() {
                   className="text-sm font-rubik-medium mb-1"
                   style={{ color: theme.muted }}
                 >
-                  📝 Description (Optional)
+                  Description (Optional)
                 </Text>
                 <TextInput
                   value={newEvent.description}
@@ -1209,7 +1208,7 @@ export default function CalendarScreen() {
                   }}
                 >
                   <Text className="text-white text-center font-rubik-medium">
-                    {submitting ? "✨ Adding..." : "✨ Add Event"}
+                    {submitting ? "Adding..." : "Add Event"}
                   </Text>
                 </TouchableOpacity>
               </View>

@@ -1,5 +1,4 @@
 // app/properties/[id].tsx
-import ConfirmationModal from "@/components/ConfirmationModal";
 import ErrorModal from "@/components/ErrorModal";
 import OperationSuccesfull from "@/components/OperationSuccesfull";
 import { RequestData, RequestModal } from "@/components/RequestModal";
@@ -397,6 +396,7 @@ const Property = () => {
         propertyName: property.propertyName,
         tenantName: user.name,
         tenantEmail: user.email,
+        tenantAvatar: user.avatar ?? "",
       });
 
       setHasRequested(true);
@@ -451,9 +451,10 @@ const Property = () => {
           bathrooms: property.bathrooms,
           facilities: property.facilities,
           creatorId: property.creatorId,
-          landlordName: property.creatorName,
-          landlordEmail: property.creatorEmail,
-          landlordPhone: property.creatorPhone,
+          creatorName: property.agent?.name,
+          creatorEmail: property.agent?.email,
+          creatorPhone: property.agent?.phone,
+          creatorAvatar: property.agent?.avatar,
         };
 
         await addToFavorites(favoriteProperty);
@@ -466,6 +467,9 @@ const Property = () => {
         });
         setOperationSuccessVisible(true);
       }
+      console.log("FULL PROPERTY:", property);
+      console.log("Creator Name:", property.creatorName);
+      console.log("Creator Email:", property.creatorEmail);
     } catch (error) {
       console.error("Error toggling favorite:", error);
       setErrorModalConfig({
@@ -887,35 +891,42 @@ const Property = () => {
         {/* Image Gallery Controls */}
         {propertyImages.length > 1 && (
           <>
-            {/* Image Counter */}
-            <View className="absolute bottom-20 right-5 bg-black/60 px-3 py-1.5 rounded-full z-50">
+            <View
+              className="absolute top-4 self-center bg-black/60 px-3 py-1.5 rounded-full z-50"
+              style={{ left: "50%", transform: [{ translateX: -30 }] }}
+            >
               <Text className="text-white font-rubik-medium">
-                {currentImageIndex + 1} / {propertyImages.length}
+                image {currentImageIndex + 1} / {propertyImages.length}
               </Text>
             </View>
 
-            {/* Navigation Arrows */}
-            <View className="absolute bottom-20 left-5 right-5 flex-row justify-between z-50">
-              <TouchableOpacity
-                onPress={() => handleImageNavigation("prev")}
-                className="bg-black/60 rounded-full p-2"
-              >
-                <Image source={icons.backArrow} className="size-5 tint-white" />
-              </TouchableOpacity>
+            {/* Navigation Arrows - Middle Left & Right */}
+            <TouchableOpacity
+              onPress={() => handleImageNavigation("prev")}
+              className="absolute left-3 bg-black/60 rounded-full p-2 z-50"
+              style={{ top: "50%", marginTop: -18 }}
+            >
+              <Image
+                source={icons.backArrow}
+                className="size-5"
+                style={{ tintColor: "white" }}
+              />
+            </TouchableOpacity>
 
-              <TouchableOpacity
-                onPress={() => handleImageNavigation("next")}
-                className="bg-black/60 rounded-full p-2"
-              >
-                <Image
-                  source={icons.rightArrow}
-                  className="size-5 tint-white"
-                />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              onPress={() => handleImageNavigation("next")}
+              className="absolute right-3 bg-black/60 rounded-full p-2 z-50"
+              style={{ top: "50%", marginTop: -18 }}
+            >
+              <Image
+                source={icons.rightArrow}
+                className="size-5"
+                style={{ tintColor: "white" }}
+              />
+            </TouchableOpacity>
 
-            {/* Image Dots */}
-            <View className="absolute bottom-10 flex-row justify-center w-full z-50">
+            {/* Image Dots - Bottom Center */}
+            <View className="absolute bottom-4 flex-row justify-center w-full z-50">
               {propertyImages.map((_, index) => (
                 <TouchableOpacity
                   key={index}
@@ -997,9 +1008,9 @@ const Property = () => {
             >
               <Text className="text-white font-rubik-medium text-sm">
                 {requestStatus === "accepted"
-                  ? "✓ Accepted"
+                  ? "Accepted"
                   : requestStatus === "pending"
-                    ? "⏳ Pending"
+                    ? "Pending"
                     : requestStatus === "rejected"
                       ? "Try Again"
                       : requesting
@@ -1050,7 +1061,9 @@ const Property = () => {
               className="text-xl font-rubik-bold mb-3"
               style={{ color: theme.title }}
             >
-              About the Landlord
+              {(property.agent as any)?.isOrganization
+                ? "About the Organization"
+                : "About the Landlord"}
             </Text>
 
             <View
@@ -2380,36 +2393,6 @@ const Property = () => {
         propertyName={property?.propertyName || "this property"}
         currentPrice={property?.price || 0}
         isLoading={requestModalLoading}
-      />
-
-      {/* Keep your existing modals */}
-      {renderEditModal()}
-      <ReviewSuccessModal
-        visible={reviewSuccessVisible}
-        onClose={() => setReviewSuccessVisible(false)}
-        message="Your review has been posted successfully."
-      />
-      <OperationSuccesfull
-        visible={showSuccess}
-        onClose={() => setShowSuccess(false)}
-        title="Updated Successfully"
-        message="Property has been updated."
-      />
-      <ErrorModal
-        visible={errorModalVisible}
-        onClose={() => setErrorModalVisible(false)}
-        title="Oops!"
-        message={errorMessage}
-      />
-      <ConfirmationModal
-        visible={confirmationModalVisible}
-        onClose={() => setConfirmationModalVisible(false)}
-        onConfirm={confirmDeleteProperty}
-        title="Delete Property"
-        message="Are you sure you want to delete this property? This action cannot be undone."
-        confirmText="Delete"
-        cancelText="Cancel"
-        danger={true}
       />
     </View>
   );

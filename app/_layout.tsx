@@ -7,7 +7,7 @@ import { useFonts } from "expo-font";
 import * as Notifications from "expo-notifications";
 import { router, Slot } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LogBox, Platform } from "react-native";
 import "./global.css";
 
@@ -52,14 +52,36 @@ export default function RootLayout() {
     "Rubik-SemiBold": require("../assets/fonts/Rubik-SemiBold.ttf"),
   });
 
-  const { fetchAuthenticatedUser, user } = useAuthStore();
+  const { fetchAuthenticatedUser, user, hydrate } = useAuthStore();
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
+  const [appIsReady, setAppIsReady] = useState(false);
 
   // Fetch authenticated user on mount
   useEffect(() => {
     fetchAuthenticatedUser();
   }, [fetchAuthenticatedUser]);
+
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        console.log("🚀 Starting app initialization...");
+
+        // Step 1: Hydrate auth state from AsyncStorage
+        await hydrate();
+        console.log("✅ Auth state hydrated");
+
+        // Step 2: Mark app as ready
+        setAppIsReady(true);
+      } catch (error) {
+        console.error("❌ App initialization failed:", error);
+        // Even if initialization fails, show the app
+        setAppIsReady(true);
+      }
+    };
+
+    initializeApp();
+  }, [hydrate]);
 
   // Hide splash screen when fonts are loaded
   useEffect(() => {
@@ -87,7 +109,7 @@ export default function RootLayout() {
           );
 
         if (token) {
-          console.log("✅ Push notification registered successfully");
+          console.log(" Push notification registered successfully");
         }
       } catch (error) {
         console.error("Push registration error:", error);
@@ -115,7 +137,7 @@ export default function RootLayout() {
         console.log("🔘 Notification tapped:", response);
 
         const data = response.notification.request.content.data;
-        const { user } = useAuthStore.getState(); // ✅ get current user outside of hook
+        const { user } = useAuthStore.getState(); //  get current user outside of hook
         const isLandlord = user?.userMode === "landlord";
 
         if (!data) {
@@ -132,12 +154,12 @@ export default function RootLayout() {
         } else if (data.type === "request_response") {
           router.push("/tenantHome");
         } else if (data.type === "alert") {
-          // ✅ Dynamic based on userMode
+          //  Dynamic based on userMode
           router.push(isLandlord ? "/landHome" : "/tenantHome");
         } else if (data.screen && typeof data.screen === "string") {
           router.push(data.screen as any);
         } else {
-          // ✅ Default fallback also dynamic
+          //  Default fallback also dynamic
           router.push(isLandlord ? "/landHome" : "/tenantHome");
         }
       });

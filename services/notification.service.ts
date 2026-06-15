@@ -1,5 +1,5 @@
 // services/notification.service.ts
-import { config, databases } from "@/lib/appwrite";
+import { config, databases, updateUserPushToken } from "@/lib/appwrite";
 import Constants from "expo-constants";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
@@ -51,7 +51,7 @@ class NotificationService {
         return null;
       }
 
-      // ✅ Guard against missing projectId
+      // Guard against missing projectId
       const projectId = Constants.expoConfig?.extra?.eas?.projectId;
       if (!projectId) {
         console.error("❌ Missing projectId in app.json extra.eas");
@@ -87,7 +87,7 @@ class NotificationService {
   // Save push token to database
   async savePushToken(userId: string, token: string): Promise<void> {
     try {
-      // Check if token already exists
+      // Check if token already exists in push_tokens collection
       const existingTokens = await databases.listDocuments(
         config.databaseId!,
         config.pushTokensCollectionId!,
@@ -95,7 +95,6 @@ class NotificationService {
       );
 
       if (existingTokens.documents.length === 0) {
-        // ✅ Use ID.unique() instead of "unique()"
         await databases.createDocument(
           config.databaseId!,
           config.pushTokensCollectionId!,
@@ -107,7 +106,7 @@ class NotificationService {
             isActive: true,
           },
         );
-        console.log("✅ Push token saved to database");
+        console.log("✅ Push token saved to push_tokens collection");
       } else {
         // Reactivate token if it exists but was inactive
         const tokenDoc = existingTokens.documents[0];
@@ -118,10 +117,31 @@ class NotificationService {
             tokenDoc.$id,
             { isActive: true },
           );
-          console.log("✅ Push token reactivated");
+          console.log("✅ Push token reactivated in push_tokens collection");
         } else {
-          console.log("ℹ️ Push token already active, no update needed");
+          console.log("ℹ️ Push token already active in push_tokens collection");
         }
+      }
+
+      // Also sync token to user document so sendExpoPushToUser() can find it
+      try {
+        // Find user document by accountId
+        const userDocs = await databases.listDocuments(
+          config.databaseId!,
+          config.usersCollectionId!,
+          [Query.equal("accountId", userId)],
+        );
+
+        if (userDocs.documents.length > 0) {
+          const userDocId = userDocs.documents[0].$id;
+          await updateUserPushToken(userDocId, token);
+          console.log("✅ Push token synced to user document");
+        } else {
+          console.warn("⚠️ Could not find user document to sync token");
+        }
+      } catch (syncError) {
+        // Don't throw — push_tokens collection save already succeeded
+        console.error("⚠️ Failed to sync token to user document:", syncError);
       }
     } catch (error) {
       console.error("Error saving push token:", error);
@@ -145,6 +165,26 @@ class NotificationService {
           { isActive: false },
         );
       }
+
+      // Also clear token from user document
+      try {
+        const userDocs = await databases.listDocuments(
+          config.databaseId!,
+          config.usersCollectionId!,
+          [Query.equal("accountId", userId)],
+        );
+
+        if (userDocs.documents.length > 0) {
+          await updateUserPushToken(userDocs.documents[0].$id, null);
+          console.log("✅ Push token cleared from user document");
+        }
+      } catch (syncError) {
+        console.error(
+          "⚠️ Failed to clear token from user document:",
+          syncError,
+        );
+      }
+
       console.log("✅ Push token deactivated");
     } catch (error) {
       console.error("Error deactivating push token:", error);
@@ -167,6 +207,25 @@ class NotificationService {
           tokenDoc.$id,
         );
       }
+
+      // Also clear token from user document
+      try {
+        const userDocs = await databases.listDocuments(
+          config.databaseId!,
+          config.usersCollectionId!,
+          [Query.equal("accountId", userId)],
+        );
+
+        if (userDocs.documents.length > 0) {
+          await updateUserPushToken(userDocs.documents[0].$id, null);
+        }
+      } catch (syncError) {
+        console.error(
+          "⚠️ Failed to clear token from user document:",
+          syncError,
+        );
+      }
+
       console.log("✅ Push token removed");
     } catch (error) {
       console.error("Error removing push token:", error);
@@ -219,7 +278,7 @@ class NotificationService {
     }
   }
 
-  // ✅ Send notification to multiple users - single query instead of loop
+  // Send notification to multiple users - single query instead of loop
   async sendBulkNotification(
     userIds: string[],
     title: string,
@@ -229,7 +288,7 @@ class NotificationService {
     try {
       if (userIds.length === 0) return;
 
-      // ✅ One query for all users instead of one per user
+      // One query for all users instead of one per user
       const tokens = await databases.listDocuments(
         config.databaseId!,
         config.pushTokensCollectionId!,
@@ -280,12 +339,10 @@ class NotificationService {
 
       const userIds = users.documents.map((user) => user.accountId);
 
-      // Send in batches to avoid rate limits
       const batchSize = 5;
       for (let i = 0; i < userIds.length; i += batchSize) {
         const batch = userIds.slice(i, i + batchSize);
         await this.sendBulkNotification(batch, title, body, data);
-        // Delay between batches
         await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
@@ -310,7 +367,6 @@ class NotificationService {
 
       const userIds = users.documents.map((user) => user.accountId);
 
-      // Send in batches to avoid rate limits
       const batchSize = 5;
       for (let i = 0; i < userIds.length; i += batchSize) {
         const batch = userIds.slice(i, i + batchSize);

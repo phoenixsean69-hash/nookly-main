@@ -238,22 +238,16 @@ export default function LandlordRequests() {
             ? `Your request for "${request.propertyName}" has been accepted! ${request.proposedPrice && request.proposedPrice !== request.originalPrice ? `Your negotiated price of $${request.proposedPrice}/month has been approved. ` : ""}The landlord will contact you soon.`
             : `Your request for "${request.propertyName}" was declined. Keep looking for other great properties!`;
 
-        await databases.createDocument(
-          config.databaseId!,
-          config.notificationsCollectionId!,
-          "unique()",
+        await createNotification(
+          request.tenantId,
+          notificationTitle,
+          notificationMessage,
+          "request",
           {
-            userId: request.tenantId,
-            title: notificationTitle,
-            message: notificationMessage,
-            type: "system",
-            data: JSON.stringify({
-              propertyId: request.propertyId,
-              propertyName: request.propertyName,
-              status: action,
-              proposedPrice: request.proposedPrice,
-            }),
-            read: false,
+            propertyId: request.propertyId,
+            propertyName: request.propertyName,
+            status: action,
+            proposedPrice: request.proposedPrice,
           },
         );
 
@@ -823,7 +817,8 @@ export default function LandlordRequests() {
             className="text-sm text-center mt-2"
             style={{ color: theme.muted }}
           >
-            When tenants request to rent your properties, they'll appear here
+            When tenants request to rent your properties, they&apos;ll appear
+            here
           </Text>
         </View>
       ) : (

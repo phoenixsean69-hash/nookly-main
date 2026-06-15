@@ -156,8 +156,16 @@ export default function MyFavorites() {
 
                 {/* Type + Rating */}
                 <View className="flex-row items-center mb-2">
-                  <View className="flex-row items-center px-3 py-1 bg-primary-100 rounded-full">
-                    <Text className="text-xs font-rubik-medium text-primary-300">
+                  <View
+                    className="flex-row items-center px-3 py-1 rounded-full"
+                    style={{ backgroundColor: theme.muted + "30" }}
+                  >
+                    <Image
+                      source={icons.home}
+                      className="w-3 h-3 mr-1"
+                      style={{ tintColor: theme.muted }}
+                    />
+                    <Text className="text-xs font-rubik-medium text-orange-500">
                       {property.type || "Property"}
                     </Text>
                   </View>
@@ -215,6 +223,31 @@ export default function MyFavorites() {
                     ✖ Remove from Favorites
                   </Text>
                 </TouchableOpacity>
+
+                {/*Owner info and contact button*/}
+                <View className="flex-row items-center mt-4">
+                  <Image
+                    source={{ uri: property.creatorAvatar }}
+                    className="w-10 h-10 rounded-full mr-3"
+                  />
+                  <View className="flex-1">
+                    <Text
+                      className="text-sm font-rubik-medium"
+                      style={{ color: theme.muted }}
+                    >
+                      {property.creatorName || "Owner"}
+                    </Text>
+                    <Text className="text-xs" style={{ color: theme.muted }}>
+                      {property.creatorEmail}
+                    </Text>
+                  </View>
+                  <Text
+                    className="text-xs font-rubik"
+                    style={{ color: theme.muted }}
+                  >
+                    {property.creatorPhone}
+                  </Text>
+                </View>
               </View>
             </TouchableOpacity>
           ))

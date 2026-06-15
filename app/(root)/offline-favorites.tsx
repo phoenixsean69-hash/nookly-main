@@ -145,7 +145,6 @@ export default function OfflineFavorites() {
               layout={Layout.springify()}
               entering={FadeInDown.delay(index * 100).duration(300)}
             >
-              {/* Card is now a View - NOT clickable */}
               <View
                 className="mb-4 rounded-xl overflow-hidden"
                 style={{
@@ -224,6 +223,31 @@ export default function OfflineFavorites() {
                       {getPriceSuffix(property.type)}
                     </Text>
                   </Text>
+
+                  {/*Owner info and contact button*/}
+                  <View className="flex-row items-center mt-4">
+                    <Image
+                      source={{ uri: property.creatorAvatar }}
+                      className="w-10 h-10 rounded-full mr-3"
+                    />
+                    <View className="flex-1">
+                      <Text
+                        className="text-sm font-rubik-medium"
+                        style={{ color: theme.muted }}
+                      >
+                        {property.creatorName || "Owner"}
+                      </Text>
+                      <Text className="text-xs" style={{ color: theme.muted }}>
+                        {property.creatorEmail}
+                      </Text>
+                    </View>
+                    <Text
+                      className="text-xs font-rubik"
+                      style={{ color: theme.muted }}
+                    >
+                      {property.creatorPhone}
+                    </Text>
+                  </View>
 
                   {/* Remove button */}
                   <TouchableOpacity

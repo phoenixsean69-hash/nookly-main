@@ -126,6 +126,8 @@ export const config = {
     process.env.EXPO_PUBLIC_MATCH_PROFILES_COLLECTION_ID,
   pushTokensCollectionId:
     process.env.EXPO_PUBLIC_APPWRITE_PUSH_TOKENS_COLLECTION_ID,
+  organizationsCollectionId:
+    process.env.EXPO_PUBLIC_APPWRITE_ORGANIZATIONS_COLLECTION,
 };
 
 interface CreateUserParams {
@@ -310,6 +312,7 @@ export const createUser = async ({
             name: name,
             email: email,
             avatar: avatarUrl,
+            userId: userDocumentId,
           },
         );
         console.log("✅ Landlord added to agents collection");
@@ -331,7 +334,6 @@ export const createUser = async ({
     if (createdAccountId) {
       try {
         await account.deleteSession("current");
-        await account.deleteIdentity(createdAccountId);
         console.log("✅ Rollback: Deleted orphaned Auth account");
       } catch (rollbackError) {
         console.error("Rollback failed:", rollbackError);
@@ -1148,6 +1150,7 @@ export async function getPropertyById({ id }: { id: string }) {
 
     // Fetch agent details with error handling
     if (property.agent && typeof property.agent === "string") {
+      // Agent exists → individual landlord → fetch from users collection
       try {
         const agent = await databases.getDocument(
           config.databaseId!,
@@ -1165,6 +1168,38 @@ export async function getPropertyById({ id }: { id: string }) {
       } catch (agentError) {
         console.warn(`⚠️ Agent not found for property ${id}, setting to null`);
         property.agent = null;
+      }
+    } else if (!property.agent && property.creatorId) {
+      // No agent → could be an organization → search organizations by userId
+      try {
+        const orgResult = await databases.listDocuments(
+          config.databaseId!,
+          config.organizationsCollectionId!,
+          [Query.equal("userId", property.creatorId)],
+        );
+
+        if (orgResult.documents.length > 0) {
+          const org = orgResult.documents[0];
+          // Map org fields to the same agent shape so the UI works without changes
+          property.agent = {
+            $id: org.$id,
+            name: org.name || "Unknown Organization",
+            email: org.email || "No email",
+            phone: org.phone || null,
+            avatar: org.avatar || null,
+            isOrganization: true, // optional flag if you want to show a badge
+          };
+          console.log("✅ Organization found for property:", org.name);
+        } else {
+          console.warn(
+            `⚠️ No organization found for creatorId: ${property.creatorId}`,
+          );
+        }
+      } catch (orgError) {
+        console.warn(
+          `⚠️ Error fetching organization for property ${id}:`,
+          orgError,
+        );
       }
     }
 
@@ -2166,6 +2201,7 @@ export const requestProperty = async (
     originalPrice?: number;
     propertyName?: string;
     tenantName?: string;
+    tenantAvatar: string;
     tenantEmail?: string;
   },
 ) => {
