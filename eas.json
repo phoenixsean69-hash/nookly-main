@@ -76,7 +76,6 @@
     },
 
     "androidapk": {
-      "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_APPWRITE_ENDPOINT": "https://fra.cloud.appwrite.io/v1",
         "EXPO_PUBLIC_APPWRITE_PROJECT_ID": "69904bec001b4d14cce2",

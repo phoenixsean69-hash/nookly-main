@@ -891,14 +891,7 @@ const Property = () => {
         {/* Image Gallery Controls */}
         {propertyImages.length > 1 && (
           <>
-            <View
-              className="absolute top-4 self-center bg-black/60 px-3 py-1.5 rounded-full z-50"
-              style={{ left: "50%", transform: [{ translateX: -30 }] }}
-            >
-              <Text className="text-white font-rubik-medium">
-                image {currentImageIndex + 1} / {propertyImages.length}
-              </Text>
-            </View>
+
 
             {/* Navigation Arrows - Middle Left & Right */}
             <TouchableOpacity

@@ -72,6 +72,7 @@ import land from "@/assets/icons/land.png";
 import workplace from "@/assets/icons/workplace.png";
 import other from "@/assets/icons/other.png";
 import boarding from "@/assets/icons/students.png";
+import request from "@/assets/icons/request.png";
 
 import tenant from "@/assets/icons/tenant.png";
 import tiled from "@/assets/icons/tiles.png";
@@ -102,6 +103,7 @@ export default {
   clock,
   landlord,
   tenant,
+  request,
   settings,
   student,
   arrowUp,

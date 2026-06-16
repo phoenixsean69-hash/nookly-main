@@ -137,7 +137,7 @@ export default function RootLayout() {
         console.log("🔘 Notification tapped:", response);
 
         const data = response.notification.request.content.data;
-        const { user } = useAuthStore.getState(); //  get current user outside of hook
+        const { user } = useAuthStore.getState();
         const isLandlord = user?.userMode === "landlord";
 
         if (!data) {

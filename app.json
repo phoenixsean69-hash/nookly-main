@@ -7,16 +7,12 @@
     "icon": "./assets/images/icon.png",
     "scheme": "nookly",
     "userInterfaceStyle": "automatic",
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.shon1123.Nookly",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "remote-notification"
-        ]
+        "UIBackgroundModes": ["remote-notification"]
       }
     },
     "android": {
@@ -42,15 +38,12 @@
     },
     "plugins": [
       [
-  "expo-notifications",
-  {
-    "icon": "./assets/images/icon.png",
-    "color": "#ffffff",
-    "sounds": [
-      "./assets/sounds/notification.wav"
-    ]
-  }
-],
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "sounds": []
+        }
+      ],
       "expo-router",
       [
         "expo-splash-screen",
@@ -78,7 +71,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "4efdaf85-8a98-4a7e-8b00-83b92ae07d67"
+        "projectId": "cb43af20-972a-47f5-a643-608017999d7b"
       }
     },
     "owner": "phoenix69"

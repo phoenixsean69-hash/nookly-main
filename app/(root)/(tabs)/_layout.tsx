@@ -278,6 +278,21 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
+        name="myRequests"
+        options={{
+          title: "My Requests",
+          headerShown: false,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon
+              focused={focused}
+              icon={icons.request}
+              title="My Requests"
+            />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="match"
         options={{
           title: "Match",
