@@ -20,10 +20,11 @@
     }
   },
   "overrides": {
-    "react-native-appwrite": {
-      "expo-file-system": "19.0.21"
-    }
-  },
+  "expo-file-system": "~19.0.23",
+  "react-native-appwrite": {
+    "expo-file-system": "~19.0.23"
+  }
+},
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@instantdb/react-native": "^0.22.167",

@@ -42,15 +42,15 @@
     },
     "plugins": [
       [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/icon.png",
-          "color": "#3B82F6",
-          "sounds": [
-            "./assets/sounds/notification.wav"
-          ]
-        }
-      ],
+  "expo-notifications",
+  {
+    "icon": "./assets/images/icon.png",
+    "color": "#ffffff",
+    "sounds": [
+      "./assets/sounds/notification.wav"
+    ]
+  }
+],
       "expo-router",
       [
         "expo-splash-screen",
