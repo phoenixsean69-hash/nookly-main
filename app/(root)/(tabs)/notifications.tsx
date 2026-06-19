@@ -285,7 +285,7 @@ export default function NotificationsScreen() {
         if (propertyId) {
           router.push(`/properties/${propertyId}`);
         } else {
-          router.push("/landlord/Landrequests");
+          router.push("/myRequests");
         }
       } else if (notification.type === "message") {
         router.push("/message");

@@ -1,10 +1,10 @@
 // app/(root)/settings.tsx
 import { Colors } from "@/constants/Colors";
 import icons from "@/constants/icons";
-import { logout, updateUserPushToken } from "@/lib/appwrite";
-import { registerForPushNotificationsAsync } from "@/lib/pushNotifications";
+import { logout } from "@/lib/appwrite";
+
 import useAuthStore from "@/store/auth.store";
-import { useNotificationStore } from "@/store/notification.store";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -13,7 +13,6 @@ import {
   Alert,
   Image,
   ScrollView,
-  Switch,
   Text,
   TouchableOpacity,
   useColorScheme,
@@ -32,12 +31,9 @@ interface SettingItem {
 
 export default function SettingsScreen() {
   const { user } = useAuthStore();
-  const { notifications, unreadCount, loadNotifications, clearAll } =
-    useNotificationStore();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
   const [loading, setLoading] = useState(false);
-  const [pushEnabled, setPushEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
 
   const [clearDataLoading, setClearDataLoading] = useState(false);
@@ -49,10 +45,7 @@ export default function SettingsScreen() {
 
   const loadSettings = async () => {
     try {
-      const push = await AsyncStorage.getItem("push_notifications");
       const email = await AsyncStorage.getItem("email_notifications");
-
-      if (push !== null) setPushEnabled(push === "true");
       if (email !== null) setEmailEnabled(email === "true");
     } catch (error) {
       console.error("Error loading settings:", error);
@@ -65,31 +58,6 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error(`Error saving ${key}:`, error);
     }
-  };
-
-  const handlePushToggle = async (value: boolean) => {
-    setPushEnabled(value);
-    await saveSetting("push_notifications", value);
-
-    if (user?.$id) {
-      try {
-        if (value) {
-          const token = await registerForPushNotificationsAsync();
-          if (token) {
-            await updateUserPushToken(user.$id, token);
-          }
-        } else {
-          await updateUserPushToken(user.$id, null);
-        }
-      } catch (error) {
-        console.error("Error updating push notification token:", error);
-      }
-    }
-
-    Alert.alert(
-      "Notifications",
-      value ? "Push notifications enabled" : "Push notifications disabled",
-    );
   };
 
   const handleEmailToggle = async (value: boolean) => {
@@ -109,11 +77,6 @@ export default function SettingsScreen() {
           onPress: async () => {
             setClearDataLoading(true);
             try {
-              // Clear notifications
-              if (user?.accountId) {
-                await clearAll(user.accountId);
-              }
-
               // Clear cached properties
               await AsyncStorage.multiRemove([
                 "cached_latest_properties",
@@ -125,7 +88,6 @@ export default function SettingsScreen() {
               await AsyncStorage.multiRemove([
                 "push_notifications",
                 "email_notifications",
-
               ]);
 
               // Clear avatar cache
@@ -179,10 +141,8 @@ export default function SettingsScreen() {
               const userData = {
                 user: user,
                 preferences: {
-                  pushNotifications: pushEnabled,
                   emailNotifications: emailEnabled,
                 },
-                notificationsCount: notifications.length,
                 exportDate: new Date().toISOString(),
               };
 
@@ -230,44 +190,6 @@ export default function SettingsScreen() {
         },
       ] as SettingItem[],
     },
-    {
-      title: "Notifications",
-      items: [
-        {
-          icon: icons.bell,
-          title: "Push Notifications",
-          subtitle: "Receive real-time updates",
-          onPress: () => {},
-          rightElement: (
-            <Switch
-              value={pushEnabled}
-              onValueChange={handlePushToggle}
-              trackColor={{ false: "#767577", true: theme.primary[300] }}
-            />
-          ),
-        },
-        {
-          icon: icons.mail,
-          title: "Email Notifications",
-          subtitle: "Get email updates",
-          onPress: () => {},
-          rightElement: (
-            <Switch
-              value={emailEnabled}
-              onValueChange={handleEmailToggle}
-              trackColor={{ false: "#767577", true: theme.primary[300] }}
-            />
-          ),
-        },
-        {
-          icon: icons.eye,
-          title: "View All Notifications",
-          subtitle: `${unreadCount} unread`,
-          onPress: () => router.push("/notifications"),
-        },
-      ] as SettingItem[],
-    },
-
     {
       title: "Data & Storage",
       items: [

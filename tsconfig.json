@@ -17,6 +17,7 @@
     "app/(auth)/sign-up.tsx",
     "app/(root)/_layout.jsx",
     "app/(root)/(tabs)/_layout.jsx",
-    "app/(root)/properties/[id].tsx+modal"
+    "app/(root)/properties/[id].tsx+modal",
+    "lib/notifications.ts"
   ]
 }

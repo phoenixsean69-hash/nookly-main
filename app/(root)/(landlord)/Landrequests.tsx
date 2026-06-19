@@ -6,6 +6,7 @@ import icons from "@/constants/icons";
 import { config, createNotification, databases } from "@/lib/appwrite";
 import notificationService from "@/services/notification.service";
 import useAuthStore from "@/store/auth.store";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -18,6 +19,7 @@ import {
   RefreshControl,
   ScrollView,
   Text,
+  TextInput,
   TouchableOpacity,
   useColorScheme,
   View,
@@ -44,6 +46,7 @@ interface RentalRequest {
   leaseDuration?: string;
   questions?: string[];
   property?: any;
+  rejectionReason?: string; // Added for rejection reason
 }
 
 export default function LandlordRequests() {
@@ -56,6 +59,12 @@ export default function LandlordRequests() {
     null,
   );
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
+
+  // Rejection Modal State
+  const [rejectModalVisible, setRejectModalVisible] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectRequestId, setRejectRequestId] = useState<string | null>(null);
+
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
   const isLandlord = user?.userMode === "landlord";
@@ -132,6 +141,7 @@ export default function LandlordRequests() {
             moveInDate: doc.moveInDate,
             leaseDuration: doc.leaseDuration,
             questions: doc.questions ? JSON.parse(doc.questions) : [],
+            rejectionReason: doc.rejectionReason || null, // Fetch rejection reason
           };
         }),
       );
@@ -208,10 +218,95 @@ export default function LandlordRequests() {
     );
   };
 
+  // Open rejection modal
+  const openRejectModal = (requestId: string) => {
+    setRejectRequestId(requestId);
+    setRejectionReason("");
+    setRejectModalVisible(true);
+  };
+
+  // Handle rejection with reason
+  const handleRejectWithReason = async () => {
+    if (!rejectRequestId) return;
+
+    if (!rejectionReason.trim()) {
+      Alert.alert("Error", "Please provide a reason for rejection");
+      return;
+    }
+
+    setProcessingId(rejectRequestId);
+    setRejectModalVisible(false);
+
+    try {
+      // Update request status with rejection reason
+      await databases.updateDocument(
+        config.databaseId!,
+        config.requestsCollectionId!,
+        rejectRequestId,
+        {
+          status: "rejected",
+          rejectionReason: rejectionReason.trim(),
+        },
+      );
+
+      // Get the request details
+      const request = requests.find((r) => r.$id === rejectRequestId);
+
+      if (request) {
+        // Create in-app notification for tenant with rejection reason
+        await createNotification(
+          request.tenantId,
+          "Rental Request Declined",
+          `Your request for "${request.propertyName}" was declined.\n\nReason: ${rejectionReason.trim()}\n\nKeep looking for other great properties!`,
+          "request",
+          {
+            propertyId: request.propertyId,
+            propertyName: request.propertyName,
+            status: "rejected",
+            rejectionReason: rejectionReason.trim(),
+          },
+        );
+
+        // 🚀 SEND PUSH NOTIFICATION TO TENANT
+        try {
+          await notificationService.sendRequestResponseNotification(
+            request.tenantId,
+            request.propertyName,
+            "rejected",
+            rejectionReason.trim(), // Pass rejection reason
+          );
+          console.log(
+            "✅ Push notification sent to tenant for rejected request",
+          );
+        } catch (pushError) {
+          console.error("Failed to send push notification:", pushError);
+        }
+
+        // Update local state - remove the request from list
+        setRequests((prev) => prev.filter((r) => r.$id !== rejectRequestId));
+
+        Alert.alert("Success", "Request rejected successfully");
+      }
+    } catch (error) {
+      console.error("Error rejecting request:", error);
+      Alert.alert("Error", "Failed to reject request");
+    } finally {
+      setProcessingId(null);
+      setRejectRequestId(null);
+    }
+  };
+
   const handleRequestAction = async (
     requestId: string,
     action: "accepted" | "rejected",
   ) => {
+    if (action === "rejected") {
+      // Open rejection modal instead of directly rejecting
+      openRejectModal(requestId);
+      return;
+    }
+
+    // Handle acceptance
     setProcessingId(requestId);
 
     try {
@@ -220,7 +315,7 @@ export default function LandlordRequests() {
         config.databaseId!,
         config.requestsCollectionId!,
         requestId,
-        { status: action },
+        { status: "accepted" },
       );
 
       // Get the request details
@@ -228,25 +323,17 @@ export default function LandlordRequests() {
 
       if (request) {
         // Create in-app notification for tenant
-        const notificationTitle =
-          action === "accepted"
-            ? "Rental Request Accepted!"
-            : "Rental Request Declined";
-
-        const notificationMessage =
-          action === "accepted"
-            ? `Your request for "${request.propertyName}" has been accepted! ${request.proposedPrice && request.proposedPrice !== request.originalPrice ? `Your negotiated price of $${request.proposedPrice}/month has been approved. ` : ""}The landlord will contact you soon.`
-            : `Your request for "${request.propertyName}" was declined. Keep looking for other great properties!`;
+        const notificationMessage = `Your request for "${request.propertyName}" has been accepted! ${request.proposedPrice && request.proposedPrice !== request.originalPrice ? `Your negotiated price of $${request.proposedPrice}/month has been approved. ` : ""}The landlord will contact you soon.`;
 
         await createNotification(
           request.tenantId,
-          notificationTitle,
+          "Rental Request Accepted!",
           notificationMessage,
           "request",
           {
             propertyId: request.propertyId,
             propertyName: request.propertyName,
-            status: action,
+            status: "accepted",
             proposedPrice: request.proposedPrice,
           },
         );
@@ -256,24 +343,19 @@ export default function LandlordRequests() {
           await notificationService.sendRequestResponseNotification(
             request.tenantId,
             request.propertyName,
-            action,
+            "accepted",
           );
           console.log(
-            `✅ Push notification sent to tenant for ${action} request`,
+            "✅ Push notification sent to tenant for accepted request",
           );
         } catch (pushError) {
           console.error("Failed to send push notification:", pushError);
-          // Don't throw - push notification failure shouldn't break the flow
         }
 
-        // Update local state - remove the request from list since it's processed
+        // Update local state - remove the request from list
         setRequests((prev) => prev.filter((r) => r.$id !== requestId));
 
-        // Show success message
-        Alert.alert(
-          "Success",
-          `Request ${action === "accepted" ? "accepted" : "rejected"} successfully!`,
-        );
+        Alert.alert("Success", "Request accepted successfully!");
       }
     } catch (error) {
       console.error("Error updating request:", error);
@@ -282,6 +364,7 @@ export default function LandlordRequests() {
       setProcessingId(null);
     }
   };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + " at " + date.toLocaleTimeString();
@@ -311,6 +394,156 @@ export default function LandlordRequests() {
         return { bg: "#6B728020", text: "#374151", label: "Unknown" };
     }
   };
+
+  // Render Rejection Modal
+  const renderRejectModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={rejectModalVisible}
+      onRequestClose={() => setRejectModalVisible(false)}
+    >
+      <View className="flex-1 justify-end bg-black/50">
+        <View
+          className="rounded-t-3xl p-6"
+          style={{
+            backgroundColor: theme.background,
+            maxHeight: "70%",
+          }}
+        >
+          <View className="flex-row justify-between items-center mb-4">
+            <Text
+              className="text-xl font-rubik-bold"
+              style={{ color: theme.title }}
+            >
+              Reject Request
+            </Text>
+            <TouchableOpacity onPress={() => setRejectModalVisible(false)}>
+              <Ionicons name="close" size={24} style={{ color: theme.text }} />
+            </TouchableOpacity>
+          </View>
+
+          <Text className="text-sm mb-4" style={{ color: theme.muted }}>
+            Please provide a reason for rejecting this rental request. This will
+            help the tenant understand your decision.
+          </Text>
+
+          <View
+            className="rounded-xl p-4 mb-4"
+            style={{
+              backgroundColor: theme.surface,
+              borderWidth: 1,
+              borderColor: theme.muted + "30",
+            }}
+          >
+            <Text
+              className="text-sm font-rubik-medium mb-2"
+              style={{ color: theme.title }}
+            >
+              Rejection Reason
+            </Text>
+            <TextInput
+              value={rejectionReason}
+              onChangeText={setRejectionReason}
+              placeholder="e.g., Property is no longer available, Price too low, etc."
+              placeholderTextColor={theme.muted}
+              multiline
+              numberOfLines={4}
+              className="text-base"
+              style={{
+                color: theme.text,
+                minHeight: 80,
+                textAlignVertical: "top",
+              }}
+            />
+          </View>
+
+          {/* Quick Select Reasons */}
+          <View className="mb-4">
+            <Text
+              className="text-xs font-rubik-medium mb-2"
+              style={{ color: theme.muted }}
+            >
+              Quick Select Reasons
+            </Text>
+            <View className="flex-row flex-wrap gap-2">
+              {[
+                "Property no longer available",
+                "Price too low",
+                "Application incomplete",
+                "Already rented to someone else",
+                "Doesn't meet requirements",
+              ].map((reason) => (
+                <TouchableOpacity
+                  key={reason}
+                  onPress={() => setRejectionReason(reason)}
+                  className={`px-3 py-2 rounded-full border ${
+                    rejectionReason === reason
+                      ? "border-primary-300 bg-primary-100"
+                      : ""
+                  }`}
+                  style={{
+                    borderColor:
+                      rejectionReason === reason
+                        ? theme.primary[300]
+                        : theme.muted + "30",
+                    backgroundColor:
+                      rejectionReason === reason
+                        ? theme.primary[100]
+                        : theme.surface,
+                  }}
+                >
+                  <Text
+                    className={`text-xs font-rubik-medium ${
+                      rejectionReason === reason
+                        ? "text-primary-300"
+                        : "text-gray-600"
+                    }`}
+                    style={{
+                      color:
+                        rejectionReason === reason
+                          ? theme.primary[300]
+                          : theme.text,
+                    }}
+                  >
+                    {reason}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          <View className="flex-row gap-3">
+            <TouchableOpacity
+              onPress={() => setRejectModalVisible(false)}
+              className="flex-1 py-4 rounded-xl border"
+              style={{
+                borderColor: theme.muted + "30",
+                backgroundColor: theme.surface,
+              }}
+            >
+              <Text
+                className="text-center font-rubik-bold"
+                style={{ color: theme.text }}
+              >
+                Cancel
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleRejectWithReason}
+              disabled={processingId === rejectRequestId}
+              className="flex-1 py-4 rounded-xl"
+              style={{ backgroundColor: theme.danger || "#EF4444" }}
+            >
+              <Text className="text-white text-center font-rubik-bold">
+                {processingId === rejectRequestId ? "Rejecting..." : "Reject"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 
   const renderDetailsModal = () => {
     if (!selectedRequest) return null;
@@ -382,6 +615,32 @@ export default function LandlordRequests() {
                 {statusColor.label}
               </Text>
             </View>
+
+            {/* Show rejection reason if rejected */}
+            {selectedRequest.status === "rejected" &&
+              selectedRequest.rejectionReason && (
+                <View
+                  className="rounded-2xl p-4 mb-4"
+                  style={{
+                    backgroundColor: "#EF444415",
+                    borderWidth: 1,
+                    borderColor: "#EF444430",
+                  }}
+                >
+                  <Text
+                    className="text-sm font-rubik-bold mb-2"
+                    style={{ color: "#EF4444" }}
+                  >
+                    Rejection Reason
+                  </Text>
+                  <Text
+                    className="text-sm italic"
+                    style={{ color: theme.text }}
+                  >
+                    {selectedRequest.rejectionReason}
+                  </Text>
+                </View>
+              )}
 
             {/* Tenant Info */}
             <View
@@ -1023,6 +1282,9 @@ export default function LandlordRequests() {
 
       {/* Details Modal */}
       {renderDetailsModal()}
+
+      {/* Rejection Modal */}
+      {renderRejectModal()}
     </SafeAreaView>
   );
 }

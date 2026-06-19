@@ -6,17 +6,6 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 import { ID, Query } from "react-native-appwrite";
 
-// Configure notification handler
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-  }),
-});
-
 export interface PushToken {
   userId: string;
   token: string;
@@ -422,23 +411,33 @@ class NotificationService {
     );
   }
 
-  // Send notification about request response
+  // Send notification about request response (updated to include rejection reason)
   async sendRequestResponseNotification(
     tenantId: string,
     propertyName: string,
     status: "accepted" | "rejected",
+    rejectionReason?: string, // ✅ Added optional rejection reason
   ): Promise<void> {
-    const title =
-      status === "accepted" ? "Request Accepted! 🎉" : "Request Declined";
-    const body =
-      status === "accepted"
-        ? `Your request for ${propertyName} has been accepted! The landlord will contact you soon.`
-        : `Your request for ${propertyName} was declined. Keep looking for other great properties!`;
+    const isAccepted = status === "accepted";
+    const title = isAccepted ? "Request Accepted! 🎉" : "Request Declined ❌";
+
+    let body: string;
+    if (isAccepted) {
+      body = `Your request for ${propertyName} has been accepted! The landlord will contact you soon.`;
+    } else {
+      // Include rejection reason if provided
+      if (rejectionReason) {
+        body = `Your request for ${propertyName} was declined.\nReason: ${rejectionReason}\nKeep looking for other great properties!`;
+      } else {
+        body = `Your request for ${propertyName} was declined. Keep looking for other great properties!`;
+      }
+    }
 
     await this.sendNotificationToUser(tenantId, title, body, {
       type: "request_response",
       status,
       propertyName,
+      ...(rejectionReason && { rejectionReason }), // Include reason in data if provided
     });
   }
 

@@ -127,7 +127,10 @@ export const config = {
   pushTokensCollectionId:
     process.env.EXPO_PUBLIC_APPWRITE_PUSH_TOKENS_COLLECTION_ID,
   organizationsCollectionId:
-    process.env.EXPO_PUBLIC_APPWRITE_ORGANIZATIONS_COLLECTION,
+    process.env.EXPO_PUBLIC_APPWRITE_ORGANIZATIONS_COLLECTION_ID,
+  organizationTenantsCollectionId:
+    process.env.EXPO_PUBLIC_APPWRITE_ORGANIZATION_TENANTS_COLLECTION_ID,
+  queriesCollectionId: process.env.EXPO_PUBLIC_APPWRITE_QUERIES_COLLECTION_ID,
 };
 
 interface CreateUserParams {
@@ -137,6 +140,7 @@ interface CreateUserParams {
   name: string;
   userMode: string;
   avatar?: string;
+  pushToken?: string | null;
 }
 
 interface SignInParams {
@@ -257,6 +261,7 @@ export const createUser = async ({
   avatar,
 }: CreateUserParams) => {
   let createdAccountId = null;
+  let createdUserDocumentId = null;
 
   try {
     // First, validate all inputs before any database operation
@@ -276,6 +281,7 @@ export const createUser = async ({
     const accountId = createValidAppwriteId();
     const userDocumentId = createValidAppwriteId();
     createdAccountId = accountId;
+    createdUserDocumentId = userDocumentId;
 
     console.log("createUser: generated accountId", accountId);
 
@@ -300,26 +306,32 @@ export const createUser = async ({
       },
     );
 
-    // If user is a landlord, add them to the agents collection
-    if (userMode?.toLowerCase() === "landlord") {
+    // If user is a tenant, add them to the organization_tenants collection
+    if (userMode?.toLowerCase() === "tenant") {
       try {
-        const agentId = createValidAppwriteId();
+        const tenantId = createValidAppwriteId();
         await databases.createDocument(
           config.databaseId!,
-          config.agentsCollectionId!,
-          agentId,
+          config.organizationTenantsCollectionId!, // Make sure this is defined in your config
+          tenantId,
           {
-            name: name,
-            email: email,
-            avatar: avatarUrl,
             userId: userDocumentId,
+            email: email,
+            name: name,
+            avatar: avatarUrl,
+            tenantPhone: phone,
+            // Add any other required fields for the organization_tenants collection
+            // For example:
+            // organizationId: "default_org_id", // If you have a default organization
+            // status: "active",
+            // joinedAt: new Date().toISOString(),
           },
         );
-        console.log("✅ Landlord added to agents collection");
-      } catch (agentError) {
+        console.log("✅ Tenant added to organization_tenants collection");
+      } catch (tenantError) {
         console.error(
-          "Error adding landlord to agents collection:",
-          agentError,
+          "Error adding tenant to organization_tenants collection:",
+          tenantError,
         );
         // Don't throw - user was created successfully
       }
@@ -337,6 +349,20 @@ export const createUser = async ({
         console.log("✅ Rollback: Deleted orphaned Auth account");
       } catch (rollbackError) {
         console.error("Rollback failed:", rollbackError);
+      }
+    }
+
+    // Optional: Also clean up the user document if it was created
+    if (createdUserDocumentId) {
+      try {
+        await databases.deleteDocument(
+          config.databaseId!,
+          config.usersCollectionId!,
+          createdUserDocumentId,
+        );
+        console.log("✅ Rollback: Deleted orphaned user document");
+      } catch (rollbackError) {
+        console.error("Rollback failed for user document:", rollbackError);
       }
     }
 
@@ -434,6 +460,7 @@ export async function AddListing(
     image3?: string;
     agent?: string;
     creatorId?: string;
+    priceThreshold?: number;
   },
   onSuccess?: (newListing: any) => void,
 ) {
@@ -462,12 +489,14 @@ export async function AddListing(
         image3: listing.image3 || null,
         agent: listing.agent || null,
         creatorId: listing.creatorId || null,
+        priceThreshold: listing.priceThreshold || 0, // Added priceThreshold with default 0
       },
     );
 
     console.log("✅ Listing created:", {
       id: response.$id,
       agent: response.agent,
+      priceThreshold: response.priceThreshold,
     });
 
     // 🚀 SEND PUSH NOTIFICATIONS TO TENANTS IN THE SAME AREA
@@ -487,12 +516,13 @@ export async function AddListing(
       );
 
       // Filter tenants who might be interested (based on saved searches or preferences)
-      // For now, send to all tenants in the same city
       const interestedTenants = tenants.documents.filter((tenant) => {
-        // You could add more sophisticated matching here based on:
-        // - Tenant's preferred location from their match profile
-        // - Tenant's budget range
-        // - Tenant's saved searches
+        // If priceThreshold is set, only notify tenants whose budget matches
+        if (listing.priceThreshold && listing.priceThreshold > 0) {
+          // You would need to check tenant's budget from their preferences/profile
+          // For now, we'll include all tenants and let them decide
+          return true;
+        }
         return true; // Send to all tenants for now
       });
 
@@ -510,6 +540,7 @@ export async function AddListing(
             type: "property",
             propertyId: response.$id,
             screen: "explore",
+            priceThreshold: listing.priceThreshold, // Include in notification data
           },
         );
 
@@ -552,6 +583,28 @@ export const uploadFile = async (file: any) => {
     return { id: uploadedFile.$id, url: fileUrl };
   } catch (error) {
     console.error("Error uploading file:", error);
+    throw error;
+  }
+};
+
+export const savePushToken = async (pushToken: string) => {
+  try {
+    const user = await getCurrentUser();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    return await databases.updateDocument(
+      config.databaseId!,
+      config.usersCollectionId!,
+      user.$id,
+      {
+        pushToken,
+      },
+    );
+  } catch (error) {
+    console.log("savePushToken error:", error);
     throw error;
   }
 };
@@ -2201,8 +2254,9 @@ export const requestProperty = async (
     originalPrice?: number;
     propertyName?: string;
     tenantName?: string;
-    tenantAvatar: string;
+    tenantAvatar?: string;
     tenantEmail?: string;
+    tenantPhone?: string;
   },
 ) => {
   try {
@@ -2224,21 +2278,39 @@ export const requestProperty = async (
     // Get tenant details
     let tenantName = requestData?.tenantName;
     let tenantEmail = requestData?.tenantEmail;
+    let tenantPhone = requestData?.tenantPhone;
+    let tenantAvatar = requestData?.tenantAvatar;
 
-    if (!tenantName || !tenantEmail) {
+    // If any tenant details are missing, fetch from users collection
+    if (!tenantName || !tenantEmail || !tenantPhone || !tenantAvatar) {
       const userDocs = await databases.listDocuments(
         config.databaseId!,
         config.usersCollectionId!,
         [Query.equal("accountId", tenantId)],
       );
+
       if (userDocs.documents.length > 0) {
-        tenantName = tenantName || userDocs.documents[0].name;
-        tenantEmail = tenantEmail || userDocs.documents[0].email;
-        console.log("✅ Tenant details fetched:", { tenantName, tenantEmail });
+        const userDoc = userDocs.documents[0];
+        tenantName = tenantName || userDoc.name || "Tenant";
+        tenantEmail = tenantEmail || userDoc.email || "";
+        tenantPhone = tenantPhone || userDoc.phone || "";
+        tenantAvatar = tenantAvatar || userDoc.avatar || "";
+        console.log("✅ Tenant details fetched:", {
+          tenantName,
+          tenantEmail,
+          tenantPhone,
+          tenantAvatar: tenantAvatar ? "✅ Has avatar" : "❌ No avatar",
+        });
+      } else {
+        // Fallback values if user not found
+        tenantName = tenantName || "Tenant";
+        tenantEmail = tenantEmail || "";
+        tenantPhone = tenantPhone || "";
+        tenantAvatar = tenantAvatar || "";
       }
     }
 
-    // Create the request document with all data
+    // Create the request document with all data including phone and avatar
     const request = await databases.createDocument(
       config.databaseId!,
       config.requestsCollectionId!,
@@ -2249,6 +2321,8 @@ export const requestProperty = async (
         tenantId: tenantId,
         tenantName: tenantName || "Tenant",
         tenantEmail: tenantEmail || "",
+        tenantPhone: tenantPhone || "", // ✅ Added tenantPhone
+        tenantAvatar: tenantAvatar || "", // ✅ Added tenantAvatar
         status: "pending",
         proposedPrice: requestData?.proposedPrice || property.price,
         originalPrice: property.price,
@@ -2262,6 +2336,11 @@ export const requestProperty = async (
     );
 
     console.log("✅ Request document created:", request.$id);
+    console.log("✅ Tenant phone saved:", tenantPhone);
+    console.log(
+      "✅ Tenant avatar saved:",
+      tenantAvatar ? "✅ Has avatar" : "❌ No avatar",
+    );
 
     // Get landlord's user document ID for notifications
     let landlordUserDocId = property.creatorId;
@@ -2321,6 +2400,8 @@ export const requestProperty = async (
             propertyName: property.propertyName,
             tenantId: tenantId,
             tenantName: tenantName,
+            tenantPhone: tenantPhone, // ✅ Added to notification data
+            tenantAvatar: tenantAvatar, // ✅ Added to notification data
             proposedPrice: requestData?.proposedPrice,
             originalPrice: property.price,
           }),

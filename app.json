@@ -70,9 +70,7 @@
     },
     "extra": {
       "router": {},
-      "eas": {
-        "projectId": "cb43af20-972a-47f5-a643-608017999d7b"
-      }
+      "eas": {}
     },
     "owner": "phoenix69"
   }

@@ -46,6 +46,7 @@ const AddPropertyScreen = () => {
   const [cityTown, setCityTown] = useState("");
 
   const [price, setPrice] = useState("");
+  const [priceThreshold, setPriceThreshold] = useState(""); // Added priceThreshold
   const [area, setArea] = useState("");
   const [bedrooms, setBedrooms] = useState("");
   const [roomFor, setRoomFor] = useState("");
@@ -156,6 +157,15 @@ const AddPropertyScreen = () => {
       return false;
     }
 
+    // Validate price threshold (optional, but if entered must be a valid number)
+    if (
+      priceThreshold &&
+      (isNaN(Number(priceThreshold)) || Number(priceThreshold) < 0)
+    ) {
+      Alert.alert("Error", "Please enter a valid price threshold");
+      return false;
+    }
+
     if (isNaN(Number(area)) || Number(area) <= 0) {
       Alert.alert("Error", "Please enter a valid area");
       return false;
@@ -232,6 +242,11 @@ const AddPropertyScreen = () => {
         creatorId: user.accountId,
       };
 
+      // Add price threshold if provided
+      if (priceThreshold && priceThreshold.trim() !== "") {
+        listingData.priceThreshold = Number(priceThreshold);
+      }
+
       // Add boarding house specific fields
       if (isBoardingHouse) {
         listingData.roomFor = Number(roomFor);
@@ -271,6 +286,7 @@ const AddPropertyScreen = () => {
     setNeighbourhood("");
     setCityTown("");
     setPrice("");
+    setPriceThreshold(""); // Reset price threshold
     setArea("");
     setBedrooms("");
     setBathrooms("");
@@ -906,7 +922,7 @@ const AddPropertyScreen = () => {
                   style={{ tintColor: theme.muted }}
                 />
                 <TextInput
-                  placeholder="Property Addrees (e.g. 22)"
+                  placeholder="Property Address (e.g. 22)"
                   placeholderTextColor={theme.muted + "80"}
                   value={houseNumber}
                   onChangeText={setHouseNumber}
@@ -1000,6 +1016,45 @@ const AddPropertyScreen = () => {
                   style={{ color: theme.text }}
                 />
               </View>
+            </View>
+
+            {/* Price Threshold - New Field */}
+            <View className="mb-4">
+              <Text
+                className="text-sm font-rubik-medium mb-1"
+                style={{ color: theme.text }}
+              >
+                Price Threshold (Optional)
+              </Text>
+              <View
+                className="flex-row items-center border rounded-lg"
+                style={{
+                  borderColor: theme.title,
+                  backgroundColor: theme.navBackground,
+                }}
+              >
+                <Text
+                  className="px-3 font-rubik-medium"
+                  style={{ color: theme.muted }}
+                >
+                  $
+                </Text>
+                <TextInput
+                  placeholder="Minimum price to show (e.g., 2000)"
+                  placeholderTextColor={theme.muted + "80"}
+                  value={priceThreshold}
+                  onChangeText={setPriceThreshold}
+                  keyboardType="numeric"
+                  className="flex-1 px-4 py-3"
+                  style={{ color: theme.text }}
+                />
+              </View>
+              <Text
+                className="text-xs mt-1"
+                style={{ color: theme.muted + "80" }}
+              >
+                Tenants with budgets matching this threshold will be notified
+              </Text>
             </View>
 
             {/* Area */}
