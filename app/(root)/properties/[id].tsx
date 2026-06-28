@@ -144,7 +144,6 @@ const Property = () => {
   // ============================================================================
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
-
   // ============================================================================
   // EDIT MODAL STATE
   // ============================================================================
@@ -891,8 +890,6 @@ const Property = () => {
         {/* Image Gallery Controls */}
         {propertyImages.length > 1 && (
           <>
-
-
             {/* Navigation Arrows - Middle Left & Right */}
             <TouchableOpacity
               onPress={() => handleImageNavigation("prev")}
@@ -1409,333 +1406,331 @@ const Property = () => {
     );
   };
 
-  const renderLandlordView = () => {
-    if (!property) return null;
+const renderLandlordView = () => {
+  if (!property) return null;
 
-    const propertyImages = getPropertyImages();
-    const facilityList = normalizeFacilities();
-    const avgRating = calculateAverageRating();
+  const propertyImages = getPropertyImages();
+  const facilityList = normalizeFacilities();
+  const avgRating = calculateAverageRating();
 
-    return (
-      <>
-        <View
-          className="px-5 mt-7 gap-2 pb-10"
-          style={{ backgroundColor: theme.navBackground }}
+  return (
+    <>
+      <View
+        className="px-5 mt-7 gap-2 pb-10"
+        style={{ backgroundColor: theme.navBackground }}
+      >
+        <View className="mb-2">
+          <Text className="text-3xl font-rubik-bold text-primary-300">
+            {property.propertyName}
+          </Text>
+        </View>
+
+        {/* Edit Button for Landlord Owners */}
+        {isLandlordOwner && (
+          <TouchableOpacity
+            onPress={openEditModal}
+            className="bg-primary-300 py-2 px-4 rounded-full self-start mb-2 flex-row items-center"
+          >
+            <Image
+              source={icons.edit}
+              className="w-4 h-4 mr-2"
+              style={{ tintColor: "#FFFFFF" }}
+            />
+            <Text className="text-white font-rubik-medium text-sm">
+              Edit Property
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <Text
+          className="text-2xl font-rubik-bold"
+          style={{ color: theme.text }}
         >
-          <View className="mb-2">
-            <Text className="text-3xl font-rubik-bold text-primary-300">
-              {property.propertyName}
+          {property.type === "Boarding"
+            ? `$${property.price} /head/room`
+            : `$${property.price} /month`}
+        </Text>
+
+        <View className="flex flex-row items-center gap-3">
+          <View className="flex flex-row items-center px-4 py-2 bg-primary-100 rounded-full">
+            <Text className="text-xs font-rubik-bold text-primary-300">
+              {property.type}
             </Text>
           </View>
+          <Image source={icons.star} className="size-3.5" />
+          <Text className="text-black-200 text-sm mt-1 font-rubik-medium">
+            {avgRating}
+          </Text>
+        </View>
 
-          {/* Edit Button for Landlord Owners */}
-          {isLandlordOwner && (
-            <TouchableOpacity
-              onPress={openEditModal}
-              className="bg-primary-300 py-2 px-4 rounded-full self-start mb-2 flex-row items-center"
-            >
-              <Image
-                source={icons.edit}
-                className="w-4 h-4 mr-2"
-                style={{ tintColor: "#FFFFFF" }}
-              />
-              <Text className="text-white font-rubik-medium text-sm">
-                Edit Property
-              </Text>
-            </TouchableOpacity>
-          )}
-
+        <View className="flex flex-row items-center mt-5">
+          <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10">
+            <Image source={icons.bed} className="size-4" />
+          </View>
           <Text
-            className="text-2xl font-rubik-bold"
+            className="text-black-300 text-sm font-rubik-medium ml-2"
             style={{ color: theme.text }}
           >
-            {property.type === "Boarding"
-              ? `$${property.price} /head/room`
-              : `$${property.price} /month`}
+            {property.bedrooms || 0} Beds
           </Text>
 
-          <View className="flex flex-row items-center gap-3">
-            <View className="flex flex-row items-center px-4 py-2 bg-primary-100 rounded-full">
-              <Text className="text-xs font-rubik-bold text-primary-300">
-                {property.type}
+          <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10 ml-7">
+            <Image source={icons.bath} className="size-4" />
+          </View>
+          <Text
+            className="text-black-300 text-sm font-rubik-medium ml-2"
+            style={{ color: theme.text }}
+          >
+            {property.bathrooms || 0} Baths
+          </Text>
+
+          <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10 ml-7">
+            <Image source={icons.area} className="size-4" />
+          </View>
+          <Text
+            className="text-black-300 text-sm font-rubik-medium ml-2"
+            style={{ color: theme.text }}
+          >
+            {property.area || 0} sqm
+          </Text>
+        </View>
+
+        <View className="mt-7">
+          <Text
+            className="text-black-300 text-xl font-rubik-bold"
+            style={{ color: theme.text }}
+          >
+            Overview
+          </Text>
+          <Text
+            className="text-black-200 text-base font-rubik mt-2"
+            style={{ color: theme.text }}
+          >
+            {property.description || "No description available"}
+          </Text>
+        </View>
+
+        {/* ======================================== */}
+        {/* REVIEWS SECTION - MATCHING TENANT VIEW WITHOUT COLLAPSE */}
+        {/* ======================================== */}
+        <View className="mt-7">
+          <Text
+            className="text-black-300 text-xl font-rubik-bold mb-3"
+            style={{ color: theme.text }}
+          >
+            Reviews ({reviews.length})
+          </Text>
+
+          <View className="mt-1">
+            {reviews.length > 0 ? (
+              reviews.map((rev, index) => (
+                <View
+                  key={rev.id}
+                  className={`p-4 rounded-xl mb-3`}
+                  style={{
+                    backgroundColor:
+                      index % 2 === 0 ? theme.surface : theme.surface,
+                    borderWidth: 1,
+                    borderColor: theme.muted + "30",
+                  }}
+                >
+                  {/* Review Header - User Info */}
+                  <View className="flex-row items-center mb-2">
+                    <Image
+                      source={
+                        rev.userAvatar
+                          ? { uri: rev.userAvatar }
+                          : icons.person
+                      }
+                      className="w-8 h-8 rounded-full mr-3"
+                      style={{
+                        borderWidth: 1,
+                        borderColor: theme.muted + "30",
+                      }}
+                    />
+                    <View className="flex-1">
+                      <View className="flex-row justify-between items-center">
+                        <Text
+                          className="font-rubik-bold text-base"
+                          style={{ color: theme.title }}
+                        >
+                          {rev.userName}
+                        </Text>
+                        <View
+                          className="flex-row items-center px-2 py-1 rounded-full"
+                          style={{
+                            backgroundColor: theme.surface,
+                            borderWidth: 1,
+                            borderColor: theme.muted + "30",
+                          }}
+                        >
+                          <Text
+                            className="font-rubik-bold mr-1 text-sm"
+                            style={{ color: theme.text }}
+                          >
+                            {rev.rating}
+                          </Text>
+                          <Image source={icons.star} className="size-3.5" />
+                        </View>
+                      </View>
+                      <Text
+                        className="text-xs"
+                        style={{ color: theme.muted }}
+                      >
+                        {new Date(rev.date).toLocaleDateString()}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Review Content */}
+                  <View className="ml-2">
+                    <Text
+                      className="text-base leading-5"
+                      style={{ color: theme.text }}
+                    >
+                      {rev.review}
+                    </Text>
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text className="text-gray-500 text-center font-rubik-medium">
+                No reviews yet from Viewers
               </Text>
-            </View>
-            <Image source={icons.star} className="size-3.5" />
-            <Text className="text-black-200 text-sm mt-1 font-rubik-medium">
-              {avgRating}
-            </Text>
+            )}
           </View>
+        </View>
 
-          <View className="flex flex-row items-center mt-5">
-            <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10">
-              <Image source={icons.bed} className="size-4" />
+        <View className="mt-7">
+          <Text
+            className="text-black-300 text-xl font-rubik-bold"
+            style={{ color: theme.text }}
+          >
+            Facilities
+          </Text>
+
+          {facilityList.length > 0 ? (
+            <View className="mt-2">
+              <View className="flex-row flex-wrap -mx-1">
+                {facilityList.map((item, index) => {
+                  const facility = facilities.find(
+                    (f) => f.title === item,
+                  ) as
+                    | { title: string; icon: any; color?: string }
+                    | undefined;
+                  const colors = [
+                    "#3B82F6",
+                    "#10B981",
+                    "#F59E0B",
+                    "#EF4444",
+                    "#8B5CF6",
+                    "#EC4899",
+                  ];
+                  const iconColor =
+                    facility?.color || colors[index % colors.length];
+
+                  return (
+                    <View key={index} className="w-1/3 px-1 mb-3">
+                      <View
+                        className="rounded-xl p-3 items-center"
+                        style={{
+                          backgroundColor: theme.surface,
+                          borderWidth: 1,
+                          borderColor: theme.muted + "30",
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.05,
+                          shadowRadius: 2,
+                          elevation: 1,
+                        }}
+                      >
+                        <View
+                          className="size-14 rounded-full flex items-center justify-center"
+                          style={{
+                            backgroundColor: iconColor + "20",
+                          }}
+                        >
+                          <Image
+                            source={facility ? facility.icon : icons.info}
+                            className="size-6"
+                            style={{ tintColor: iconColor }}
+                          />
+                        </View>
+                        <Text
+                          numberOfLines={1}
+                          ellipsizeMode="tail"
+                          className="text-sm text-center font-rubik mt-1.5"
+                          style={{ color: theme.text }}
+                        >
+                          {item}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
+          ) : (
             <Text
-              className="text-black-300 text-sm font-rubik-medium ml-2"
-              style={{ color: theme.text }}
+              className="text-base font-rubik mt-2"
+              style={{ color: theme.muted }}
             >
-              {property.bedrooms || 0} Beds
+              No facilities listed
             </Text>
+          )}
+        </View>
 
-            <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10 ml-7">
-              <Image source={icons.bath} className="size-4" />
-            </View>
-            <Text
-              className="text-black-300 text-sm font-rubik-medium ml-2"
-              style={{ color: theme.text }}
-            >
-              {property.bathrooms || 0} Baths
-            </Text>
-
-            <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10 ml-7">
-              <Image source={icons.area} className="size-4" />
-            </View>
-            <Text
-              className="text-black-300 text-sm font-rubik-medium ml-2"
-              style={{ color: theme.text }}
-            >
-              {property.area || 0} sqm
-            </Text>
-          </View>
-
-          <View className="mt-7">
-            <Text
-              className="text-black-300 text-xl font-rubik-bold"
-              style={{ color: theme.text }}
-            >
-              Overview
-            </Text>
-            <Text
-              className="text-black-200 text-base font-rubik mt-2"
-              style={{ color: theme.text }}
-            >
-              {property.description || "No description available"}
-            </Text>
-          </View>
-
-          {/* ======================================== */}
-          {/* REVIEWS SECTION - MATCHING TENANT VIEW WITHOUT COLLAPSE */}
-          {/* ======================================== */}
+        {propertyImages.length > 1 && (
           <View className="mt-7">
             <Text
               className="text-black-300 text-xl font-rubik-bold mb-3"
               style={{ color: theme.text }}
             >
-              Reviews ({reviews.length})
+              All Photos
             </Text>
-
-            <View className="mt-1">
-              {reviews.length > 0 ? (
-                reviews.map((rev, index) => (
-                  <View
-                    key={rev.id}
-                    className={`p-4 rounded-xl mb-3`}
-                    style={{
-                      backgroundColor:
-                        index % 2 === 0 ? theme.surface : theme.surface,
-                      borderWidth: 1,
-                      borderColor: theme.muted + "30",
-                    }}
-                  >
-                    {/* Review Header - User Info */}
-                    <View className="flex-row items-center mb-2">
-                      {/* ✅ Reviewer Avatar - use rev.userAvatar */}
-                      <Image
-                        source={
-                          rev.userAvatar
-                            ? { uri: rev.userAvatar } // avatar URL from usersCollection
-                            : icons.person // fallback icon if missing
-                        }
-                        className="w-8 h-8 rounded-full mr-3"
-                        style={{
-                          borderWidth: 1,
-                          borderColor: theme.muted + "30",
-                        }}
-                      />
-                      <View className="flex-1">
-                        <View className="flex-row justify-between items-center">
-                          <Text
-                            className="font-rubik-bold text-base"
-                            style={{ color: theme.title }}
-                          >
-                            {rev.userName}
-                          </Text>
-                          <View
-                            className="flex-row items-center px-2 py-1 rounded-full"
-                            style={{
-                              backgroundColor: theme.surface,
-                              borderWidth: 1,
-                              borderColor: theme.muted + "30",
-                            }}
-                          >
-                            <Text
-                              className="font-rubik-bold mr-1 text-sm"
-                              style={{ color: theme.text }}
-                            >
-                              {rev.rating}
-                            </Text>
-                            <Image source={icons.star} className="size-3.5" />
-                          </View>
-                        </View>
-                        <Text
-                          className="text-xs"
-                          style={{ color: theme.muted }}
-                        >
-                          {new Date(rev.date).toLocaleDateString()}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Review Content */}
-                    <View className="ml-2">
-                      <Text
-                        className="text-base leading-5"
-                        style={{ color: theme.text }}
-                      >
-                        {rev.review}
-                      </Text>
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <Text className="text-gray-500 text-center font-rubik-medium">
-                  No reviews yet from Viewers
-                </Text>
+            <FlatList
+              data={propertyImages}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(_, index) => index.toString()}
+              renderItem={({ item, index }) => (
+                <TouchableOpacity
+                  onPress={() => setCurrentImageIndex(index)}
+                  className="mr-3"
+                >
+                  <Image
+                    source={{ uri: item }}
+                    className="w-24 h-24 rounded-xl"
+                  />
+                  {index === currentImageIndex && (
+                    <View className="absolute inset-0 bg-primary-300/30 rounded-xl border-2 border-primary-300" />
+                  )}
+                </TouchableOpacity>
               )}
-            </View>
+            />
           </View>
+        )}
 
-          <View className="mt-7">
+        <View className="mt-7">
+          <Text
+            className="text-black-300 text-xl font-rubik-bold"
+            style={{ color: theme.text }}
+          >
+            Location
+          </Text>
+          <View className="flex flex-row items-center mt-4 gap-2">
+            <Image source={icons.location} className="w-7 h-7" />
             <Text
-              className="text-black-300 text-xl font-rubik-bold"
+              className="text-black-200 text-sm font-rubik-medium"
               style={{ color: theme.text }}
             >
-              Facilities
+              {property.address || "Address not available"}
             </Text>
-
-            {facilityList.length > 0 ? (
-              <View className="mt-2">
-                {/* Grid Container - 3 items per row */}
-                <View className="flex-row flex-wrap -mx-1">
-                  {facilityList.map((item, index) => {
-                    const facility = facilities.find(
-                      (f) => f.title === item,
-                    ) as
-                      | { title: string; icon: any; color?: string }
-                      | undefined;
-                    // Get a color based on index or facility type
-                    const colors = [
-                      "#3B82F6", // Blue
-                      "#10B981", // Green
-                      "#F59E0B", // Orange
-                      "#EF4444", // Red
-                      "#8B5CF6", // Purple
-                      "#EC4899", // Pink
-                    ];
-                    const iconColor =
-                      facility?.color || colors[index % colors.length];
-
-                    return (
-                      <View key={index} className="w-1/3 px-1 mb-3">
-                        {/* Square Box with Rounded Corners */}
-                        <View
-                          className="rounded-xl p-3 items-center"
-                          style={{
-                            backgroundColor: theme.surface,
-                            borderWidth: 1,
-                            borderColor: theme.muted + "30",
-                            shadowColor: "#000",
-                            shadowOffset: { width: 0, height: 1 },
-                            shadowOpacity: 0.05,
-                            shadowRadius: 2,
-                            elevation: 1,
-                          }}
-                        >
-                          <View
-                            className="size-14 rounded-full flex items-center justify-center"
-                            style={{
-                              backgroundColor: iconColor + "20",
-                            }}
-                          >
-                            <Image
-                              source={facility ? facility.icon : icons.info}
-                              className="size-6"
-                              style={{ tintColor: iconColor }}
-                            />
-                          </View>
-                          <Text
-                            numberOfLines={1}
-                            ellipsizeMode="tail"
-                            className="text-sm text-center font-rubik mt-1.5"
-                            style={{ color: theme.text }}
-                          >
-                            {item}
-                          </Text>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-            ) : (
-              <Text
-                className="text-base font-rubik mt-2"
-                style={{ color: theme.muted }}
-              >
-                No facilities listed
-              </Text>
-            )}
           </View>
+        </View>
 
-          {propertyImages.length > 1 && (
-            <View className="mt-7">
-              <Text
-                className="text-black-300 text-xl font-rubik-bold mb-3"
-                style={{ color: theme.text }}
-              >
-                All Photos
-              </Text>
-              <FlatList
-                data={propertyImages}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={(_, index) => index.toString()}
-                renderItem={({ item, index }) => (
-                  <TouchableOpacity
-                    onPress={() => setCurrentImageIndex(index)}
-                    className="mr-3"
-                  >
-                    <Image
-                      source={{ uri: item }}
-                      className="w-24 h-24 rounded-xl"
-                    />
-                    {index === currentImageIndex && (
-                      <View className="absolute inset-0 bg-primary-300/30 rounded-xl border-2 border-primary-300" />
-                    )}
-                  </TouchableOpacity>
-                )}
-              />
-            </View>
-          )}
-
-          <View className="mt-7">
-            <Text
-              className="text-black-300 text-xl font-rubik-bold"
-              style={{ color: theme.text }}
-            >
-              Location
-            </Text>
-            <View className="flex flex-row items-center mt-4 gap-2">
-              <Image source={icons.location} className="w-7 h-7" />
-              <Text
-                className="text-black-200 text-sm font-rubik-medium"
-                style={{ color: theme.text }}
-              >
-                {property.address || "Address not available"}
-              </Text>
-            </View>
-          </View>
-
+        {/* ✅ DELETE PROPERTY BUTTON - Only show if current user is the creator */}
+        {isLandlordOwner && (
           <View className="mt-7 mb-10">
             <TouchableOpacity
               onPress={handleDeleteProperty}
@@ -1749,10 +1744,11 @@ const Property = () => {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </>
-    );
-  };
+        )}
+      </View>
+    </>
+  );
+};
 
   // ============================================================================
   // EDIT MODAL RENDER
@@ -2389,6 +2385,6 @@ const Property = () => {
       />
     </View>
   );
-};
+};;
 
 export default Property;

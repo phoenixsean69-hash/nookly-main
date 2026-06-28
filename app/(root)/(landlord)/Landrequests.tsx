@@ -3,7 +3,12 @@ import { Colors } from "@/constants/Colors";
 import { getAvatarSource } from "@/constants/data";
 
 import icons from "@/constants/icons";
-import { config, createNotification, databases } from "@/lib/appwrite";
+import {
+  config,
+  createNotification,
+  databases,
+  uploadLeaseDocument,
+} from "@/lib/appwrite";
 import notificationService from "@/services/notification.service";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +31,7 @@ import {
 } from "react-native";
 import { Query } from "react-native-appwrite";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LeaseDocumentModal } from "@/components/LeaseDocumentModal";
 
 interface RentalRequest {
   $id: string;
@@ -47,6 +53,11 @@ interface RentalRequest {
   questions?: string[];
   property?: any;
   rejectionReason?: string; // Added for rejection reason
+  // Lease document fields
+  leaseDocumentId?: string;
+  leaseDocumentUrl?: string;
+  leaseDocumentName?: string;
+  leaseSentAt?: string;
 }
 
 export default function LandlordRequests() {
@@ -64,6 +75,12 @@ export default function LandlordRequests() {
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectRequestId, setRejectRequestId] = useState<string | null>(null);
+
+  // Lease Document Modal State
+  const [leaseModalVisible, setLeaseModalVisible] = useState(false);
+  const [selectedRequestForLease, setSelectedRequestForLease] =
+    useState<RentalRequest | null>(null);
+  const [sendingLease, setSendingLease] = useState(false);
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
@@ -141,7 +158,12 @@ export default function LandlordRequests() {
             moveInDate: doc.moveInDate,
             leaseDuration: doc.leaseDuration,
             questions: doc.questions ? JSON.parse(doc.questions) : [],
-            rejectionReason: doc.rejectionReason || null, // Fetch rejection reason
+            rejectionReason: doc.rejectionReason || null,
+            // Lease document fields
+            leaseDocumentId: doc.leaseDocumentId || null,
+            leaseDocumentUrl: doc.leaseDocumentUrl || null,
+            leaseDocumentName: doc.leaseDocumentName || null,
+            leaseSentAt: doc.leaseSentAt || null,
           };
         }),
       );
@@ -273,7 +295,7 @@ export default function LandlordRequests() {
             request.tenantId,
             request.propertyName,
             "rejected",
-            rejectionReason.trim(), // Pass rejection reason
+            rejectionReason.trim(),
           );
           console.log(
             "✅ Push notification sent to tenant for rejected request",
@@ -362,6 +384,66 @@ export default function LandlordRequests() {
       Alert.alert("Error", "Failed to update request status");
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  // Handle sending lease document
+  const handleSendLeaseDocument = async (file: any) => {
+    if (!selectedRequestForLease) return;
+
+    setSendingLease(true);
+    try {
+      // Upload the document
+      const result = await uploadLeaseDocument(file);
+
+      // Update the request with lease document info
+      await databases.updateDocument(
+        config.databaseId!,
+        config.requestsCollectionId!,
+        selectedRequestForLease.$id,
+        {
+          leaseDocumentId: result.fileId,
+          leaseDocumentUrl: result.url,
+          leaseDocumentName: result.name,
+          leaseSentAt: new Date().toISOString(),
+        },
+      );
+
+      // Create notification for tenant
+      await createNotification(
+        selectedRequestForLease.tenantId,
+        "📄 Lease Document Sent",
+        `The landlord has sent you a lease document for "${selectedRequestForLease.propertyName}".`,
+        "lease",
+        
+        {
+          requestId: selectedRequestForLease.$id,
+          propertyId: selectedRequestForLease.propertyId,
+          propertyName: selectedRequestForLease.propertyName,
+        },
+      );
+
+      // Send push notification
+      try {
+        await notificationService.sendNotificationToUser(
+          selectedRequestForLease.tenantId,
+          "📄 Lease Document Ready",
+          `A lease document for "${selectedRequestForLease.propertyName}" has been sent to you.`,
+          { type: "lease", requestId: selectedRequestForLease.$id },
+        );
+      } catch (pushError) {
+        console.error("Failed to send push notification:", pushError);
+      }
+
+      Alert.alert("Success", "Lease document sent successfully!");
+      setLeaseModalVisible(false);
+      setSelectedRequestForLease(null);
+      fetchRequests(); // Refresh the list
+    } catch (error) {
+      console.error("Error sending lease document:", error);
+      Alert.alert("Error", "Failed to send lease document");
+    } finally {
+      setSendingLease(false);
     }
   };
 
@@ -1240,7 +1322,7 @@ export default function LandlordRequests() {
                     </Text>
                   </View>
 
-                  {/* Action Buttons (only for pending) */}
+                  {/* Action Buttons */}
                   {item.status === "pending" && (
                     <View className="flex-row gap-3 mt-4">
                       <TouchableOpacity
@@ -1273,6 +1355,37 @@ export default function LandlordRequests() {
                       </TouchableOpacity>
                     </View>
                   )}
+
+                  {/* Send Lease Button - Only for accepted requests */}
+                  {item.status === "accepted" && (
+                    <View
+                      className="flex-row gap-2 mt-4 pt-2 border-t"
+                      style={{ borderTopColor: theme.muted + "20" }}
+                    >
+                      <TouchableOpacity
+                        onPress={() => {
+                          setSelectedRequestForLease(item);
+                          setLeaseModalVisible(true);
+                        }}
+                        className="flex-1 py-2 rounded-full flex-row items-center justify-center"
+                        style={{ backgroundColor: theme.primary[100] }}
+                      >
+                        <Ionicons
+                          name="document-text"
+                          size={16}
+                          color={theme.primary[300]}
+                        />
+                        <Text
+                          className="ml-2 text-sm font-rubik-bold"
+                          style={{ color: theme.primary[300] }}
+                        >
+                          {item.leaseDocumentUrl
+                            ? "Resend Lease"
+                            : "Send Lease"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               </TouchableOpacity>
             );
@@ -1285,6 +1398,19 @@ export default function LandlordRequests() {
 
       {/* Rejection Modal */}
       {renderRejectModal()}
+
+      {/* Lease Document Modal */}
+      <LeaseDocumentModal
+        visible={leaseModalVisible}
+        onClose={() => {
+          setLeaseModalVisible(false);
+          setSelectedRequestForLease(null);
+        }}
+        onSubmit={handleSendLeaseDocument}
+        propertyName={selectedRequestForLease?.propertyName || ""}
+        tenantName={selectedRequestForLease?.tenantName || ""}
+        isLoading={sendingLease}
+      />
     </SafeAreaView>
   );
 }

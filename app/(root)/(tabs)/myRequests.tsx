@@ -12,6 +12,7 @@ import {
   Alert,
   FlatList,
   Image,
+  Linking,
   Modal,
   RefreshControl,
   ScrollView,
@@ -23,6 +24,7 @@ import {
 } from "react-native";
 import { Query, ID } from "react-native-appwrite";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons"; // ✅ Add this import
 
 interface TenantRequest {
   $id: string;
@@ -44,6 +46,11 @@ interface TenantRequest {
   propertyType?: string;
   // Queries for this property
   queries?: QueryData[];
+  // ✅ Lease document fields
+  leaseDocumentId?: string;
+  leaseDocumentUrl?: string;
+  leaseDocumentName?: string;
+  leaseSentAt?: string;
 }
 
 interface QueryData {
@@ -88,7 +95,9 @@ export default function TenantRequests() {
 
   // Queries view modal
   const [queriesModalVisible, setQueriesModalVisible] = useState(false);
-  const [selectedPropertyQueries, setSelectedPropertyQueries] = useState<QueryData[]>([]);
+  const [selectedPropertyQueries, setSelectedPropertyQueries] = useState<
+    QueryData[]
+  >([]);
   const [selectedPropertyName, setSelectedPropertyName] = useState("");
 
   const fetchRequests = async () => {
@@ -172,6 +181,11 @@ export default function TenantRequests() {
             propertyAddress,
             propertyType,
             queries,
+            // ✅ Fetch lease document fields
+            leaseDocumentId: doc.leaseDocumentId || null,
+            leaseDocumentUrl: doc.leaseDocumentUrl || null,
+            leaseDocumentName: doc.leaseDocumentName || null,
+            leaseSentAt: doc.leaseSentAt || null,
           };
         }),
       );
@@ -208,21 +222,21 @@ export default function TenantRequests() {
         return {
           bg: "#F59E0B20",
           text: "#92400E",
-          label: " Pending",
+          label: "⏳ Pending",
           border: "#F59E0B50",
         };
       case "accepted":
         return {
           bg: "#10B98120",
           text: "#065F46",
-          label: "Approved",
+          label: "✅ Approved",
           border: "#10B98150",
         };
       case "rejected":
         return {
           bg: "#EF444420",
           text: "#991B1B",
-          label: " Declined",
+          label: "✗ Declined",
           border: "#EF444450",
         };
       default:
@@ -238,9 +252,9 @@ export default function TenantRequests() {
   const getQueryStatusColor = (status: string) => {
     switch (status) {
       case "pending":
-        return { bg: "#F59E0B20", text: "#92400E", label: " Pending" };
+        return { bg: "#F59E0B20", text: "#92400E", label: "⏳ Pending" };
       case "answered":
-        return { bg: "#10B98120", text: "#065F46", label: " Answered" };
+        return { bg: "#10B98120", text: "#065F46", label: "✅ Answered" };
       default:
         return { bg: "#6B728020", text: "#374151", label: "Unknown" };
     }
@@ -404,7 +418,7 @@ export default function TenantRequests() {
       setQueryModalVisible(false);
       setQueryText("");
       setQueryImages([]);
-      
+
       // Refresh requests to get the new query
       fetchRequests();
     } catch (error) {
@@ -478,7 +492,7 @@ export default function TenantRequests() {
           ) : (
             selectedPropertyQueries.map((query, index) => {
               const queryStatus = getQueryStatusColor(query.status);
-              
+
               return (
                 <View
                   key={query.$id}
@@ -598,10 +612,7 @@ export default function TenantRequests() {
                         >
                           Landlord's Reply:
                         </Text>
-                        <Text
-                          className="text-sm"
-                          style={{ color: theme.text }}
-                        >
+                        <Text className="text-sm" style={{ color: theme.text }}>
                           {query.reply}
                         </Text>
                         {query.replyCreatedAt && (
@@ -612,6 +623,67 @@ export default function TenantRequests() {
                             {formatDate(query.replyCreatedAt)}
                           </Text>
                         )}
+                      </View>
+                    )}
+
+                    {/* ✅ Lease Document Section - With proper null checks */}
+                    {selectedRequest && selectedRequest.leaseDocumentUrl && (
+                      <View
+                        className="rounded-2xl p-4 mt-4"
+                        style={{
+                          backgroundColor: theme.surface,
+                          borderWidth: 1,
+                          borderColor: theme.primary[300] + "50",
+                        }}
+                      >
+                        <View className="flex-row items-center mb-3">
+                          <Ionicons
+                            name="document-text"
+                            size={24}
+                            color={theme.primary[300]}
+                          />
+                          <Text
+                            className="text-base font-rubik-bold ml-2"
+                            style={{ color: theme.title }}
+                          >
+                            Lease Document
+                          </Text>
+                        </View>
+
+                        <Text
+                          className="text-sm mb-2"
+                          style={{ color: theme.muted }}
+                        >
+                          {selectedRequest.leaseDocumentName ||
+                            "Lease Agreement"}
+                        </Text>
+
+                        <Text
+                          className="text-xs mb-3"
+                          style={{ color: theme.muted }}
+                        >
+                          Sent:{" "}
+                          {selectedRequest.leaseSentAt
+                            ? new Date(
+                                selectedRequest.leaseSentAt,
+                              ).toLocaleDateString()
+                            : "N/A"}
+                        </Text>
+
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (selectedRequest.leaseDocumentUrl) {
+                              Linking.openURL(selectedRequest.leaseDocumentUrl);
+                            }
+                          }}
+                          className="py-3 rounded-xl flex-row items-center justify-center"
+                          style={{ backgroundColor: theme.primary[300] }}
+                        >
+                          <Ionicons name="download" size={20} color="white" />
+                          <Text className="text-white font-rubik-bold ml-2">
+                            Download Document
+                          </Text>
+                        </TouchableOpacity>
                       </View>
                     )}
                   </View>

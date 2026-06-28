@@ -1,7 +1,6 @@
-// app/screens/AddListing.tsx
 import { Colors } from "@/constants/Colors";
 import icons from "@/constants/icons";
-import { AddListing, uploadImage } from "@/lib/appwrite";
+import { AddListing, uploadImage} from "@/lib/appwrite";
 import * as ImagePicker from "expo-image-picker";
 import { ImagePickerAsset } from "expo-image-picker";
 import { router } from "expo-router";
@@ -46,7 +45,7 @@ const AddPropertyScreen = () => {
   const [cityTown, setCityTown] = useState("");
 
   const [price, setPrice] = useState("");
-  const [priceThreshold, setPriceThreshold] = useState(""); // Added priceThreshold
+  const [priceThreshold, setPriceThreshold] = useState("");
   const [area, setArea] = useState("");
   const [bedrooms, setBedrooms] = useState("");
   const [roomFor, setRoomFor] = useState("");
@@ -85,6 +84,7 @@ const AddPropertyScreen = () => {
     return parts.join(", ");
   };
 
+  // Image picker
   const pickImage = async () => {
     if (images.length >= 3) {
       Alert.alert("Limit Reached", "You can only upload up to 3 images");
@@ -111,6 +111,7 @@ const AddPropertyScreen = () => {
   const removeImage = (index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
+
 
   const toggleFacility = (facilityTitle: string) => {
     setSelectedFacilities((prev) => {
@@ -157,7 +158,6 @@ const AddPropertyScreen = () => {
       return false;
     }
 
-    // Validate price threshold (optional, but if entered must be a valid number)
     if (
       priceThreshold &&
       (isNaN(Number(priceThreshold)) || Number(priceThreshold) < 0)
@@ -253,7 +253,7 @@ const AddPropertyScreen = () => {
         listingData.curfew = curfewAmPm ? `${curfew} ${curfewAmPm}` : "";
       }
 
-      // Assign image URLs to individual fields
+      // Assign image URLs
       if (uploadedImageUrls[0]) listingData.image1 = uploadedImageUrls[0];
       if (uploadedImageUrls[1]) listingData.image2 = uploadedImageUrls[1];
       if (uploadedImageUrls[2]) listingData.image3 = uploadedImageUrls[2];
@@ -263,7 +263,6 @@ const AddPropertyScreen = () => {
       // Add the listing
       await AddListing(listingData);
 
-      // Show success modal instead of alert
       setSuccessModalVisible(true);
     } catch (error) {
       console.error("Error saving listing:", error);
@@ -276,7 +275,6 @@ const AddPropertyScreen = () => {
     }
   };
 
-  // Add a reset form function
   const resetForm = () => {
     setPropertyName("");
     setType("");
@@ -286,7 +284,7 @@ const AddPropertyScreen = () => {
     setNeighbourhood("");
     setCityTown("");
     setPrice("");
-    setPriceThreshold(""); // Reset price threshold
+    setPriceThreshold("");
     setArea("");
     setBedrooms("");
     setBathrooms("");
@@ -297,7 +295,6 @@ const AddPropertyScreen = () => {
     setImages([]);
   };
 
-  // Property Type Modal
   // Property Type Modal with Icons
   const renderTypeModal = () => (
     <Modal
@@ -1609,6 +1606,17 @@ const AddPropertyScreen = () => {
                 </View>
               )}
             </View>
+
+
+            {loading && (
+              <Text
+                className="text-xs text-center mb-2"
+                style={{ color: theme.muted }}
+              >
+                Uploading and compressing images, this can take a moment for
+                larger files...
+              </Text>
+            )}
 
             {/* Submit Button */}
             <TouchableOpacity

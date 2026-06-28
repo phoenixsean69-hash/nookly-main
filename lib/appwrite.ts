@@ -1,4 +1,5 @@
 import notificationService from "@/services/notification.service";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as Linking from "expo-linking";
@@ -201,6 +202,43 @@ async function getUserDocumentByIdOrAccountId(
     return null;
   }
 }
+
+// lib/appwrite.ts
+
+export const uploadLeaseDocument = async (fileAsset: any) => {
+  try {
+    console.log("📄 Uploading lease document...");
+
+    const file = {
+      name: fileAsset.name || `lease_${Date.now()}.pdf`,
+      type: fileAsset.mimeType || 'application/pdf',
+      size: fileAsset.size || 0,
+      uri: fileAsset.uri,
+    };
+
+    const response = await storage.createFile(
+      config.bucketId!,
+      ID.unique(),
+      file
+    );
+
+    console.log("✅ Lease document uploaded:", response.$id);
+
+    const fileUrl = storage.getFileView(
+      config.bucketId!,
+      response.$id
+    );
+
+    return {
+      fileId: response.$id,
+      url: fileUrl,
+      name: file.name,
+    };
+  } catch (error) {
+    console.error("Error uploading lease document:", error);
+    throw error;
+  }
+};
 
 export async function sendExpoPushToUser(
   userId: string,
@@ -458,6 +496,7 @@ export async function AddListing(
     image1?: string;
     image2?: string;
     image3?: string;
+
     agent?: string;
     creatorId?: string;
     priceThreshold?: number;
@@ -489,7 +528,7 @@ export async function AddListing(
         image3: listing.image3 || null,
         agent: listing.agent || null,
         creatorId: listing.creatorId || null,
-        priceThreshold: listing.priceThreshold || 0, // Added priceThreshold with default 0
+        priceThreshold: listing.priceThreshold || 0,
       },
     );
 
@@ -1256,7 +1295,6 @@ export async function getPropertyById({ id }: { id: string }) {
       }
     }
 
-    // ... rest of the code ... //
     return property;
   } catch (error) {
     console.error("❌ Error in getPropertyById:", error);
@@ -2155,7 +2193,7 @@ export async function createNotification(
   userId: string,
   title: string,
   message: string,
-  type: "like" | "review" | "message" | "system" | "request",
+  type: "like" | "review" | "message" | "system" | "request" | "lease",
   data: any = {},
 ) {
   try {
