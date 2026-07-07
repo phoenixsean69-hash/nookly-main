@@ -1,3 +1,4 @@
+// components/ConfirmationModal.tsx
 import { Colors } from "@/constants/Colors";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
@@ -11,82 +12,65 @@ import {
 
 interface ConfirmationModalProps {
   visible: boolean;
-  onClose: () => void;
   onConfirm: () => void;
+  onCancel: () => void;
   title?: string;
   message?: string;
   confirmText?: string;
   cancelText?: string;
-  danger?: boolean;
+  isLoading?: boolean;
 }
 
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   visible,
-  onClose,
   onConfirm,
-  title = "Confirm Action",
-  message = "Are you sure you want to proceed?",
+  onCancel,
+  title = "Confirm",
+  message = "Are you sure?",
   confirmText = "Confirm",
   cancelText = "Cancel",
-  danger = false,
+  isLoading = false,
 }) => {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
-
-  const handleConfirm = () => {
-    onConfirm();
-    onClose();
-  };
 
   return (
     <Modal
       animationType="fade"
       transparent={true}
       visible={visible}
-      onRequestClose={onClose}
+      onRequestClose={onCancel}
     >
       <View className="flex-1 justify-center items-center bg-black/50">
         <View
-          className="w-80 rounded-2xl p-6"
+          className="w-80 rounded-2xl p-6 items-center"
           style={{ backgroundColor: theme.surface }}
         >
           <View
-            className="w-16 h-16 rounded-full items-center justify-center mb-4 self-center"
-            style={{
-              backgroundColor: danger
-                ? theme.danger + "20"
-                : theme.primary[100],
-            }}
+            className="w-16 h-16 rounded-full items-center justify-center mb-3"
+            style={{ backgroundColor: "#EF444420" }}
           >
-            <Ionicons
-              name={danger ? "warning" : "help-circle"}
-              size={40}
-              color={danger ? theme.danger : theme.primary[300]}
-            />
+            <Ionicons name="warning" size={40} color="#EF4444" />
           </View>
-
           <Text
             className="text-lg font-rubik-bold mb-2 text-center"
             style={{ color: theme.title }}
           >
             {title}
           </Text>
-
           <Text
-            className="text-sm text-center mb-6"
+            className="text-sm text-center mb-4"
             style={{ color: theme.muted }}
           >
             {message}
           </Text>
-
-          <View className="flex-row gap-3">
+          <View className="flex-row gap-3 w-full">
             <TouchableOpacity
-              onPress={onClose}
-              className="flex-1 py-3 rounded-xl"
+              onPress={onCancel}
+              className="flex-1 py-3 rounded-full border"
               style={{
+                borderColor: theme.muted + "30",
                 backgroundColor: theme.surface,
-                borderWidth: 1,
-                borderColor: theme.muted + "40",
               }}
             >
               <Text
@@ -96,16 +80,16 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
                 {cancelText}
               </Text>
             </TouchableOpacity>
-
             <TouchableOpacity
-              onPress={handleConfirm}
-              className="flex-1 py-3 rounded-xl"
+              onPress={onConfirm}
+              disabled={isLoading}
+              className="flex-1 py-3 rounded-full"
               style={{
-                backgroundColor: danger ? theme.danger : theme.primary[300],
+                backgroundColor: isLoading ? theme.muted : "#EF4444",
               }}
             >
               <Text className="text-white text-center font-rubik-medium">
-                {confirmText}
+                {isLoading ? "Deleting..." : confirmText}
               </Text>
             </TouchableOpacity>
           </View>

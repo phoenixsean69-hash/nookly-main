@@ -7,12 +7,16 @@
     "icon": "./assets/images/icon.png",
     "scheme": "nookly",
     "userInterfaceStyle": "automatic",
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.shon1123.Nookly",
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -70,7 +74,9 @@
     },
     "extra": {
       "router": {},
-      "eas": {}
+      "eas": {
+        "projectId": "794b1644-79da-4c3e-92d2-d3605b2c208a"
+      }
     },
     "owner": "phoenix69"
   }
