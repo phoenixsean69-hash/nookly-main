@@ -43,11 +43,9 @@
     "plugins": [
       [
         "expo-notifications",
-        {
-          "icon": "./assets/images/icon.png",
-          "sounds": []
-        }
+        { "sounds": ["./assets/notification.wav"] }
       ],
+      
       "expo-router",
       [
         "expo-splash-screen",

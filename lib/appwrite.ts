@@ -204,6 +204,7 @@ async function getUserDocumentByIdOrAccountId(
 }
 
 // lib/appwrite.ts
+// lib/appwrite.ts
 
 export const uploadLeaseDocument = async (fileAsset: any) => {
   try {
@@ -224,14 +225,9 @@ export const uploadLeaseDocument = async (fileAsset: any) => {
 
     console.log("✅ Lease document uploaded:", response.$id);
 
-    const fileUrl = storage.getFileView(
-      config.bucketId!,
-      response.$id
-    );
-
+    // ✅ Return ONLY the file ID and name
     return {
       fileId: response.$id,
-      url: fileUrl,
       name: file.name,
     };
   } catch (error) {
@@ -239,6 +235,8 @@ export const uploadLeaseDocument = async (fileAsset: any) => {
     throw error;
   }
 };
+
+
 
 export async function sendExpoPushToUser(
   userId: string,
@@ -666,10 +664,6 @@ export const getCurrentUser = async () => {
     return null;
   }
 };
-
-// ---------------- OAUTH ----------------
-
-// lib/appwrite.ts - Updated loginWithGoogle function
 
 export async function loginWithGoogle(userMode?: "tenant" | "landlord") {
   try {
@@ -1690,10 +1684,41 @@ export async function checkUserLiked(propertyId: string, userId: string) {
 
 // Get properties sorted by likes (for My Top Listings)
 export async function getTopListingsByLikes(
-  creatorId: string,
+    creatorId: string,
   limit: number = 5,
+  options?: {
+    minRating?: number;      // Minimum rating to qualify
+    minLikes?: number;       // Minimum likes to qualify
+    minViews?: number;       // Minimum views to qualify
+    maxAgeDays?: number;     // Max age in days to qualify
+    weights?: {
+      likes?: number;
+      views?: number;
+      rating?: number;
+      recency?: number;
+      completeness?: number;
+      engagement?: number;
+    };
+  }
 ) {
   try {
+    const {
+      minRating = 0,
+      minLikes = 0,
+      minViews = 0,
+      maxAgeDays = 365,
+      weights = {}
+    } = options || {};
+
+    const {
+      likes: likesWeight = 2,
+      views: viewsWeight = 1,
+      rating: ratingWeight = 3,
+      recency: recencyWeight = 1.5,
+      completeness: completenessWeight = 1,
+      engagement: engagementWeight = 2,
+    } = weights;
+
     // First get all properties by this creator
     const properties = await databases.listDocuments(
       config.databaseId!,
@@ -1701,50 +1726,114 @@ export async function getTopListingsByLikes(
       [Query.equal("creatorId", creatorId)],
     );
 
-    // For each property, get like count
-    const propertiesWithLikes = await Promise.all(
-      properties.documents.map(async (property) => {
-        const likeCount = await getLikeCount(property.$id);
-        return {
-          ...property,
-          likeCount,
-        };
+    if (properties.documents.length === 0) {
+      return [];
+    }
+
+    // For each property, get all metrics
+    const propertiesWithMetrics = await Promise.all(
+      properties.documents.map(async (property: any) => {
+        try {
+          // Get like count
+          const likeCount = await getLikeCount(property.$id);
+          
+          // Get reviews and calculate rating
+          let rating = 0;
+          try {
+            const reviews = await getReviewsByProperty(property.$id);
+            if (reviews.length > 0) {
+              rating = Number(
+                (
+                  reviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
+                  reviews.length
+                ).toFixed(1)
+              );
+            }
+          } catch {
+            rating = 0;
+          }
+
+          // Get view count
+          const viewCount = property.views || 0;
+
+          // Check if property meets minimum requirements
+          if (rating < minRating || likeCount < minLikes || viewCount < minViews) {
+            return null; // Skip this property
+          }
+
+          // Check age limit
+          const createdAt = property.$createdAt || property.createdAt;
+          if (createdAt) {
+            const ageInDays = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
+            if (ageInDays > maxAgeDays) {
+              return null; // Too old, skip
+            }
+          }
+
+          // Calculate recency score
+          let recencyScore = 0;
+          if (createdAt) {
+            const ageInDays = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
+            recencyScore = Math.max(0, 100 * Math.exp(-ageInDays / 30));
+          }
+
+          // Calculate completeness score (how complete is the property listing)
+          let completenessScore = 0;
+          if (property.image1) completenessScore += 20;
+          if (property.image2) completenessScore += 10;
+          if (property.image3) completenessScore += 5;
+          if (property.description && property.description.length > 100) completenessScore += 15;
+          if (property.facilities && Array.isArray(property.facilities) && property.facilities.length > 5) completenessScore += 10;
+          if (property.area > 0) completenessScore += 10;
+          if (property.bedrooms > 0) completenessScore += 10;
+          if (property.bathrooms > 0) completenessScore += 10;
+          if (property.isAvailable) completenessScore += 10;
+
+          // Calculate engagement score (likes + comments/reviews engagement)
+          const engagementScore = likeCount + rating * 2;
+
+          // ✅ Calculate weighted score
+          const weightedScore = (
+            (likeCount || 0) * likesWeight +
+            (viewCount || 0) * viewsWeight +
+            (rating || 0) * ratingWeight * 10 +
+            recencyScore * recencyWeight +
+            completenessScore * completenessWeight +
+            engagementScore * engagementWeight
+          );
+
+          return {
+            ...property,
+            likeCount,
+            viewCount,
+            rating,
+            recencyScore,
+            completenessScore,
+            engagementScore,
+            weightedScore,
+          };
+        } catch (error) {
+          console.error(`Error processing property ${property.$id}:`, error);
+          return null;
+        }
       }),
     );
 
-    // Sort by likeCount descending and take top 'limit'
-    const sorted = propertiesWithLikes
-      .sort((a, b) => (b.likeCount || 0) - (a.likeCount || 0))
+    // Filter out null entries (properties that didn't meet minimum requirements)
+    const validProperties = propertiesWithMetrics.filter(p => p !== null);
+
+    // Sort by weightedScore descending and take top 'limit'
+    const sorted = validProperties
+      .sort((a, b) => (b?.weightedScore || 0) - (a?.weightedScore || 0))
       .slice(0, limit);
 
-    // Add ratings
-    const propertiesWithDetails = await Promise.all(
-      sorted.map(async (property: any) => {
-        // Add ': any' temporarily
-        try {
-          const reviews = await getReviewsByProperty(property.$id);
-          property.rating =
-            reviews.length > 0
-              ? Number(
-                  (
-                    reviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
-                    reviews.length
-                  ).toFixed(1),
-                )
-              : 0;
-        } catch {
-          property.rating = 0;
-        }
-        return property;
-      }),
-    );
-
-    return propertiesWithDetails;
+    return sorted;
   } catch (error) {
-    console.error("Error getting top listings by likes:", error);
+    console.error("Error getting top listings:", error);
     return [];
   }
 }
+
 
 // Get like count for multiple properties at once (efficient)
 export async function getLikeCountsForProperties(propertyIds: string[]) {

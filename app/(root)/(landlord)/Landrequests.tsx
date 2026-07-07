@@ -387,66 +387,64 @@ export default function LandlordRequests() {
     }
   };
 
-  // Handle sending lease document
-  const handleSendLeaseDocument = async (file: any) => {
-    if (!selectedRequestForLease) return;
+const handleSendLeaseDocument = async (file: any) => {
+  if (!selectedRequestForLease) return;
 
-    setSendingLease(true);
+  setSendingLease(true);
+  try {
+    // Upload the document
+    const result = await uploadLeaseDocument(file);
+
+    // ✅ Update ONLY the fields we want - NO leaseDocumentUrl
+    await databases.updateDocument(
+      config.databaseId!,
+      config.requestsCollectionId!,
+      selectedRequestForLease.$id,
+      {
+        leaseDocumentId: result.fileId,  // ✅ Store the file ID
+        leaseDocumentName: result.name,
+        leaseSentAt: new Date().toISOString(),
+        // ❌ DO NOT include leaseDocumentUrl here
+      },
+    );
+
+    // Create notification for tenant
+    await createNotification(
+      selectedRequestForLease.tenantId,
+      "📄 Lease Document Sent",
+      `The landlord has sent you a lease document for "${selectedRequestForLease.propertyName}". Please check your requests.`,
+      "system",
+      {
+        requestId: selectedRequestForLease.$id,
+        propertyId: selectedRequestForLease.propertyId,
+        propertyName: selectedRequestForLease.propertyName,
+        documentId: result.fileId,
+      },
+    );
+
+    // Send push notification
     try {
-      // Upload the document
-      const result = await uploadLeaseDocument(file);
-
-      // Update the request with lease document info
-      await databases.updateDocument(
-        config.databaseId!,
-        config.requestsCollectionId!,
-        selectedRequestForLease.$id,
-        {
-          leaseDocumentId: result.fileId,
-          leaseDocumentUrl: result.url,
-          leaseDocumentName: result.name,
-          leaseSentAt: new Date().toISOString(),
-        },
-      );
-
-      // Create notification for tenant
-      await createNotification(
+      await notificationService.sendNotificationToUser(
         selectedRequestForLease.tenantId,
-        "📄 Lease Document Sent",
-        `The landlord has sent you a lease document for "${selectedRequestForLease.propertyName}".`,
-        "lease",
-        
-        {
-          requestId: selectedRequestForLease.$id,
-          propertyId: selectedRequestForLease.propertyId,
-          propertyName: selectedRequestForLease.propertyName,
-        },
+        "📄 Lease Document Ready",
+        `A lease document for "${selectedRequestForLease.propertyName}" has been sent to you.`,
+        { type: "lease", requestId: selectedRequestForLease.$id },
       );
-
-      // Send push notification
-      try {
-        await notificationService.sendNotificationToUser(
-          selectedRequestForLease.tenantId,
-          "📄 Lease Document Ready",
-          `A lease document for "${selectedRequestForLease.propertyName}" has been sent to you.`,
-          { type: "lease", requestId: selectedRequestForLease.$id },
-        );
-      } catch (pushError) {
-        console.error("Failed to send push notification:", pushError);
-      }
-
-      Alert.alert("Success", "Lease document sent successfully!");
-      setLeaseModalVisible(false);
-      setSelectedRequestForLease(null);
-      fetchRequests(); // Refresh the list
-    } catch (error) {
-      console.error("Error sending lease document:", error);
-      Alert.alert("Error", "Failed to send lease document");
-    } finally {
-      setSendingLease(false);
+    } catch (pushError) {
+      console.error("Failed to send push notification:", pushError);
     }
-  };
 
+    Alert.alert("Success", "Lease document sent successfully!");
+    setLeaseModalVisible(false);
+    setSelectedRequestForLease(null);
+    fetchRequests(); // Refresh the list
+  } catch (error) {
+    console.error("Error sending lease document:", error);
+    Alert.alert("Error", "Failed to send lease document");
+  } finally {
+    setSendingLease(false);
+  }
+};
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + " at " + date.toLocaleTimeString();

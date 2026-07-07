@@ -712,7 +712,7 @@ export default function LandlordDashboard() {
         {/* Header */}
         <View
           className="px-6 pt-4 pb-2"
-          style={{ backgroundColor: theme.background }}
+          style={{ backgroundColor: theme.surface }}
         >
           <View className="flex-row justify-between items-center">
             <View>
@@ -722,7 +722,7 @@ export default function LandlordDashboard() {
               >
                 Welcome back,
               </Text>
-              <Text className="text-xl font-rubik-medium text-primary-300">
+              <Text className="text-xl font-rubik-medium text-gray-500">
                 {user?.name}
               </Text>
             </View>
@@ -744,13 +744,13 @@ export default function LandlordDashboard() {
         <View className="mx-6 mt-4 mb-2">
           <View
             className="p-5 rounded-2xl"
-            style={{ backgroundColor: theme.primary[100] }}
+            style={{ backgroundColor: theme.surface}}
           >
             <Text
               className="text-lg font-rubik-bold"
               style={{ color: theme.title }}
             >
-              📊 Dashboard Overview
+              Dashboard Overview
             </Text>
             <Text className="text-sm mt-1" style={{ color: theme.muted }}>
               Track your property performance and manage your listings
@@ -901,7 +901,7 @@ export default function LandlordDashboard() {
                 <View className="w-20 h-20 rounded-lg overflow-hidden mr-3">
                   {topProperty.image1 ? (
                     <Image
-                      source={{ uri: topProperty.image2 }}
+                      source={{ uri: topProperty.image1 }}
                       className="w-full h-full"
                       resizeMode="cover"
                     />
@@ -1107,7 +1107,7 @@ export default function LandlordDashboard() {
 
                 <TouchableOpacity
                   onPress={() => openEditModal(property)}
-                  className="mt-3 py-2 rounded-full border border-primary-300"
+                  className="mt-3 py-2 rounded-full border border-gray-500"
                 >
                   <Text className="text-primary-300 text-center font-rubik-bold text-sm">
                     Edit Property
