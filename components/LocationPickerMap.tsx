@@ -75,6 +75,7 @@ const LocationPickerMap = ({ visible, onClose, onConfirm, initialCoords }: Locat
   const [mapReady, setMapReady] = useState(false);
   const [mapFailed, setMapFailed] = useState(false);
   const [mapKey, setMapKey] = useState(0);
+  const [mapType, setMapType] = useState<'street' | 'hybrid'>('street');
 
   useEffect(() => {
     if (!visible) return;
@@ -103,7 +104,20 @@ const LocationPickerMap = ({ visible, onClose, onConfirm, initialCoords }: Locat
   try {
     if(!window.L){throw new Error('Map resources did not load')}
     var map=L.map('map',{zoomControl:true}).setView([${center.latitude},${center.longitude}],${initial ? 16 : 12});
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'}).addTo(map);
+    var streetLayer=L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap contributors'});
+    var satelliteLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri'});
+    var labelsLayer=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:19});
+    var currentType='street';
+    streetLayer.addTo(map);
+    window.setMapType=function(type){
+      if(type===currentType){return}
+      if(type==='hybrid'){
+        map.removeLayer(streetLayer);satelliteLayer.addTo(map);labelsLayer.addTo(map);
+      }else{
+        map.removeLayer(satelliteLayer);map.removeLayer(labelsLayer);streetLayer.addTo(map);
+      }
+      currentType=type;
+    };
     var marker=null;
     var icon=L.divIcon({className:'',html:'<div class="pin">●</div>',iconSize:[34,34],iconAnchor:[17,17]});
     function setPin(lat,lng,zoom,notify){
@@ -119,6 +133,12 @@ const LocationPickerMap = ({ visible, onClose, onConfirm, initialCoords }: Locat
 })();
 </script></body></html>`;
   }, [initial?.latitude, initial?.longitude, mapKey]);
+
+  const toggleMapType = () => {
+    const nextType = mapType === 'street' ? 'hybrid' : 'street';
+    setMapType(nextType);
+    webViewRef.current?.injectJavaScript(`window.setMapType && window.setMapType('${nextType}');true;`);
+  };
 
   const moveMapTo = (coords: Coordinates) => {
     if (!isValidCoordinate(coords.latitude, coords.longitude)) return;
@@ -178,6 +198,9 @@ const LocationPickerMap = ({ visible, onClose, onConfirm, initialCoords }: Locat
       if (message.type === 'ready') {
         setMapReady(true);
         setMapFailed(false);
+        if (mapType === 'hybrid') {
+          webViewRef.current?.injectJavaScript(`window.setMapType && window.setMapType('hybrid');true;`);
+        }
       } else if (message.type === 'error') {
         setMapFailed(true);
       } else if (message.type === 'pin' && isValidCoordinate(message.latitude, message.longitude)) {
@@ -295,6 +318,26 @@ const LocationPickerMap = ({ visible, onClose, onConfirm, initialCoords }: Locat
             mixedContentMode="never"
             style={{ flex: 1, backgroundColor: theme.surface }}
           />
+          {mapReady && !mapFailed && (
+            <TouchableOpacity
+              onPress={toggleMapType}
+              accessibilityLabel={mapType === 'street' ? 'Switch to hybrid satellite view' : 'Switch to street map view'}
+              className="absolute right-3 top-3 flex-row items-center rounded-full px-4 py-2"
+              style={{
+                backgroundColor: theme.background,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 4,
+              }}
+            >
+              <Ionicons name={mapType === 'street' ? 'globe-outline' : 'map-outline'} size={16} color={theme.primary[300]} />
+              <Text className="ml-2 font-rubik-medium text-xs" style={{ color: theme.text }}>
+                {mapType === 'street' ? 'Hybrid' : 'Street'}
+              </Text>
+            </TouchableOpacity>
+          )}
           {!mapReady && !mapFailed && (
             <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: theme.surface }}>
               <ActivityIndicator size="large" color={theme.primary[300]} />
