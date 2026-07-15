@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Firebase / Google Cloud
+*service-account*.json
+*firebase-adminsdk*.json
+nookly-b3229-firebase-adminsdk-fbsvc-a5d5376e60.json
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# EAS / Expo credentials
+credentials.json
+*.p8
+*.p12
+*.mobileprovision
+*.keystore
+*.jks
+
+# Native build artifacts
+android/app/*.keystore
+ios/*.mobileprovision
+ios/*.p12
+
+# Build output
+dist/
+build/
+.expo/
+
+# Expo generated
+expo-env.d.ts

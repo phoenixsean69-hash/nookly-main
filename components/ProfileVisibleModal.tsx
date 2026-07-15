@@ -1,0 +1,72 @@
+import { Colors } from "@/constants/Colors";
+import { Ionicons } from "@expo/vector-icons";
+import React from "react";
+import {
+  Modal,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+  View,
+} from "react-native";
+
+interface ProfileVisibleModalProps {
+  visible: boolean;
+  onClose: () => void;
+}
+
+const ProfileVisibleModal: React.FC<ProfileVisibleModalProps> = ({
+  visible,
+  onClose,
+}) => {
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? "light"];
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <View className="flex-1 justify-center items-center bg-black/50">
+        <View
+          className="w-80 rounded-2xl p-6"
+          style={{ backgroundColor: theme.surface }}
+        >
+          <View
+            className="w-16 h-16 rounded-full items-center justify-center mb-4 self-center"
+            style={{ backgroundColor: "#16A34A20" }}
+          >
+            <Ionicons name="eye" size={40} color="#16A34A" />
+          </View>
+
+          <Text
+            className="text-lg font-rubik-bold mb-2 text-center"
+            style={{ color: theme.title }}
+          >
+            Search Activated!
+          </Text>
+
+          <Text
+            className="text-sm text-center mb-6"
+            style={{ color: theme.muted }}
+          >
+            Your profile is now visible to potential matches.
+          </Text>
+
+          <TouchableOpacity
+            onPress={onClose}
+            className="py-3 rounded-xl"
+            style={{ backgroundColor: "#16A34A" }}
+          >
+            <Text className="text-white text-center font-rubik-medium">
+              Start Matching
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+export default ProfileVisibleModal;

@@ -1,0 +1,23 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts",
+    "components/AvatarModal.tsx",
+    "app/(auth)/sign-in.tsx",
+    "app/(auth)/sign-up.tsx",
+    "app/(root)/_layout.jsx",
+    "app/(root)/(tabs)/_layout.jsx",
+    "app/(root)/properties/[id].tsx+modal",
+    "lib/notifications.ts"
+  ]
+}

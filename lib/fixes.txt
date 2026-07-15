@@ -1,0 +1,172 @@
+---------------------------------------Appwrite functions---------------------------------
+
+export const createMatchProfile = async (
+  profile: Omit<MatchProfile, "$id" | "createdAt">,
+) => {
+  try {
+    const result = await databases.createDocument(
+      config.databaseId!,
+      config.matchProfilesCollectionId!,
+      ID.unique(),
+      {
+        ...profile,
+        lifestyle: Array.isArray(profile.lifestyle)
+          ? JSON.stringify(profile.lifestyle)
+          : profile.lifestyle,
+      },
+    );
+    return result;
+  } catch (error) {
+    console.error("Error creating match profile:", error);
+    throw error;
+  }
+};
+
+export const updateMatchProfile = async (
+  profileId: string,
+  updates: Partial<MatchProfile>,
+) => {
+  try {
+    const sanitized = {
+      ...updates,
+      ...(updates.lifestyle && Array.isArray(updates.lifestyle)
+        ? { lifestyle: JSON.stringify(updates.lifestyle) }
+        : {}),
+    };
+    const result = await databases.updateDocument(
+      config.databaseId!,
+      config.matchProfilesCollectionId!,
+      profileId,
+      sanitized,
+    );
+    return result;
+  } catch (error) {
+    console.error("Error updating match profile:", error);
+    throw error;
+  }
+};
+
+// Remove isActive filter so paused users still load their own profile
+export const getUserMatchProfile = async (userId: string) => {
+  try {
+    const result = await databases.listDocuments(
+      config.databaseId!,
+      config.matchProfilesCollectionId!,
+      [Query.equal("userId", userId)],
+    );
+    return result.documents[0] || null;
+  } catch (error) {
+    console.error("Error fetching user match profile:", error);
+    return null;
+  }
+};
+
+export const getMatchProfiles = async (filters?: {
+  location?: string;
+  myGender?: "male" | "female";
+  preferredGender?: "male" | "female";
+  myBudget?: number;
+}) => {
+  try {
+    // Server-side: only active profiles + location
+    const queries: any[] = [Query.equal("isActive", true)];
+
+    if (filters?.location) {
+      queries.push(Query.search("preferredLocation", filters.location));
+    }
+
+    const result = await databases.listDocuments(
+      config.databaseId!,
+      config.matchProfilesCollectionId!,
+      queries,
+    );
+
+    let profiles = result.documents.map((doc) => ({
+      ...doc,
+      lifestyle: doc.lifestyle
+        ? (() => {
+            try {
+              return JSON.parse(doc.lifestyle);
+            } catch {
+              // fallback for old comma-separated format
+              return doc.lifestyle.split(", ").filter(Boolean);
+            }
+          })()
+        : [],
+    }));
+
+    // Client-side: mutual gender compatibility
+    if (filters?.myGender || filters?.preferredGender) {
+      profiles = profiles.filter((p) => {
+        // They want someone like me
+        const theyWantMe =
+          !filters.myGender ||
+          p.preferredGender === filters.myGender ||
+          p.preferredGender === "any";
+
+        // I want someone like them
+        const iWantThem =
+          !filters.preferredGender ||
+          filters.preferredGender === p.gender ||
+          filters.preferredGender === "any";
+
+        return theyWantMe && iWantThem;
+      });
+    }
+
+    // Client-side: budget within 50% of each other
+    if (filters?.myBudget) {
+      profiles = profiles.filter((p) => {
+        if (!p.budget) return false;
+        const higher = Math.max(p.budget, filters.myBudget!);
+        const lower = Math.min(p.budget, filters.myBudget!);
+        return higher / lower <= 1.5;
+      });
+    }
+
+    return profiles;
+  } catch (error) {
+    console.error("Error fetching match profiles:", error);
+    return [];
+  }
+};
+
+
+---------------------match.tsx------------------------------------
+
+// Replace loadMatches
+const loadMatches = async (location: string) => {
+  if (!user?.accountId) return;
+  setLoading(true);
+  const profiles = await getMatchProfiles({
+    location,
+    myGender: myProfile?.gender,
+    preferredGender: myProfile?.preferredGender as any,
+    myBudget: myProfile?.budget,
+  });
+  const filtered = profiles.filter((p: any) => p.userId !== user?.accountId);
+  setMatches(filtered as unknown as MatchProfile[]);
+  setLoading(false);
+};
+
+// Replace searchMatches
+const searchMatches = async () => {
+  if (!searchLocation.trim()) return;
+  setLoading(true);
+  const profiles = await getMatchProfiles({
+    location: searchLocation,
+    myGender: myProfile?.gender,
+    preferredGender: myProfile?.preferredGender as any,
+    myBudget: myProfile?.budget,
+  });
+  const filtered = profiles.filter((p: any) => p.userId !== user?.accountId);
+  setMatches(filtered as unknown as MatchProfile[]);
+  setLoading(false);
+};
+
+// In handleSubmitProfile, change lifestyle line to pass array directly:
+const profileData = {
+  // ... everything else stays the same
+  lifestyle: formData.lifestyle, // ← remove the .join(", ")
+  // ...
+};

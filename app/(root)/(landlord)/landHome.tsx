@@ -1,0 +1,599 @@
+// app/(root)/landHome.tsx
+import FeaturedModal from "@/components/FeaturedModal";
+import SearchModal from "@/components/SearchModal";
+import { useFocusEffect } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  BackHandler,
+  FlatList,
+  Image,
+  RefreshControl,
+  Text,
+  TouchableOpacity,
+  View,
+  useColorScheme,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { Card, FeaturedCard } from "@/components/Cards";
+import { Colors } from "@/constants/Colors";
+import icons from "@/constants/icons";
+import {
+  getAvailableProperties,
+  getBestProperties,
+  getLatestProperties,
+} from "@/lib/appwrite";
+import { useAppwrite } from "@/lib/useAppwrite";
+import useAuthStore from "@/store/auth.store";
+import { useNotificationStore } from "@/store/notification.store";
+import { getSavedAvatar } from "@/utils/avatarStorage";
+
+const STALE_TIME = 5 * 60 * 1000; // 5 minutes
+
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good Morning";
+  if (hour < 18) return "Good Afternoon";
+  return "Good Evening";
+};
+
+const getHeaderImage = () => {
+  const hour = new Date().getHours();
+  if (hour >= 6 && hour < 12) return require("@/assets/images/morning.jpg");
+  if (hour >= 12 && hour < 17) return require("@/assets/images/afternoon.jpg");
+  if (hour >= 17 && hour < 20) return require("@/assets/images/sunset.jpg");
+  return require("@/assets/images/night.jpg");
+};
+
+export default function LandLordHome() {
+  const { user } = useAuthStore();
+  const [avatarId, setAvatarId] = useState<string | null>(null);
+  const [loadingAvatar, setLoadingAvatar] = useState(true);
+  const [greeting, setGreeting] = useState(getGreeting());
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchModalVisible, setSearchModalVisible] = useState(false);
+  const [featuredModalVisible, setFeaturedModalVisible] = useState(false);
+  const [featuredProperties, setFeaturedProperties] = useState<any[]>([]);
+  const [loadingFeatured, setLoadingFeatured] = useState(true);
+
+  const params = useLocalSearchParams<{ filter?: string; refresh?: string }>();
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme?? "light"];
+
+  const { loadNotifications, fetchAppwriteUnreadCount, totalUnreadCount } =
+    useNotificationStore();
+  const userId = user?.accountId;
+
+  // Track last fetch times to prevent spam
+  const lastNotificationsFetch = useRef<number>(0);
+  const lastFeaturedFetch = useRef<number>(0);
+  const backPressCountRef = useRef(0);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          BackHandler.exitApp();
+          return true;
+        },
+      );
+      return () => subscription.remove();
+    }, []),
+  );
+
+  // Single useFocusEffect for all focus-related operations with stale check
+  useFocusEffect(
+    useCallback(() => {
+      const now = Date.now();
+
+      // Only refresh notifications if stale > 5 min or first load
+      if (userId && now - lastNotificationsFetch.current > STALE_TIME) {
+        console.log("🔄 Refreshing notification badge...");
+        loadNotifications(userId);
+        fetchAppwriteUnreadCount(userId);
+        lastNotificationsFetch.current = now;
+      }
+
+      // Only refetch properties if explicitly requested via params
+      if (params.refresh === "true" && user?.accountId) {
+        console.log("🔄 Refreshing properties after adding new listing...");
+        Promise.all([
+          refetchLatest(),
+          refetchMyProperties({
+            filter: params.filter || "",
+            query: "",
+            limit: 20,
+            creatorId: user.accountId,
+          }),
+        ])
+         .then(() => {
+            console.log("✅ Properties refreshed successfully");
+          })
+         .catch((error) => {
+            console.error("❌ Error refreshing properties:", error);
+          });
+
+        // Clear the refresh param to prevent repeated refreshes
+        setTimeout(() => {
+          router.setParams({});
+        }, 100);
+      }
+    }, [userId, params.refresh, user?.accountId, params.filter]),
+  );
+
+  // Update greeting every minute
+  useEffect(() => {
+    const interval = setInterval(() => setGreeting(getGreeting()), 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Load avatar only once
+  useEffect(() => {
+    const loadAvatar = async () => {
+      const saved = await getSavedAvatar();
+      setAvatarId(saved || "human-1");
+      setLoadingAvatar(false);
+    };
+    loadAvatar();
+  }, []);
+
+  // Get latest properties
+  const {
+    data: latestProperties,
+    loading: latestPropertiesLoading,
+    refetch: refetchLatest,
+  } = useAppwrite({
+    fn: async () => {
+      const allLatest = await getLatestProperties();
+      return allLatest.filter((p) => p.isAvailable === true);
+    },
+  });
+
+  // Get landlord's own properties
+  const {
+    data: myProperties,
+    refetch: refetchMyProperties,
+    loading: loadingMyProperties,
+  } = useAppwrite({
+    fn: getAvailableProperties,
+    params: {
+      filter: params.filter || "",
+      query: "",
+      limit: 20,
+      creatorId: user?.accountId,
+    },
+    skip:!user?.accountId,
+  });
+
+  // Refetch when filter changes
+  const filterRef = useRef(params.filter);
+
+  useEffect(() => {
+    if (filterRef.current!== params.filter && user?.accountId) {
+      filterRef.current = params.filter;
+      refetchMyProperties({
+        filter: params.filter || "",
+        query: "",
+        limit: 20,
+        creatorId: user?.accountId,
+      });
+    }
+  }, [params.filter, user?.accountId]);
+
+  // Pull to refresh - forces all data
+  const onRefresh = async () => {
+    setRefreshing(true);
+    const now = Date.now();
+    if (user?.accountId) {
+      try {
+        await Promise.all([
+          refetchLatest(),
+          refetchMyProperties({
+            filter: params.filter || "",
+            query: "",
+            limit: 20,
+            creatorId: user?.accountId,
+          }),
+          fetchBestProperties(true), // force refresh featured
+          loadNotifications(user.accountId),
+          fetchAppwriteUnreadCount(user.accountId),
+        ]);
+        lastNotificationsFetch.current = now;
+        lastFeaturedFetch.current = now;
+        console.log("✅ Manual refresh completed");
+      } catch (error) {
+        console.error("❌ Error during manual refresh:", error);
+      }
+    }
+    setRefreshing(false);
+  };
+
+  const handleCardPress = (id: string) => router.push(`/properties/${id}`);
+  const handleAddProperty = () => router.push("/addProperty");
+  const handleViewStats = () => router.push("/myDashboard");
+
+  const showFeatured = latestProperties && latestProperties.length > 0;
+
+  // Calculate totals
+  const totalProperties = myProperties?.length || 0;
+  const totalLikes =
+    myProperties?.reduce((sum, p) => sum + (p.likes || 0), 0) || 0;
+  const totalViews =
+    myProperties?.reduce((sum, p) => sum + (p.views || 0), 0) || 0;
+
+  const isLoading = loadingMyProperties &&!myProperties;
+
+  // Fetch best properties with stale check
+  const fetchBestProperties = async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastFeaturedFetch.current < STALE_TIME) {
+      console.log("⏭️ Skipping featured fetch - data fresh");
+      setLoadingFeatured(false);
+      return;
+    }
+
+    try {
+      setLoadingFeatured(true);
+      const best = await getBestProperties(5);
+      setFeaturedProperties(best);
+      lastFeaturedFetch.current = now;
+    } catch (error) {
+      console.error("Error fetching best properties:", error);
+      const allLatest = await getLatestProperties();
+      const filtered = allLatest.filter((p) => p.isAvailable === true);
+      setFeaturedProperties(filtered.slice(0, 5));
+    } finally {
+      setLoadingFeatured(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBestProperties();
+  }, []);
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+      {/* Header with background image */}
+      <View className="relative mb-2">
+        <View className="relative">
+          <Image
+            source={getHeaderImage()}
+            className="w-full h-36 "
+            style={{ opacity: 0.95 }}
+          />
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.8)"]}
+            style={{
+              position: "absolute",
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: "100%",
+              borderBottomLeftRadius: 24,
+              borderBottomRightRadius: 24,
+            }}
+          />
+        </View>
+
+        {/* User info overlay */}
+        <View className="absolute inset-0 flex-row items-center justify-between px-6 pt-2">
+          <View className="flex-row items-center flex-1 mr-2">
+            {!loadingAvatar? (
+              <TouchableOpacity
+                onPress={() => router.push("/landProfile")}
+                className="shadow-lg"
+              >
+                <Image
+                  source={user?.avatar? { uri: user.avatar } : icons.person}
+                  className="w-14 h-14 rounded-full border-2 border-white"
+                />
+              </TouchableOpacity>
+            ) : (
+              <View className="w-14 h-14 rounded-full bg-white/20 items-center justify-center">
+                <ActivityIndicator size="small" color="#ffffff" />
+              </View>
+            )}
+            <View className="ml-3 flex-1">
+              <Text
+                className="text-xs font-rubik text-white/90"
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {greeting}
+              </Text>
+              <Text
+                className="text-lg font-rubik-bold text-white"
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {user?.name?.length > 20
+                 ? `${user.name.substring(0, 18)}...`
+                  : user?.name || "Landlord"}
+              </Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => router.push("/landLordNotifications")}
+            className="bg-white/20 p-2.5 rounded-full relative flex-shrink-0"
+          >
+            <Image
+              source={icons.bell}
+              className="w-5 h-5"
+              style={{ tintColor: "#ffffff" }}
+            />
+            {totalUnreadCount > 0 && (
+              <View className="absolute -top-1 -right-1 bg-red-500 rounded-full min-w-[18px] h-[18px] px-1 items-center justify-center">
+                <Text className="text-white text-xs font-bold">
+                  {totalUnreadCount > 99? "99+" : totalUnreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <FlatList
+        data={myProperties}
+        numColumns={2}
+        keyExtractor={(item) => item.$id}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        columnWrapperStyle={{ gap: 20, paddingHorizontal: 20 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.primary[300]]}
+            tintColor={theme.primary[300]}
+          />
+        }
+        ListHeaderComponent={() => (
+          <View className="px-5">
+            {/* Search button */}
+            <TouchableOpacity
+              onPress={() => setSearchModalVisible(true)}
+              className="flex-row items-center px-4 py-3 rounded-full mb-3"
+              style={{
+                backgroundColor: theme.surface,
+                borderWidth: 1,
+                borderColor: theme.muted + "40",
+              }}
+            >
+              <Image
+                source={icons.search}
+                className="w-5 h-5"
+                style={{ tintColor: theme.muted }}
+              />
+              <Text
+                className="flex-1 ml-2 text-base"
+                style={{ color: theme.muted }}
+              >
+                Search properties...
+              </Text>
+            </TouchableOpacity>
+
+            {/* Quick stats */}
+            <View className="flex-row justify-between gap-3 mb-6 mt-2">
+              <TouchableOpacity
+                onPress={handleViewStats}
+                className="flex-1 rounded-xl p-4 items-center"
+                style={{ backgroundColor: theme.surface }}
+              >
+                <Image
+                  source={icons.dashboard}
+                  className="w-6 h-6 mb-2"
+                  style={{ tintColor: theme.primary[300] }}
+                />
+                <Text
+                  className="text-lg font-rubik-bold"
+                  style={{ color: theme.title }}
+                >
+                  {totalProperties}
+                </Text>
+                <Text className="text-xs" style={{ color: theme.muted }}>
+                  Total Listings
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleViewStats}
+                className="flex-1 rounded-xl p-4 items-center"
+                style={{ backgroundColor: theme.surface }}
+              >
+                <Image
+                  source={icons.eye}
+                  className="w-6 h-6 mb-2"
+                  style={{ tintColor: theme.primary[300] }}
+                />
+                <Text
+                  className="text-lg font-rubik-bold"
+                  style={{ color: theme.title }}
+                >
+                  {totalViews}
+                </Text>
+                <Text className="text-xs" style={{ color: theme.muted }}>
+                  Total Views
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleViewStats}
+                className="flex-1 rounded-xl p-4 items-center"
+                style={{ backgroundColor: theme.surface }}
+              >
+                <Image
+                  source={icons.like}
+                  className="w-6 h-6 mb-2"
+                  style={{ tintColor: "#FF69B4" }}
+                />
+                <Text
+                  className="text-lg font-rubik-bold"
+                  style={{ color: theme.title }}
+                >
+                  {totalLikes}
+                </Text>
+                <Text className="text-xs" style={{ color: theme.muted }}>
+                  Total Likes
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Add property button */}
+            <TouchableOpacity
+              onPress={handleAddProperty}
+              className="bg-primary-300 py-4 rounded-2xl mb-6 flex-row items-center justify-center"
+            >
+              <Image
+                source={icons.plus}
+                className="w-5 h-5 mr-2"
+                style={{ tintColor: "#FFFFFF" }}
+              />
+              <Text className="text-white font-rubik-bold text-lg">
+                Add New Property
+              </Text>
+            </TouchableOpacity>
+
+            {/* Featured Section - Using Best Properties Ranking */}
+            <View className="mb-6">
+              <View className="flex-row items-center justify-between mb-4 px-1">
+                <View>
+                  <Text
+                    className="text-2xl font-rubik-bold"
+                    style={{ color: theme.text }}
+                  >
+                    Featured
+                  </Text>
+                  <Text className="text-sm text-gray-500 font-rubik mt-0.5">
+                    Top ranked properties for tenants
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setFeaturedModalVisible(true)}
+                  className="bg-primary-50 px-4 py-2 rounded-full"
+                >
+                  <Text
+                    className="text-sm font-rubik-medium text-primary-600"
+                    style={{ color: theme.primary[300] }}
+                  >
+                    See all
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {loadingFeatured && featuredProperties.length === 0 ? (
+                <View className="h-48 items-center justify-center">
+                  <ActivityIndicator
+                    size="large"
+                    color={theme.primary[300]}
+                  />
+                </View>
+              ) : featuredProperties.length === 0? (
+                <View
+                  className="h-48 items-center justify-center rounded-2xl"
+                  style={{ backgroundColor: theme.surface }}
+                >
+                  <Image
+                    source={icons.house}
+                    className="w-12 h-12 opacity-30 mb-2"
+                    style={{ tintColor: theme.muted }}
+                  />
+                  <Text
+                    className="text-sm font-rubik"
+                    style={{ color: theme.muted }}
+                  >
+                    No featured properties yet
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={featuredProperties}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingHorizontal: 4 }}
+                  keyExtractor={(item) => item.$id}
+                  renderItem={({ item, index }) => (
+                    <View className="mr-4 relative">
+                      <FeaturedCard
+                        item={item}
+                        onPress={() => handleCardPress(item.$id)}
+                      />
+                    </View>
+                  )}
+                />
+              )}
+            </View>
+
+            {/* My properties header */}
+            <View className="flex-row items-center justify-between mb-3">
+              <View>
+                <Text
+                  className="text-2xl font-rubik-bold"
+                  style={{ color: theme.text }}
+                >
+                  My Properties
+                </Text>
+                <Text className="text-sm text-gray-500 font-rubik">
+                  Properties you've listed
+                </Text>
+              </View>
+              {myProperties?.length > 0 && (
+                <TouchableOpacity onPress={() => router.push("/myDashboard")}>
+                  <Text className="text-sm font-rubik-medium text-primary-300">
+                    View All
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+        ListEmptyComponent={
+          isLoading? (
+            <View className="items-center justify-center py-10">
+              <ActivityIndicator size="large" color={theme.title} />
+            </View>
+          ) : myProperties?.length === 0? (
+            <View className="items-center justify-center py-16 px-5">
+              <Image
+                source={icons.house}
+                className="w-20 h-20 opacity-30 mb-4"
+                style={{ tintColor: theme.muted }}
+              />
+              <Text
+                className="text-lg font-rubik-medium text-center"
+                style={{ color: theme.text }}
+              >
+                No properties yet
+              </Text>
+              <Text
+                className="text-sm text-center mt-2"
+                style={{ color: theme.muted }}
+              >
+                Tap "Add New Property" to list your first property
+              </Text>
+            </View>
+          ) : null
+        }
+        renderItem={({ item }) => (
+          <Card item={item} onPress={() => handleCardPress(item.$id)} />
+        )}
+      />
+
+      <FeaturedModal
+        visible={featuredModalVisible}
+        onClose={() => setFeaturedModalVisible(false)}
+        properties={featuredProperties}
+        onPropertyPress={handleCardPress}
+      />
+
+      <SearchModal
+        visible={searchModalVisible}
+        onClose={() => setSearchModalVisible(false)}
+      />
+    </SafeAreaView>
+  );
+}
