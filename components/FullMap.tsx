@@ -115,7 +115,6 @@ const FullMap = ({ visible, onClose, properties, onPropertyPress }: FullMapProps
                     <Text className="font-rubik-bold text-base" style={{ color: theme.title }} numberOfLines={1}>{item.propertyName || 'Property'}</Text>
                     <Text className="mt-1 text-sm" style={{ color: theme.muted }} numberOfLines={2}>{item.address || item.city || 'Address not available'}</Text>
                     {!!item.price && <Text className="mt-2 font-rubik-bold" style={{ color: theme.primary[300] }}>${item.price}/month</Text>}
-                    <Text className="mt-1 text-xs" style={{ color: theme.muted }}>{coordinates.latitude.toFixed(4)}, {coordinates.longitude.toFixed(4)}</Text>
                   </View>
                 </TouchableOpacity>
                 <View className="flex-row border-t" style={{ borderTopColor: `${theme.muted}20` }}>

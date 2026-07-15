@@ -3304,23 +3304,29 @@ export async function getPropertiesWithFilters({
   facilities,
   bedrooms,
   location,
+  select, // <-- added
 }: {
   filter?: string;
   query?: string;
   limit?: number;
   priceRange?: PriceRange;
   customPrice?: CustomPriceRange;
-  facilities?: string[]; // e.g. ["wifi", "parking", "pool"]
-  bedrooms?: number; // exact match or min
-  location?: string; // city/area name
+  facilities?: string[];
+  bedrooms?: number;
+  location?: string;
+  select?: string[]; // <-- added
 }) {
   try {
-    const buildQuery = [Query.orderDesc("$createdAt")];
+    const buildQuery: string[] = [Query.orderDesc("$createdAt")];
 
-    // 1. Price filter
+    // 0. Select - for map pins etc
+    if (select && select.length > 0) {
+      buildQuery.push(Query.select(select));
+    }
+
+    // 1. Price
     if (priceRange) {
-      if (priceRange.max === 10000) {
-        // For "$5000+" - only min price
+      if (priceRange.max >= 10000) {
         buildQuery.push(Query.greaterThanEqual("price", priceRange.min));
       } else {
         buildQuery.push(Query.between("price", priceRange.min, priceRange.max));
@@ -3329,115 +3335,87 @@ export async function getPropertiesWithFilters({
       buildQuery.push(Query.between("price", customPrice.min, customPrice.max));
     }
 
-    // 2. Bedrooms filter - exact match
+    // 2. Bedrooms
     if (bedrooms && bedrooms > 0) {
       buildQuery.push(Query.equal("bedrooms", bedrooms));
     }
 
-    // 3. Facilities filter - array contains all
+    // 3. Facilities - Appwrite array contains: use AND
     if (facilities && facilities.length > 0) {
-      // Appwrite: facilities field must be array type in collection
-      // This checks if document.facilities contains ALL of these values
-      facilities.forEach((facility) => {
-        buildQuery.push(Query.contains("facilities", facility));
+      facilities.forEach((f) => {
+        if (f) buildQuery.push(Query.contains("facilities", f.trim()));
       });
     }
 
-    // 4. Location filter - search address field
+    // 4. Location - address field
     if (location && location.trim() !== "") {
+      // will work if you have fulltext index on address, fallback handled in locationService
       buildQuery.push(Query.search("address", location.trim()));
     }
 
-    // 5. Text search - runs last so other filters narrow it down first
-    if (query && query.trim() !== "") {
-      const searchTerm = query.trim();
-      const isNumericSearch = /^\d+$/.test(searchTerm);
-
-      if (isNumericSearch) {
-        const priceNum = parseInt(searchTerm);
-        buildQuery.push(
-          Query.or([
-            Query.equal("price", priceNum),
-            Query.between("price", priceNum - 50, priceNum + 50),
-            Query.search("propertyName", searchTerm),
-            Query.search("facilities", searchTerm),
-            Query.search("description", searchTerm),
-            Query.search("address", searchTerm),
-            Query.search("type", searchTerm),
-          ]),
-        );
-      } else {
-        buildQuery.push(
-          Query.or([
-            Query.search("propertyName", searchTerm),
-            Query.search("facilities", searchTerm),
-            Query.search("description", searchTerm),
-            Query.search("address", searchTerm),
-            Query.search("type", searchTerm),
-          ]),
-        );
-      }
-    }
-
-    // 6. Type filter
+    // 5. Type
     if (filter && filter !== "All") {
       buildQuery.push(Query.equal("type", filter));
     }
 
-    // 7. Limit
-    const fetchLimit = query && query.trim() !== "" ? 50 : limit || 10;
-    buildQuery.push(Query.limit(fetchLimit));
+    // 6. Limit
+    buildQuery.push(Query.limit(limit || 20));
+
+    // 7. Text search - build LAST and only if no location (avoid double search)
+    let useSearch = false;
+    if (query && query.trim() !== "" &&!location) {
+      useSearch = true;
+      const term = query.trim();
+      // NOTE: You MUST have fulltext indexes on these 4 fields or this will fail
+      // If you don't have them, comment this whole block out and filter client-side
+      try {
+        buildQuery.push(
+          Query.or([
+            Query.search("propertyName", term),
+            Query.search("address", term),
+            Query.search("description", term),
+            Query.search("type", term),
+          ])
+        );
+      } catch {
+        // If OR fails, just search propertyName
+        buildQuery.push(Query.search("propertyName", term));
+      }
+    }
 
     const result = await databases.listDocuments(
       config.databaseId!,
       config.propertiesCollectionId!,
-      buildQuery,
+      buildQuery
     );
 
-    // Process properties with details
-    let propertiesWithDetails = await Promise.all(
-      result.documents.map(async (property) => {
-        // Agent - Fetch from USERS collection
-        if (property.agent) {
-          try {
-            const agent = await databases.getDocument(
-              config.databaseId!,
-              config.usersCollectionId!,
-              property.agent,
-            );
-            property.agent = agent;
-          } catch (error) {
-            property.agent = null;
-          }
-        }
-
-        // Calculate rating from reviews
+    const propertiesWithDetails = result.documents.map((property: any) => {
+      // Rating - fast, no network
+      try {
         if (property.reviews) {
-          try {
-            const parsedReviews = JSON.parse(property.reviews);
-            if (parsedReviews.length > 0) {
-              const sum = parsedReviews.reduce(
-                (acc: number, r: any) => acc + (r.rating || 0),
-                0,
-              );
-              property.rating = Number((sum / parsedReviews.length).toFixed(1));
-            } else {
-              property.rating = 0;
-            }
-          } catch (e) {
+          const parsed = typeof property.reviews === "string" ? JSON.parse(property.reviews) : property.reviews;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const sum = parsed.reduce((acc: number, r: any) => acc + (r.rating || 0), 0);
+            property.rating = Number((sum / parsed.length).toFixed(1));
+          } else {
             property.rating = 0;
           }
         } else {
           property.rating = 0;
         }
-
-        return property;
-      }),
-    );
+      } catch {
+        property.rating = 0;
+      }
+      return property;
+    });
 
     return propertiesWithDetails;
-  } catch (error) {
-    console.error("Error in getPropertiesWithPriceFilter:", error);
+  } catch (error: any) {
+    console.error("getPropertiesWithFilters error:", error.message);
+    // If error is about missing index, log which index
+    if (error.message?.includes("Index")) {
+      console.warn("⚠️ You need to create a fulltext index in Appwrite Console for: address, propertyName, description, type, facilities");
+    }
     return [];
   }
 }

@@ -1,5 +1,4 @@
 // app/properties/[id].tsx
-import AmenitiesBadge from '@/components/AmenitiesBadge';
 import ConfirmationModal from "@/components/ConfirmationModal";
 import ContactModal from "@/components/ContactModal";
 import ErrorModal from "@/components/ErrorModal";
@@ -1839,67 +1838,6 @@ const renderTenantView = () => {
         style={{ color: theme.muted }}
       >
         No location data available
-      </Text>
-    </View>
-  )}
-</View>
-
-        {/* Nearby Amenities */}
-<View className="mt-7">
-  <Text
-    className="text-black-300 text-xl font-rubik-bold mb-3"
-    style={{ color: theme.title }}
-  >
-    Nearby Amenities
-  </Text>
-
-  {amenitiesLoading ? (
-    <View className="py-4 items-center">
-      <ActivityIndicator size="small" color={theme.primary[300]} />
-      <Text className="text-sm mt-2" style={{ color: theme.muted }}>
-        Loading nearby amenities...
-      </Text>
-    </View>
-  ) : amenities && amenities.total > 0 ? (
-    <View>
-      <Text className="text-sm mb-3" style={{ color: theme.muted }}>
-        {amenities.total} amenities within 3km radius
-      </Text>
-      <AmenitiesBadge amenities={amenities} loading={false} />
-      
-      {/* Nearest amenities */}
-      <View className="mt-3 pt-3 border-t" style={{ borderTopColor: theme.muted + '20' }}>
-        <Text className="text-sm font-rubik-medium mb-2" style={{ color: theme.muted }}>
-          Closest Amenities:
-        </Text>
-        <View className="flex-row flex-wrap gap-2">
-          {amenities.nearestSchool && (
-            <Text className="text-xs" style={{ color: theme.muted }}>
-               {amenities.nearestSchool.name} ({amenities.nearestSchool.distance.toFixed(1)}km)
-            </Text>
-          )}
-          {amenities.nearestHospital && (
-            <Text className="text-xs" style={{ color: theme.muted }}>
-               {amenities.nearestHospital.name} ({amenities.nearestHospital.distance.toFixed(1)}km)
-            </Text>
-          )}
-          {amenities.nearestShopping && (
-            <Text className="text-xs" style={{ color: theme.muted }}>
-               {amenities.nearestShopping.name} ({amenities.nearestShopping.distance.toFixed(1)}km)
-            </Text>
-          )}
-          {amenities.nearestBusTerminal && (
-            <Text className="text-xs" style={{ color: theme.muted }}>
-               {amenities.nearestBusTerminal.name} ({amenities.nearestBusTerminal.distance.toFixed(1)}km)
-            </Text>
-          )}
-        </View>
-      </View>
-    </View>
-  ) : (
-    <View className="p-4 rounded-xl items-center" style={{ backgroundColor: theme.surface }}>
-      <Text className="text-sm" style={{ color: theme.muted }}>
-        No nearby amenities found within 3km
       </Text>
     </View>
   )}
