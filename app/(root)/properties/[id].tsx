@@ -5,6 +5,7 @@ import ErrorModal from "@/components/ErrorModal";
 import OperationSuccesfull from "@/components/OperationSuccesfull";
 import { PriceHistory } from "@/components/PriceHistory";
 import PropertyMapCard from "@/components/PropertyMapCard";
+import PropertyVerificationVideo from "@/components/PropertyVerificationVideo";
 import { RequestData, RequestModal } from "@/components/RequestModal";
 import ReviewSuccessModal from "@/components/ReviewSuccessModal";
 import { facilities, getAvatarSource } from "@/constants/data";
@@ -96,6 +97,9 @@ export interface PropertyData {
   image1?: string;
   image2?: string;
   image3?: string;
+  video1?: string;
+  video2?: string;
+  video3?: string;
   agent?: {
     $id: string;
     name: string;
@@ -348,6 +352,33 @@ const buildPriceHistory = (property: PropertyData | null) => {
       setErrorModalConfig({
         title: "Download Failed",
         message: error?.message || "Failed to save image. Please try again.",
+      });
+      setErrorModalVisible(true);
+    } finally {
+      setDownloadingMedia(null);
+    }
+  };
+
+  const handleDownloadVideo = async (uri: string, index: number) => {
+    if (downloadingMedia) return;
+    setDownloadingMedia(uri);
+    try {
+      const extension = uri.split("?")[0].match(/\.([a-zA-Z0-9]+)$/)?.[1] || "mp4";
+      const filename = `${property?.propertyName || "property"}_verification_video_${index + 1}.${extension}`.replace(
+        /\s+/g,
+        "_",
+      );
+      await downloadMediaToDevice(uri, filename);
+      setOperationSuccessConfig({
+        title: "Saved!",
+        message: "Verification video saved to your gallery",
+      });
+      setOperationSuccessVisible(true);
+    } catch (error: any) {
+      console.error("Error downloading verification video:", error);
+      setErrorModalConfig({
+        title: "Download Failed",
+        message: error?.message || "Failed to save video. Please try again.",
       });
       setErrorModalVisible(true);
     } finally {
@@ -972,6 +1003,13 @@ const handleSaveEdit = async () => {
     );
   };
 
+  const getPropertyVideos = (): string[] => {
+    if (!property) return [];
+    return [property.video1, property.video2, property.video3].filter(
+      (video): video is string => Boolean(video),
+    );
+  };
+
   const normalizeFacilities = (): string[] => {
     if (!property?.facilities) return [];
 
@@ -1246,6 +1284,7 @@ const renderTenantView = () => {
   if (!property) return null;
 
   const propertyImages = getPropertyImages();
+  const propertyVideos = getPropertyVideos();
   const facilityList = normalizeFacilities();
   const avgRating = calculateAverageRating();
   const isAccredited = checkAccreditation(property);
@@ -1573,6 +1612,30 @@ const renderTenantView = () => {
             {property.description || "No description available"}
           </Text>
         </View>
+
+        {propertyVideos.length > 0 && (
+          <View className="mt-7">
+            <View className="flex-row items-center mb-2">
+              <Ionicons name="shield-checkmark" size={22} color={theme.primary[300]} />
+              <Text className="text-xl font-rubik-bold ml-2" style={{ color: theme.title }}>
+                Property verification videos
+              </Text>
+            </View>
+            <Text className="text-sm font-rubik mb-4" style={{ color: theme.muted }}>
+              Watch or download the landlord&apos;s videos to compare the property with its photos.
+            </Text>
+            {propertyVideos.map((video, index) => (
+              <PropertyVerificationVideo
+                key={video}
+                uri={video}
+                index={index}
+                downloading={downloadingMedia === video}
+                onDownload={() => handleDownloadVideo(video, index)}
+                theme={theme}
+              />
+            ))}
+          </View>
+        )}
 
         {/* Facilities */}
         <View className="mt-7">

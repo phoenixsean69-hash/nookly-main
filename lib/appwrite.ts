@@ -6,6 +6,7 @@ import {
 import notificationService from "@/services/notification.service";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { File as ExpoFile } from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as Linking from "expo-linking";
 import { openAuthSessionAsync } from "expo-web-browser";
@@ -49,6 +50,9 @@ interface PropertyData {
   image1?: string;
   image2?: string;
   image3?: string;
+  video1?: string;
+  video2?: string;
+  video3?: string;
   likes?: number;
   views?: number;
   requests?: number;
@@ -578,6 +582,40 @@ export async function uploadImage(image: any) {
 }
 
 
+export async function uploadVideo(video: {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+  fileSize?: number;
+}) {
+  if (!video.uri) throw new Error("The selected video is unavailable.");
+
+  const uriWithoutQuery = video.uri.split("?")[0];
+  const uriExtension = uriWithoutQuery.match(/\.([a-zA-Z0-9]+)$/)?.[1]?.toLowerCase();
+  const mimeExtension = video.mimeType?.split("/")[1]?.split(";")[0];
+  const extension = uriExtension || mimeExtension || "mp4";
+  const rawName = video.fileName?.trim() || `verification-video-${Date.now()}.${extension}`;
+  const fileName = rawName.includes(".") ? rawName : `${rawName}.${extension}`;
+  const mimeType = video.mimeType || `video/${extension === "mov" ? "quicktime" : extension}`;
+
+  const localFile = new ExpoFile(video.uri);
+  const fileSize = video.fileSize || localFile.size;
+  if (!fileSize || fileSize <= 0) {
+    throw new Error("Could not determine the selected video's file size.");
+  }
+
+  // Appwrite's React Native SDK streams this local URI directly. Do not read or
+  // convert video bytes to Base64, blobs, or data URLs.
+  const file = await storage.createFile(config.bucketId!, ID.unique(), {
+    uri: video.uri,
+    name: fileName,
+    type: mimeType,
+    size: fileSize,
+  });
+
+  return `https://cloud.appwrite.io/v1/storage/buckets/${config.bucketId}/files/${file.$id}/view?project=${config.projectId}`;
+}
+
 export async function AddListing(
   listing: {
     propertyName?: string;
@@ -597,6 +635,9 @@ export async function AddListing(
     image1?: string;
     image2?: string;
     image3?: string;
+    video1?: string;
+    video2?: string;
+    video3?: string;
     agent?: string;
     creatorId?: string;
     priceThreshold?: number;
@@ -643,6 +684,9 @@ export async function AddListing(
         image1: listing.image1 || null,
         image2: listing.image2 || null,
         image3: listing.image3 || null,
+        video1: listing.video1 || null,
+        video2: listing.video2 || null,
+        video3: listing.video3 || null,
         agent: listing.agent || null,
         creatorId: listing.creatorId || null,
         priceThreshold: listing.priceThreshold || 0,

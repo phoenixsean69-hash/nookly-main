@@ -3,7 +3,7 @@ import LocationPickerMap, { PickedLocation } from "@/components/LocationPickerMa
 import { Colors } from "@/constants/Colors";
 import { categories, facilities } from "@/constants/data";
 import icons from "@/constants/icons";
-import { AddListing, uploadImage } from "@/lib/appwrite";
+import { AddListing, uploadImage, uploadVideo } from "@/lib/appwrite";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -183,6 +183,93 @@ const AddPropertyScreen = () => {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const addPickedVideos = (assets: ImagePickerAsset[]) => {
+    const availableSlots = 3 - videos.length;
+    const accepted: ImagePickerAsset[] = [];
+    let rejectedForDuration = 0;
+    let rejectedForMissingDuration = 0;
+
+    for (const asset of assets.slice(0, availableSlots)) {
+      const durationMs = asset.duration ?? 0;
+      if (durationMs <= 0) {
+        rejectedForMissingDuration += 1;
+      } else if (durationMs > 90_000) {
+        rejectedForDuration += 1;
+      } else {
+        accepted.push(asset);
+      }
+    }
+
+    if (rejectedForDuration > 0) {
+      Alert.alert(
+        "Video too long",
+        `${rejectedForDuration} video${rejectedForDuration === 1 ? " was" : "s were"} not added because each verification video must be 90 seconds or shorter.`,
+      );
+    } else if (rejectedForMissingDuration > 0) {
+      Alert.alert(
+        "Video duration unavailable",
+        "This device could not verify the selected video's duration. Please record a new video or choose another file.",
+      );
+    }
+    if (accepted.length > 0) setVideos((prev) => [...prev, ...accepted].slice(0, 3));
+  };
+
+  const pickVideo = async () => {
+    if (videos.length >= 3) {
+      Alert.alert("Limit reached", "You can only add up to 3 verification videos.");
+      return;
+    }
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Allow photo library access to choose a verification video.");
+      return;
+    }
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["videos"],
+        allowsMultipleSelection: true,
+        selectionLimit: 3 - videos.length,
+      });
+      if (!result.canceled) addPickedVideos(result.assets);
+    } catch (error) {
+      console.error("Failed to choose verification video:", error);
+      Alert.alert("Unable to choose video", "Please try another video or record one with the camera.");
+    }
+  };
+
+  const recordVideo = async () => {
+    if (videos.length >= 3) {
+      Alert.alert("Limit reached", "You can only add up to 3 verification videos.");
+      return;
+    }
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Allow camera and microphone access to record a verification video.");
+      return;
+    }
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["videos"],
+        videoMaxDuration: 90,
+        videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
+      });
+      if (!result.canceled) addPickedVideos(result.assets);
+    } catch (error) {
+      console.error("Failed to record verification video:", error);
+      Alert.alert("Unable to record video", "Check camera permissions and try again.");
+    }
+  };
+
+  const removeVideo = (index: number) => {
+    setVideos((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const formatVideoDuration = (duration?: number | null) => {
+    if (!duration) return "Duration unavailable";
+    const seconds = Math.ceil(duration / 1000);
+    return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  };
+
   const toggleFacility = (facilityTitle: string) => {
     setSelectedFacilities((prev) => {
       if (prev.includes(facilityTitle)) {
@@ -227,6 +314,22 @@ const AddPropertyScreen = () => {
 
     if (images.length === 0) {
       Alert.alert("Error", "Please upload at least one image");
+      return false;
+    }
+
+    if (videos.length < 2 || videos.length > 3) {
+      Alert.alert(
+        "Verification videos required",
+        "Add at least 2 and no more than 3 videos that verify the property photos.",
+      );
+      return false;
+    }
+
+    if (videos.some((video) => !video.duration || video.duration > 90_000)) {
+      Alert.alert(
+        "Invalid video duration",
+        "Every verification video needs a confirmed duration of 90 seconds or shorter.",
+      );
       return false;
     }
 
@@ -310,6 +413,25 @@ const AddPropertyScreen = () => {
         }
       }
 
+      // Upload local video URIs directly through Appwrite (never Base64).
+      const uploadedVideoUrls: string[] = [];
+      for (let i = 0; i < videos.length; i++) {
+        try {
+          const videoUrl = await uploadVideo(videos[i]);
+          uploadedVideoUrls.push(videoUrl);
+        } catch (error: any) {
+          console.error(`Failed to upload verification video ${i + 1}:`, error);
+          setErrorMessage(
+            error?.message
+              ? `Video ${i + 1} failed: ${error.message}`
+              : `Failed to upload verification video ${i + 1}. Check the Appwrite bucket size limit and try again.`,
+          );
+          setErrorModalVisible(true);
+          setLoading(false);
+          return;
+        }
+      }
+
       // Combine predefined and custom facilities
       const allFacilities = [...selectedFacilities];
 
@@ -356,6 +478,9 @@ const AddPropertyScreen = () => {
       if (uploadedImageUrls[0]) listingData.image1 = uploadedImageUrls[0];
       if (uploadedImageUrls[1]) listingData.image2 = uploadedImageUrls[1];
       if (uploadedImageUrls[2]) listingData.image3 = uploadedImageUrls[2];
+      listingData.video1 = uploadedVideoUrls[0];
+      listingData.video2 = uploadedVideoUrls[1];
+      if (uploadedVideoUrls[2]) listingData.video3 = uploadedVideoUrls[2];
 
       console.log("Full listing data:", listingData);
 
@@ -394,6 +519,7 @@ const AddPropertyScreen = () => {
     setSelectedFacilities([]);
     setCustomFacilities([]);
     setImages([]);
+    setVideos([]);
     setCoords(null);
   };
 
@@ -848,7 +974,7 @@ const AddPropertyScreen = () => {
                   className="text-xs text-center py-2"
                   style={{ color: theme.muted + "60" }}
                 >
-                  Tap "Add Custom" to add your own facilities
+                  Tap &quot;Add Custom&quot; to add your own facilities
                 </Text>
               )}
             </View>
@@ -1923,6 +2049,87 @@ const AddPropertyScreen = () => {
                     Maximum 3 images reached. Remove an image to add more.
                   </Text>
                 </View>
+              )}
+            </View>
+
+            {/* Verification video upload */}
+            <View
+              className="mb-6 rounded-2xl p-4"
+              style={{
+                backgroundColor: theme.surface,
+                borderWidth: 1,
+                borderColor: theme.muted + "30",
+              }}
+            >
+              <View className="flex-row items-center justify-between mb-1">
+                <Text className="text-base font-rubik-bold flex-1" style={{ color: theme.text }}>
+                  Add videos for property verification
+                </Text>
+                <View className="px-2 py-1 rounded-full" style={{ backgroundColor: theme.primary[100] }}>
+                  <Text className="text-xs font-rubik-bold" style={{ color: theme.primary[300] }}>
+                    {videos.length}/3
+                  </Text>
+                </View>
+              </View>
+              <Text className="text-sm font-rubik mb-4" style={{ color: theme.muted }}>
+                Add videos that verify the pictures you uploaded. Exactly 2 or 3 videos are required, and each must be 90 seconds or shorter.
+              </Text>
+
+              {videos.length < 3 && (
+                <View className="flex-row gap-3 mb-4">
+                  <TouchableOpacity
+                    onPress={recordVideo}
+                    disabled={loading}
+                    className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
+                    style={{ backgroundColor: theme.primary[300] }}
+                  >
+                    <Ionicons name="videocam-outline" size={20} color="#FFFFFF" />
+                    <Text className="text-white font-rubik-bold ml-2">Record video</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={pickVideo}
+                    disabled={loading}
+                    className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
+                    style={{ backgroundColor: theme.navBackground, borderWidth: 1, borderColor: theme.primary[300] }}
+                  >
+                    <Ionicons name="folder-open-outline" size={20} color={theme.primary[300]} />
+                    <Text className="font-rubik-bold ml-2" style={{ color: theme.primary[300] }}>Choose video</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {videos.map((video, index) => (
+                <View
+                  key={`${video.uri}-${index}`}
+                  className="flex-row items-center p-3 rounded-xl mb-2"
+                  style={{ backgroundColor: theme.navBackground }}
+                >
+                  <View className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: theme.primary[100] }}>
+                    <Ionicons name="play" size={18} color={theme.primary[300]} />
+                  </View>
+                  <View className="flex-1 ml-3">
+                    <Text numberOfLines={1} className="font-rubik-medium" style={{ color: theme.text }}>
+                      {video.fileName || `Verification video ${index + 1}`}
+                    </Text>
+                    <Text className="text-xs mt-1" style={{ color: theme.muted }}>
+                      {formatVideoDuration(video.duration)} · Video {index + 1}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => removeVideo(index)}
+                    disabled={loading}
+                    accessibilityLabel={`Remove verification video ${index + 1}`}
+                    className="p-2"
+                  >
+                    <Ionicons name="trash-outline" size={20} color={theme.danger} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+
+              {videos.length < 2 && (
+                <Text className="text-xs font-rubik-medium mt-1" style={{ color: theme.danger }}>
+                  Add {2 - videos.length} more video{2 - videos.length === 1 ? "" : "s"} to continue.
+                </Text>
               )}
             </View>
 

@@ -57,6 +57,14 @@
         }
       ],
       [
+  "expo-image-picker",
+  {
+    "photosPermission": "Allow Nookly to choose property photos and verification videos.",
+    "cameraPermission": "Allow Nookly to record property verification videos.",
+    "microphonePermission": "Allow Nookly to record sound with property verification videos."
+  }
+],
+      [
         "expo-media-library",
         {
           "photosPermission": "Allow Nookly to save property photos and videos to your device.",
@@ -101,7 +109,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "5a443493-5cd7-43a2-93b9-53d5579df83c"
+        "projectId": "92a4525c-c7cb-4a55-8c52-b1d73db5207f"
       }
     },
     "owner": "phoenix69"
