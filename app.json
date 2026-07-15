@@ -69,7 +69,8 @@
         {
           "photosPermission": "Allow Nookly to save property photos and videos to your device.",
           "savePhotosPermission": "Allow Nookly to save property photos and videos to your device.",
-          "isAccessMediaLocationEnabled": true
+          "isAccessMediaLocationEnabled": true,
+          "granularPermissions": ["photo", "video"]
         }
       ],
       "expo-router",

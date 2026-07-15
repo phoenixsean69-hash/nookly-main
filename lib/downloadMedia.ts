@@ -5,7 +5,14 @@ export async function downloadMediaToDevice(
   uri: string,
   filename: string,
 ): Promise<void> {
-  const { status } = await MediaLibrary.requestPermissionsAsync();
+  // Request both photo AND video granular permissions. On Android 13+,
+  // requesting only "photo" grants READ_MEDIA_IMAGES but not READ_MEDIA_VIDEO,
+  // which makes createAssetAsync route videos into the images MediaStore
+  // collection and fail with "MIME type video/mp4 cannot be inserted".
+  const { status } = await MediaLibrary.requestPermissionsAsync(false, [
+    "photo",
+    "video",
+  ]);
   if (status !== "granted") {
     throw new Error(
       "Permission to access your photo library was denied. Please enable it in Settings.",
