@@ -27,7 +27,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Linking } from "react-native";
 import { Query } from "react-native-appwrite";
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors } from "@/constants/Colors";
 import { isAccredited } from "@/lib/accreditation";
@@ -249,7 +248,6 @@ const Property = () => {
     message: "",
   });
 
-  const [mapModalVisible, setMapModalVisible] = useState(false);
 
   // Helper function to build price history from property data
 const buildPriceHistory = (property: PropertyData | null) => {
@@ -1811,15 +1809,7 @@ const renderTenantView = () => {
 
   {/* ✅ Inline Map Preview */}
   {property.latitude && property.longitude ? (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      onPress={() => setMapModalVisible(true)}
-      className="mt-3 rounded-xl overflow-hidden border"
-      style={{
-        borderColor: theme.muted + "30",
-        backgroundColor: theme.surface,
-      }}
-    >
+    <View className="mt-3">
       <PropertyMapCard
         latitude={property.latitude}
         longitude={property.longitude}
@@ -1832,20 +1822,7 @@ const renderTenantView = () => {
         bathrooms={property.bathrooms}
         isInline={true}
       />
-      
-      {/* Tap to expand overlay */}
-      <View 
-        className="absolute bottom-0 left-0 right-0 py-2 px-4 flex-row items-center justify-center"
-        style={{
-          backgroundColor: 'rgba(0,0,0,0.5)',
-        }}
-      >
-        <Ionicons name="expand-outline" size={16} color="#FFFFFF" />
-        <Text className="text-white text-xs font-rubik-medium ml-2">
-          Tap to view full map
-        </Text>
-      </View>
-    </TouchableOpacity>
+    </View>
   ) : (
     <View
       className="mt-3 p-6 rounded-xl items-center"
@@ -2691,15 +2668,7 @@ const renderLandlordView = () => {
 
   {/* ✅ Inline Map Preview */}
   {property.latitude && property.longitude ? (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      onPress={() => setMapModalVisible(true)}
-      className="mt-3 rounded-xl overflow-hidden border"
-      style={{
-        borderColor: theme.muted + "30",
-        backgroundColor: theme.surface,
-      }}
-    >
+    <View className="mt-3">
       <PropertyMapCard
         latitude={property.latitude}
         longitude={property.longitude}
@@ -2712,20 +2681,7 @@ const renderLandlordView = () => {
         bathrooms={property.bathrooms}
         isInline={true}
       />
-      
-      {/* Tap to expand overlay */}
-      <View 
-        className="absolute bottom-0 left-0 right-0 py-2 px-4 flex-row items-center justify-center"
-        style={{
-          backgroundColor: 'rgba(0,0,0,0.5)',
-        }}
-      >
-        <Ionicons name="expand-outline" size={16} color="#FFFFFF" />
-        <Text className="text-white text-xs font-rubik-medium ml-2">
-          Tap to view full map
-        </Text>
-      </View>
-    </TouchableOpacity>
+    </View>
   ) : (
     <View
       className="mt-3 p-6 rounded-xl items-center"
@@ -3419,33 +3375,6 @@ const renderLandlordView = () => {
         avatar={landlordContact?.avatar}
       />
 
-      {/* Map Modal - Full Screen */}
-      <Modal
-        visible={mapModalVisible}
-        animationType="slide"
-        onRequestClose={() => setMapModalVisible(false)}
-        statusBarTranslucent
-      >
-        <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
-
-          {/* Full Screen Map */}
-          <View style={{ flex: 1 }}>
-            <PropertyMapCard
-              latitude={property?.latitude || undefined}
-              longitude={property?.longitude || undefined}
-              propertyName={property?.propertyName}
-              address={property?.address}
-              propertyImage={property?.image1}
-              propertyPrice={property?.price}
-              propertyType={property?.type}
-              bedrooms={property?.bedrooms}
-              bathrooms={property?.bathrooms}
-              isFullScreen={true}
-              onClose={() => setMapModalVisible(false)}
-            />
-          </View>
-        </SafeAreaView>
-      </Modal>
     </View>
   );
 };

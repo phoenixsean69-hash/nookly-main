@@ -152,7 +152,7 @@ const Explore = () => {
     selectedLocation,
   ]);
 
-  // ✅ State for FullMap modal
+  // Property location browser modal
   const [fullMapVisible, setFullMapVisible] = useState(false);
 
   const handleCardPress = (id: string) => router.push(`/properties/${id}`);
@@ -304,7 +304,7 @@ const Explore = () => {
               </Text>
             </View>
 
-            {/* ✅ Map Banner - Click to open FullMap */}
+            {/* Location browser banner */}
             <TouchableOpacity
               onPress={handleOpenFullMap}
               activeOpacity={0.9}
@@ -329,10 +329,10 @@ const Explore = () => {
                   <View className="flex-1 p-4 items-center justify-center" style={{ backgroundColor: theme.primary[100] }}>
                     <Ionicons name="map" size={48} color={theme.primary[300]} />
                     <Text className="text-lg font-rubik-bold mt-2" style={{ color: theme.primary[300] }}>
-                      {allProperties?.length || 0} Properties
+                      {allProperties?.filter((property) => Number.isFinite(Number(property.latitude)) && Number.isFinite(Number(property.longitude))).length || 0} Located Properties
                     </Text>
                     <Text className="text-sm" style={{ color: theme.muted }}>
-                      Tap to view full map
+                      Browse locations and open external maps
                     </Text>
                   </View>
                   
@@ -630,7 +630,7 @@ const Explore = () => {
         onClose={() => setSearchModalVisible(false)}
       />
 
-      {/* ✅ FullMap Modal */}
+      {/* Property location browser */}
       <FullMap
         visible={fullMapVisible}
         onClose={() => setFullMapVisible(false)}
