@@ -61,9 +61,7 @@ export const titleCaseStudentText = (value?: string): string =>
     .trim()
     .split(/\s+/)
     .map((part) =>
-      part
-        ? `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`
-        : "",
+      part ? `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}` : "",
     )
     .join(" ");
 
@@ -148,9 +146,7 @@ const getPropertyPerformanceScore = (property: StudentProperty): number => {
   );
 };
 
-const hydrateStudentProperty = (
-  document: Record<string, any>,
-): StudentProperty => {
+const hydrateStudentProperty = (document: Record<string, any>): StudentProperty => {
   const reviewStats = parseReviewStats(document.reviews);
 
   return {
@@ -188,8 +184,7 @@ const readCache = async <T>(key: string): Promise<T | null> => {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as CacheEnvelope<T>;
-    if (!parsed?.savedAt || Date.now() - parsed.savedAt > CACHE_TTL)
-      return null;
+    if (!parsed?.savedAt || Date.now() - parsed.savedAt > CACHE_TTL) return null;
 
     return parsed.data;
   } catch {
@@ -259,9 +254,7 @@ export const filterStudentHousing = (
 ): StudentProperty[] => {
   const normalizedType = normalizeStudentText(options.type);
   const normalizedQuery = normalizeStudentText(options.query);
-  const selectedFacilities = (options.facilities ?? []).map(
-    normalizeStudentText,
-  );
+  const selectedFacilities = (options.facilities ?? []).map(normalizeStudentText);
 
   const filtered = properties.filter((property) => {
     if (
@@ -269,9 +262,7 @@ export const filterStudentHousing = (
       normalizedType !== "all" &&
       normalizeStudentText(property.type) !== normalizedType
     ) {
-      if (
-        !(normalizedType === "boarding" && isBoardingHouseType(property.type))
-      ) {
+      if (!(normalizedType === "boarding" && isBoardingHouseType(property.type))) {
         return false;
       }
     }
@@ -412,7 +403,7 @@ export const getUniversityApprovedBoardingProperties = async (
         );
         if (!organization) return null;
 
-        return {
+        const approvedProperty: StudentProperty = {
           ...property,
           organizationId: organization.$id,
           organizationName: organization.name,
@@ -420,15 +411,17 @@ export const getUniversityApprovedBoardingProperties = async (
           isUniversityApproved: true,
           agent:
             property.agent ??
-            ({
+            {
               $id: organization.$id,
               name: organization.name,
               email: organization.email,
               phone: organization.phone,
               avatar: organization.avatar,
               isOrganization: true,
-            } as const),
-        } satisfies StudentProperty;
+            },
+        };
+
+        return approvedProperty;
       })
       .filter((property): property is StudentProperty => property !== null);
 
