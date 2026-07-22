@@ -1,8 +1,8 @@
 // components/AmenitiesBadge.tsx
-import { PropertyAmenities } from '@/lib/poiService';
-import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { PropertyAmenities } from "@/lib/poiService";
+import { Ionicons } from "@expo/vector-icons";
+import React from "react";
+import { Text, TouchableOpacity, View } from "react-native";
 
 interface AmenitiesBadgeProps {
   amenities: PropertyAmenities | null;
@@ -11,11 +11,18 @@ interface AmenitiesBadgeProps {
   compact?: boolean;
 }
 
-export const AmenitiesBadge = ({ amenities, loading, onPress, compact = false }: AmenitiesBadgeProps) => {
+export const AmenitiesBadge = ({
+  amenities,
+  loading,
+  onPress,
+  compact = false,
+}: AmenitiesBadgeProps) => {
   if (loading) {
     return (
       <View className="px-3 py-1.5 rounded-full bg-gray-200 dark:bg-gray-700">
-        <Text className="text-xs text-gray-500 dark:text-gray-400">Loading...</Text>
+        <Text className="text-xs text-gray-500 dark:text-gray-400">
+          Loading...
+        </Text>
       </View>
     );
   }
@@ -33,7 +40,11 @@ export const AmenitiesBadge = ({ amenities, loading, onPress, compact = false }:
 
   if (compact) {
     return (
-      <TouchableOpacity onPress={onPress} disabled={!onPress} className="flex-row items-center">
+      <TouchableOpacity
+        onPress={onPress}
+        disabled={!onPress}
+        className="flex-row items-center"
+      >
         <View className="flex-row items-center gap-1">
           {hasSchools && (
             <View className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30">
@@ -72,7 +83,13 @@ export const AmenitiesBadge = ({ amenities, loading, onPress, compact = false }:
           )}
           {amenities.total > 0 && (
             <Text className="text-[10px] text-gray-500 dark:text-gray-400">
-              +{amenities.total - (amenities.schools + amenities.hospitals + amenities.shopping + amenities.busTerminals + amenities.universities)}
+              +
+              {amenities.total -
+                (amenities.schools +
+                  amenities.hospitals +
+                  amenities.shopping +
+                  amenities.busTerminals +
+                  amenities.universities)}
             </Text>
           )}
         </View>
@@ -81,30 +98,46 @@ export const AmenitiesBadge = ({ amenities, loading, onPress, compact = false }:
   }
 
   return (
-    <TouchableOpacity onPress={onPress} disabled={!onPress} className="flex-row flex-wrap gap-1">
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={!onPress}
+      className="flex-row flex-wrap gap-1"
+    >
       <View className="px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 flex-row items-center">
         <Ionicons name="school" size={12} color="#3B82F6" />
-        <Text className="text-xs text-blue-600 dark:text-blue-400 ml-1">{amenities.schools} schools</Text>
+        <Text className="text-xs text-blue-600 dark:text-blue-400 ml-1">
+          {amenities.schools} schools
+        </Text>
       </View>
       <View className="px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/30 flex-row items-center">
         <Ionicons name="medical" size={12} color="#EF4444" />
-        <Text className="text-xs text-red-600 dark:text-red-400 ml-1">{amenities.hospitals} hospitals</Text>
+        <Text className="text-xs text-red-600 dark:text-red-400 ml-1">
+          {amenities.hospitals} hospitals
+        </Text>
       </View>
       <View className="px-2 py-1 rounded-full bg-yellow-100 dark:bg-yellow-900/30 flex-row items-center">
         <Ionicons name="cart" size={12} color="#F59E0B" />
-        <Text className="text-xs text-yellow-600 dark:text-yellow-400 ml-1">{amenities.shopping} shops</Text>
+        <Text className="text-xs text-yellow-600 dark:text-yellow-400 ml-1">
+          {amenities.shopping} shops
+        </Text>
       </View>
       <View className="px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 flex-row items-center">
         <Ionicons name="bus" size={12} color="#10B981" />
-        <Text className="text-xs text-green-600 dark:text-green-400 ml-1">{amenities.busTerminals} bus stops</Text>
+        <Text className="text-xs text-green-600 dark:text-green-400 ml-1">
+          {amenities.busTerminals} bus stops
+        </Text>
       </View>
       <View className="px-2 py-1 rounded-full bg-purple-100 dark:bg-purple-900/30 flex-row items-center">
         <Ionicons name="school" size={12} color="#8B5CF6" />
-        <Text className="text-xs text-purple-600 dark:text-purple-400 ml-1">{amenities.universities} universities</Text>
+        <Text className="text-xs text-purple-600 dark:text-purple-400 ml-1">
+          {amenities.universities} universities
+        </Text>
       </View>
       {amenities.total > 0 && (
         <View className="px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 flex-row items-center">
-          <Text className="text-xs text-gray-600 dark:text-gray-400">+{amenities.total} total</Text>
+          <Text className="text-xs text-gray-600 dark:text-gray-400">
+            +{amenities.total} total
+          </Text>
         </View>
       )}
     </TouchableOpacity>

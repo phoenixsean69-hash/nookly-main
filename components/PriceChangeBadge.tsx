@@ -9,11 +9,11 @@ interface PriceChangeBadgeProps {
   showDate?: boolean;
 }
 
-export const PriceChangeBadge = ({ 
-  newPrice, 
-  oldPrice, 
+export const PriceChangeBadge = ({
+  newPrice,
+  oldPrice,
   changeDate,
-  showDate = false 
+  showDate = false,
 }: PriceChangeBadgeProps) => {
   if (!newPrice || !oldPrice || newPrice === oldPrice) return null;
 
@@ -24,10 +24,10 @@ export const PriceChangeBadge = ({
   const formatDate = (dateString?: string) => {
     if (!dateString) return "";
     const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", { 
-      month: "short", 
+    return date.toLocaleDateString("en-US", {
+      month: "short",
       day: "numeric",
-      year: "numeric" 
+      year: "numeric",
     });
   };
 

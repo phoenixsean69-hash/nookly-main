@@ -32,18 +32,18 @@ export const useAppwrite = <T, P extends Record<string, any>>({
       const fnName = fn.name || "query";
       return `${fnName}_${JSON.stringify(p)}`;
     },
-    [fn, cacheKey]
+    [fn, cacheKey],
   );
 
   const initialKey = getCacheKey(params, cacheKey);
   const cachedEntry = cache.get(initialKey) as CacheEntry | undefined;
   const hasFreshCache =
-   !!cachedEntry && Date.now() - cachedEntry.timestamp < ttl;
+    !!cachedEntry && Date.now() - cachedEntry.timestamp < ttl;
 
   const [data, setData] = useState<T | null>(
-    hasFreshCache? (cachedEntry!.data as T) : null
+    hasFreshCache ? (cachedEntry!.data as T) : null,
   );
-  const [loading, setLoading] = useState<boolean>(!skip &&!hasFreshCache);
+  const [loading, setLoading] = useState<boolean>(!skip && !hasFreshCache);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(
@@ -80,7 +80,7 @@ export const useAppwrite = <T, P extends Record<string, any>>({
         if (isMounted.current) setLoading(false);
       }
     },
-    [fn, ttl, getCacheKey, cacheKey]
+    [fn, ttl, getCacheKey, cacheKey],
   );
 
   useEffect(() => {
@@ -97,7 +97,7 @@ export const useAppwrite = <T, P extends Record<string, any>>({
     async (newParams: P) => {
       await fetchData(newParams, true);
     },
-    [fetchData]
+    [fetchData],
   );
 
   return { data, loading, error, refetch };

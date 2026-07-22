@@ -97,10 +97,16 @@ export const TenantScoreBadge = ({
       {showDetails && (
         <View className="mt-2 gap-1">
           <View className="flex-row items-center gap-2">
-            <Text className="text-xs font-rubik-medium" style={{ color: theme.muted }}>
+            <Text
+              className="text-xs font-rubik-medium"
+              style={{ color: theme.muted }}
+            >
               Tenant Score
             </Text>
-            <Text className="text-xs font-rubik-bold" style={{ color: scoreColor }}>
+            <Text
+              className="text-xs font-rubik-bold"
+              style={{ color: scoreColor }}
+            >
               {score.toFixed(1)}/5
             </Text>
           </View>

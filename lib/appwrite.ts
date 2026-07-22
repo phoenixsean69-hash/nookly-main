@@ -394,8 +394,6 @@ export const createUser = async ({
             previousLandlords: [],
             totalRentalMonths: 0,
             screeningStatus: "none",
-            createdAt: now,
-            updatedAt: now,
           },
         );
         console.log("✅ Tenant profile created for user:", newAccount.$id);

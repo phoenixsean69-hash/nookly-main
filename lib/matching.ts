@@ -72,7 +72,10 @@ export const locationsOverlap = (a?: string, b?: string): boolean => {
 };
 
 /** Mutual gender compatibility. Missing/empty preference is treated as "any". */
-export const gendersCompatible = (me: MatchInput, other: MatchInput): boolean => {
+export const gendersCompatible = (
+  me: MatchInput,
+  other: MatchInput,
+): boolean => {
   const wants = (pref?: string, actual?: string) =>
     !pref || pref === "any" || !actual || pref === actual;
 
@@ -118,7 +121,9 @@ export const computeCompatibilityScore = (
     score += 15; // neutral when either side has no lifestyle info
   } else {
     const theirSet = new Set(theirLifestyle.map((l) => l.toLowerCase()));
-    const shared = myLifestyle.filter((l) => theirSet.has(l.toLowerCase())).length;
+    const shared = myLifestyle.filter((l) =>
+      theirSet.has(l.toLowerCase()),
+    ).length;
     const denom = Math.min(myLifestyle.length, theirLifestyle.length);
     score += Math.round(30 * (shared / Math.max(denom, 1)));
   }
@@ -155,7 +160,10 @@ export const computeCompatibilityScore = (
  * not self, mutual gender compatibility, overlapping location,
  * and budgets not absurdly far apart (>60%).
  */
-export const isCompatibleMatch = (me: MatchInput, other: MatchInput): boolean => {
+export const isCompatibleMatch = (
+  me: MatchInput,
+  other: MatchInput,
+): boolean => {
   if (me.userId && other.userId && me.userId === other.userId) return false;
   if (!gendersCompatible(me, other)) return false;
   if (!locationsOverlap(me.preferredLocation, other.preferredLocation)) {

@@ -10,7 +10,12 @@ import {
   Zap,
 } from "lucide-react-native";
 import React from "react";
-import { ScrollView, Text, TouchableOpacity, useColorScheme } from "react-native";
+import {
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  useColorScheme,
+} from "react-native";
 
 const FACILITIES = [
   { id: "water", label: "Water", Icon: Droplets },
@@ -28,9 +33,12 @@ interface FacilitiesFilterProps {
   onToggle: (id: string) => void;
 }
 
-export const FacilitiesFilter = ({ selected, onToggle }: FacilitiesFilterProps) => {
+export const FacilitiesFilter = ({
+  selected,
+  onToggle,
+}: FacilitiesFilterProps) => {
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme?? "light"];
+  const theme = Colors[colorScheme ?? "light"];
 
   return (
     <ScrollView
@@ -48,20 +56,20 @@ export const FacilitiesFilter = ({ selected, onToggle }: FacilitiesFilterProps) 
             onPress={() => onToggle(facility.id)}
             className="px-4 py-2 rounded-full flex-row items-center"
             style={{
-              backgroundColor: isSelected? theme.primary[300] : theme.surface,
+              backgroundColor: isSelected ? theme.primary[300] : theme.surface,
               borderWidth: 1,
-              borderColor: isSelected? theme.primary[300] : theme.muted + "40",
+              borderColor: isSelected ? theme.primary[300] : theme.muted + "40",
             }}
           >
             <Icon
               size={16}
-              color={isSelected? "#FFFFFF" : theme.text}
+              color={isSelected ? "#FFFFFF" : theme.text}
               className="mr-1"
             />
             <Text
               className="text-sm font-rubik-medium ml-1"
               style={{
-                color: isSelected? "#FFFFFF" : theme.text,
+                color: isSelected ? "#FFFFFF" : theme.text,
               }}
             >
               {facility.label}

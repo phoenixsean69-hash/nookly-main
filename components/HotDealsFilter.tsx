@@ -10,10 +10,10 @@ interface HotDealsFilterProps {
   count?: number;
 }
 
-export const HotDealsFilter = ({ 
-  isActive, 
-  onToggle, 
-  count = 0 
+export const HotDealsFilter = ({
+  isActive,
+  onToggle,
+  count = 0,
 }: HotDealsFilterProps) => {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
@@ -36,10 +36,10 @@ export const HotDealsFilter = ({
         elevation: isActive ? 4 : 0,
       }}
     >
-      <Ionicons 
-        name="flame" 
-        size={16} 
-        color={isActive ? "#FFFFFF" : "#DC2626"} 
+      <Ionicons
+        name="flame"
+        size={16}
+        color={isActive ? "#FFFFFF" : "#DC2626"}
       />
       <Text
         className={`font-rubik-bold text-xs ml-1.5 ${

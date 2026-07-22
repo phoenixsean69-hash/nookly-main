@@ -32,7 +32,7 @@ const HotDeals = () => {
   const [deals, setDeals] = useState<HotDeal[]>(cachedDeals || []);
   const [loading, setLoading] = useState(!cachedDeals);
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme?? "light"];
+  const theme = Colors[colorScheme ?? "light"];
   const isMounted = useRef(true);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ const HotDeals = () => {
       setLoading(false);
     }
     const now = Date.now();
-    if ((!cachedDeals || now - lastFetchTime >= CACHE_TTL) &&!isFetching) {
+    if ((!cachedDeals || now - lastFetchTime >= CACHE_TTL) && !isFetching) {
       fetchHotDeals();
     }
     return () => {
@@ -61,23 +61,35 @@ const HotDeals = () => {
 
       // Only 3 queries, all using fields that EXIST in every schema
       const [newListings, boarding, availableSample] = await Promise.all([
-        databases.listDocuments(config.databaseId!, config.propertiesCollectionId!, [
-          Query.greaterThan("$createdAt", fifteenDaysAgo.toISOString()),
-          Query.limit(1),
-          Query.select(["$id"]), // FIX: must select at least $id, not []
-        ]),
-        databases.listDocuments(config.databaseId!, config.propertiesCollectionId!, [
-          Query.equal("type", "Boarding"),
-          Query.equal("isAvailable", true),
-          Query.limit(1),
-          Query.select(["$id"]),
-        ]),
-        databases.listDocuments(config.databaseId!, config.propertiesCollectionId!, [
-          Query.equal("isAvailable", true),
-          Query.limit(50),
-          // Only select fields we KNOW exist: $id, likes, price, type
-          Query.select(["$id", "likes", "price", "type"]),
-        ]),
+        databases.listDocuments(
+          config.databaseId!,
+          config.propertiesCollectionId!,
+          [
+            Query.greaterThan("$createdAt", fifteenDaysAgo.toISOString()),
+            Query.limit(1),
+            Query.select(["$id"]), // FIX: must select at least $id, not []
+          ],
+        ),
+        databases.listDocuments(
+          config.databaseId!,
+          config.propertiesCollectionId!,
+          [
+            Query.equal("type", "Boarding"),
+            Query.equal("isAvailable", true),
+            Query.limit(1),
+            Query.select(["$id"]),
+          ],
+        ),
+        databases.listDocuments(
+          config.databaseId!,
+          config.propertiesCollectionId!,
+          [
+            Query.equal("isAvailable", true),
+            Query.limit(50),
+            // Only select fields we KNOW exist: $id, likes, price, type
+            Query.select(["$id", "likes", "price", "type"]),
+          ],
+        ),
       ]);
 
       const realDeals: HotDeal[] = [];
@@ -104,7 +116,9 @@ const HotDeals = () => {
         });
       }
 
-      const trendingCount = availableSample.documents.filter((p: any) => (p.likes || 0) > 0).length;
+      const trendingCount = availableSample.documents.filter(
+        (p: any) => (p.likes || 0) > 0,
+      ).length;
       if (trendingCount > 0) {
         realDeals.push({
           title: "Trending",
@@ -142,14 +156,22 @@ const HotDeals = () => {
 
   const handlePress = (deal: HotDeal) => {
     if (deal.type === "trending") router.push("/trending-properties" as any);
-    else router.push({ pathname: "/filtered-properties" as any, params: { type: deal.type } });
+    else
+      router.push({
+        pathname: "/filtered-properties" as any,
+        params: { type: deal.type },
+      });
   };
 
-  if (loading &&!cachedDeals) {
+  if (loading && !cachedDeals) {
     return (
       <View className="py-4 flex-row gap-3">
         {[1, 2, 3].map((i) => (
-          <View key={i} className="flex-1 rounded-xl p-3 items-center" style={{ backgroundColor: theme.navBackground }}>
+          <View
+            key={i}
+            className="flex-1 rounded-xl p-3 items-center"
+            style={{ backgroundColor: theme.navBackground }}
+          >
             <ActivityIndicator size="small" color={theme.primary[300]} />
           </View>
         ))}
@@ -159,16 +181,46 @@ const HotDeals = () => {
 
   return (
     <View className="py-4">
-      <Text className="text-2xl font-rubik-bold mb-1" style={{ color: theme.text }}>Hot Deals</Text>
-      <Text className="text-sm text-gray-500 font-rubik mb-3">Don't miss out</Text>
+      <Text
+        className="text-2xl font-rubik-bold mb-1"
+        style={{ color: theme.text }}
+      >
+        Hot Deals
+      </Text>
+      <Text className="text-sm text-gray-500 font-rubik mb-3">
+        Don't miss out
+      </Text>
       <View className="flex-row justify-between gap-3">
         {deals.map((deal, idx) => (
-          <TouchableOpacity key={idx} onPress={() => handlePress(deal)} className="flex-1 rounded-xl p-3 items-center" style={{ backgroundColor: theme.navBackground, borderWidth: 1, borderColor: "#E5E7EB" }}>
-            <View className="w-10 h-10 rounded-full items-center justify-center mb-2" style={{ backgroundColor: deal.color + "20" }}>
-              <Image source={deal.icon} className="w-5 h-5" style={{ tintColor: deal.color }} />
+          <TouchableOpacity
+            key={idx}
+            onPress={() => handlePress(deal)}
+            className="flex-1 rounded-xl p-3 items-center"
+            style={{
+              backgroundColor: theme.navBackground,
+              borderWidth: 1,
+              borderColor: "#E5E7EB",
+            }}
+          >
+            <View
+              className="w-10 h-10 rounded-full items-center justify-center mb-2"
+              style={{ backgroundColor: deal.color + "20" }}
+            >
+              <Image
+                source={deal.icon}
+                className="w-5 h-5"
+                style={{ tintColor: deal.color }}
+              />
             </View>
-            <Text className="text-sm font-rubik-medium text-center" style={{ color: theme.text }}>{deal.title}</Text>
-            <Text className="text-xs text-gray-500 text-center mt-1">{deal.description}</Text>
+            <Text
+              className="text-sm font-rubik-medium text-center"
+              style={{ color: theme.text }}
+            >
+              {deal.title}
+            </Text>
+            <Text className="text-xs text-gray-500 text-center mt-1">
+              {deal.description}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>

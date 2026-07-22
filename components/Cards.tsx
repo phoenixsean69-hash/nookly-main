@@ -43,7 +43,11 @@ interface Props {
   showPriceChange?: boolean; // ✅ New prop to control price change display
 }
 
-export const FeaturedCard = ({ item, onPress, showPriceChange = true }: Props) => {
+export const FeaturedCard = ({
+  item,
+  onPress,
+  showPriceChange = true,
+}: Props) => {
   const imageUri = item.image1 || item.image2 || item.image3 || item.image;
   const rating = item.rating ?? 0;
   const title = item.propertyName || item.name || "Property";
@@ -56,13 +60,14 @@ export const FeaturedCard = ({ item, onPress, showPriceChange = true }: Props) =
   // ✅ Check if property is accredited
   const accredited = isAccredited(
     item.reviews,
-    item.$createdAt || item.createdAt
+    item.$createdAt || item.createdAt,
   );
 
   // ✅ Check if there's a price drop
-  const hasPriceDrop = item.new_price !== undefined && 
-                       item.new_price !== null && 
-                       item.new_price < (item.price || 0);
+  const hasPriceDrop =
+    item.new_price !== undefined &&
+    item.new_price !== null &&
+    item.new_price < (item.price || 0);
 
   return (
     <TouchableOpacity
@@ -83,9 +88,7 @@ export const FeaturedCard = ({ item, onPress, showPriceChange = true }: Props) =
       {showPriceChange && hasPriceDrop && (
         <View className="absolute top-5 left-5 z-20">
           <View className="bg-red-500 px-3 py-1.5 rounded-full flex-row items-center shadow-lg">
-            <Text className="text-white font-rubik-bold text-xs mr-1">
-              🔥
-            </Text>
+            <Text className="text-white font-rubik-bold text-xs mr-1">🔥</Text>
             <Text className="text-white font-rubik-bold text-xs">
               -${Math.abs((item.new_price || 0) - (item.price || 0))}
             </Text>
@@ -204,18 +207,21 @@ export const Card = ({ item, onPress, showPriceChange = true }: Props) => {
   // ✅ Check if property is accredited
   const accredited = isAccredited(
     item.reviews,
-    item.$createdAt || item.createdAt
+    item.$createdAt || item.createdAt,
   );
 
   // ✅ Check if there's a price drop
-  const hasPriceDrop = item.new_price !== undefined && 
-                       item.new_price !== null && 
-                       item.new_price < (item.price || 0);
+  const hasPriceDrop =
+    item.new_price !== undefined &&
+    item.new_price !== null &&
+    item.new_price < (item.price || 0);
 
   // ✅ Calculate price change percentage
   const getPriceChangePercent = () => {
     if (!hasPriceDrop || !item.price) return 0;
-    return Math.round(((item.price - (item.new_price || 0)) / item.price) * 100);
+    return Math.round(
+      ((item.price - (item.new_price || 0)) / item.price) * 100,
+    );
   };
 
   return (
@@ -322,7 +328,10 @@ export const Card = ({ item, onPress, showPriceChange = true }: Props) => {
               <View className="flex-row items-center">
                 <Text className="text-base font-rubik-bold text-red-500">
                   ${item.new_price}
-                  <Text className="text-xs font-rubik" style={{ color: theme.muted }}>
+                  <Text
+                    className="text-xs font-rubik"
+                    style={{ color: theme.muted }}
+                  >
                     {propertyType === "Boarding"
                       ? "/head"
                       : propertyType === "Luxury"
@@ -330,7 +339,10 @@ export const Card = ({ item, onPress, showPriceChange = true }: Props) => {
                         : "/month"}
                   </Text>
                 </Text>
-                <Text className="text-xs font-rubik line-through ml-2" style={{ color: theme.muted }}>
+                <Text
+                  className="text-xs font-rubik line-through ml-2"
+                  style={{ color: theme.muted }}
+                >
                   ${item.price}
                 </Text>
                 <View className="ml-2 bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded-full">
@@ -342,7 +354,10 @@ export const Card = ({ item, onPress, showPriceChange = true }: Props) => {
             ) : (
               <Text className="text-base font-rubik-bold text-primary-300">
                 ${item.price ?? 0}
-                <Text className="text-xs font-rubik" style={{ color: theme.muted }}>
+                <Text
+                  className="text-xs font-rubik"
+                  style={{ color: theme.muted }}
+                >
                   {propertyType === "Boarding"
                     ? "/head"
                     : propertyType === "Luxury"
@@ -373,8 +388,12 @@ export const Card = ({ item, onPress, showPriceChange = true }: Props) => {
 
         {/* ✅ Price Change Date (if available) */}
         {showPriceChange && hasPriceDrop && item.price_change_date && (
-          <Text className="text-[10px] mt-1" style={{ color: theme.muted + "60" }}>
-            Price dropped {new Date(item.price_change_date).toLocaleDateString()}
+          <Text
+            className="text-[10px] mt-1"
+            style={{ color: theme.muted + "60" }}
+          >
+            Price dropped{" "}
+            {new Date(item.price_change_date).toLocaleDateString()}
           </Text>
         )}
       </View>

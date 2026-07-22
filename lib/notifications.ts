@@ -31,8 +31,7 @@ export async function registerForPushNotifications() {
     return null;
   }
 
-  const token = (await Notifications.getExpoPushTokenAsync({ projectId }))
-    .data;
+  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
 
   return token;
 }

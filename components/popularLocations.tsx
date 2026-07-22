@@ -21,9 +21,14 @@ interface PopularLocationsProps {
 const PopularLocations = ({ limit = 4 }: PopularLocationsProps) => {
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme?? "light"];
+  const theme = Colors[colorScheme ?? "light"];
 
-  const { data: locations, loading, error, refetch } = useAppwrite({
+  const {
+    data: locations,
+    loading,
+    error,
+    refetch,
+  } = useAppwrite({
     fn: (p: { limit: number }) => locationService.getPopularLocations(p.limit),
     params: { limit },
     cacheKey: `popular_locations_${limit}`,
@@ -50,7 +55,10 @@ const PopularLocations = ({ limit = 4 }: PopularLocationsProps) => {
   if (error && safeLocations.length === 0) {
     return (
       <View className="py-6 items-center">
-        <TouchableOpacity onPress={() => refetch({ limit })} className="bg-surface px-4 py-2 rounded-full">
+        <TouchableOpacity
+          onPress={() => refetch({ limit })}
+          className="bg-surface px-4 py-2 rounded-full"
+        >
           <Text style={{ color: theme.primary[300] }}>Tap to retry</Text>
         </TouchableOpacity>
       </View>
@@ -62,11 +70,17 @@ const PopularLocations = ({ limit = 4 }: PopularLocationsProps) => {
   return (
     <View className="py-4">
       <View className="flex-row items-center justify-between mb-4">
-        <Text className="text-2xl font-rubik-bold" style={{ color: theme.text }}>
+        <Text
+          className="text-2xl font-rubik-bold"
+          style={{ color: theme.text }}
+        >
           Popular Locations
         </Text>
         <TouchableOpacity onPress={() => router.push("/all-locations" as any)}>
-          <Text className="font-rubik-medium" style={{ color: theme.primary[300] }}>
+          <Text
+            className="font-rubik-medium"
+            style={{ color: theme.primary[300] }}
+          >
             View All
           </Text>
         </TouchableOpacity>
@@ -84,14 +98,25 @@ const PopularLocations = ({ limit = 4 }: PopularLocationsProps) => {
               borderColor: location.color + "30",
             }}
           >
-            <View className="w-10 h-10 rounded-full items-center justify-center mb-2" style={{ backgroundColor: location.color + "20" }}>
-              <Image source={icons.location} className="w-5 h-5" style={{ tintColor: location.color }} />
+            <View
+              className="w-10 h-10 rounded-full items-center justify-center mb-2"
+              style={{ backgroundColor: location.color + "20" }}
+            >
+              <Image
+                source={icons.location}
+                className="w-5 h-5"
+                style={{ tintColor: location.color }}
+              />
             </View>
-            <Text className="text-base font-rubik-bold" style={{ color: theme.text }}>
+            <Text
+              className="text-base font-rubik-bold"
+              style={{ color: theme.text }}
+            >
               {location.name}
             </Text>
             <Text className="text-xs" style={{ color: theme.muted }}>
-              {location.propertyCount} {location.propertyCount === 1? "property" : "properties"}
+              {location.propertyCount}{" "}
+              {location.propertyCount === 1 ? "property" : "properties"}
             </Text>
           </TouchableOpacity>
         ))}

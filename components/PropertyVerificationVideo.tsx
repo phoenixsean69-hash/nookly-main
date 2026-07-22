@@ -42,11 +42,19 @@ export default function PropertyVerificationVideo({
         contentFit="contain"
         fullscreenOptions={{ enable: true, orientation: "landscape" }}
         playsInline
-        style={{ width: "100%", aspectRatio: 16 / 9, backgroundColor: "#000000" }}
+        style={{
+          width: "100%",
+          aspectRatio: 16 / 9,
+          backgroundColor: "#000000",
+        }}
       />
       <View className="flex-row items-center justify-between p-3">
         <View className="flex-row items-center flex-1">
-          <Ionicons name="shield-checkmark-outline" size={20} color={theme.primary[300]} />
+          <Ionicons
+            name="shield-checkmark-outline"
+            size={20}
+            color={theme.primary[300]}
+          />
           <View className="ml-2 flex-1">
             <Text className="font-rubik-bold" style={{ color: theme.text }}>
               Verification video {index + 1}
@@ -67,7 +75,11 @@ export default function PropertyVerificationVideo({
           {downloading ? (
             <ActivityIndicator size="small" color={theme.primary[300]} />
           ) : (
-            <Ionicons name="download-outline" size={21} color={theme.primary[300]} />
+            <Ionicons
+              name="download-outline"
+              size={21}
+              color={theme.primary[300]}
+            />
           )}
         </TouchableOpacity>
       </View>

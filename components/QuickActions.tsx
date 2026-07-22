@@ -12,7 +12,7 @@ const actions = [
     route: "/my-favorites" as const,
   },
 
-    {
+  {
     label: "Landlords",
     icon: icons.owner,
     route: "/landlords" as any,

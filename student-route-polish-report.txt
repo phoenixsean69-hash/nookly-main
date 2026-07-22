@@ -1,0 +1,27 @@
+NOOKLY STUDENT ROUTE POLISH REPORT
+==================================
+Applied: 2026-07-22T09:14:01.162Z
+Project: C:\Users\work2\Desktop\nookly-with-students
+Backup: C:\Users\work2\Desktop\nookly-with-students\.nookly-backups\student-route-polish-2026-07-22T09-14-01-141Z
+
+Changed files:
+- app/(root)/(student)/s-profile.tsx
+- app\(root)\(student)\s-explore.tsx
+- app\(root)\(student)\s-tenantHome.tsx
+- app\(root)\offline-favorites.tsx
+- components\ContactModal.tsx
+- components\StudentEmergencyPanel.tsx
+- components\StudentFilters.tsx
+- components\StudentProfileHighlights.tsx
+- components\StudentQuickTips.tsx
+- lib/appwrite.ts
+- lib\localFavorites.ts
+- lib\studentHousing.ts
+- lib\tenantProfile.ts
+
+Warnings:
+- No patch was needed or marker was not found: store/auth.store.ts
+- No patch was needed or marker was not found: context/AuthContext.ts
+- Could not patch missing file: context/AuthContext.tsx
+
+Environment files were not read or changed.

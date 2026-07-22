@@ -1,9 +1,17 @@
 // components/MapLayers.tsx
-import { Colors } from '@/constants/Colors';
-import { POI_CATEGORIES, fetchPOIs } from '@/lib/poiService';
-import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, ScrollView, Text, TouchableOpacity, View, useColorScheme } from 'react-native';
+import { Colors } from "@/constants/Colors";
+import { POI_CATEGORIES, fetchPOIs } from "@/lib/poiService";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Modal,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View,
+  useColorScheme,
+} from "react-native";
 
 interface MapLayersProps {
   visible: boolean;
@@ -20,10 +28,10 @@ export const MapLayers = ({
   onLayerToggle,
   activeLayers,
   centerLatitude,
-  centerLongitude
+  centerLongitude,
 }: MapLayersProps) => {
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? 'light'];
+  const theme = Colors[colorScheme ?? "light"];
   const [loading, setLoading] = useState(false);
   const [poiCounts, setPoiCounts] = useState<{ [key: string]: number }>({});
 
@@ -35,17 +43,14 @@ export const MapLayers = ({
       try {
         const counts: { [key: string]: number } = {};
         for (const category of POI_CATEGORIES) {
-          const pois = await fetchPOIs(
-            centerLatitude, 
-            centerLongitude, 
-            3,
-            [category.id]
-          );
+          const pois = await fetchPOIs(centerLatitude, centerLongitude, 3, [
+            category.id,
+          ]);
           counts[category.id] = pois.length;
         }
         setPoiCounts(counts);
       } catch (error) {
-        console.error('Error fetching POI counts:', error);
+        console.error("Error fetching POI counts:", error);
       } finally {
         setLoading(false);
       }
@@ -55,8 +60,8 @@ export const MapLayers = ({
   }, [visible, centerLatitude, centerLongitude]);
 
   const getCategoryColor = (categoryId: string) => {
-    const category = POI_CATEGORIES.find(c => c.id === categoryId);
-    return category?.color || '#6B7280';
+    const category = POI_CATEGORIES.find((c) => c.id === categoryId);
+    return category?.color || "#6B7280";
   };
 
   return (
@@ -67,15 +72,18 @@ export const MapLayers = ({
       onRequestClose={onClose}
     >
       <View className="flex-1 justify-end bg-black/50">
-        <View 
+        <View
           className="rounded-t-3xl p-4 pb-8"
-          style={{ 
+          style={{
             backgroundColor: theme.background,
-            maxHeight: '65%'
+            maxHeight: "65%",
           }}
         >
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-xl font-rubik-bold" style={{ color: theme.title }}>
+            <Text
+              className="text-xl font-rubik-bold"
+              style={{ color: theme.title }}
+            >
               Map Layers
             </Text>
             <TouchableOpacity onPress={onClose}>
@@ -106,37 +114,50 @@ export const MapLayers = ({
                       key={category.id}
                       onPress={() => onLayerToggle(category.id, !isActive)}
                       className={`px-4 py-3 rounded-xl flex-row items-center ${
-                        isActive ? 'border-2' : 'border'
+                        isActive ? "border-2" : "border"
                       }`}
                       style={{
-                        backgroundColor: isActive ? category.color + '20' : theme.surface,
-                        borderColor: isActive ? category.color : theme.muted + '30',
-                        minWidth: '45%',
+                        backgroundColor: isActive
+                          ? category.color + "20"
+                          : theme.surface,
+                        borderColor: isActive
+                          ? category.color
+                          : theme.muted + "30",
+                        minWidth: "45%",
                       }}
                     >
-                      <View 
+                      <View
                         className="w-8 h-8 rounded-full items-center justify-center mr-2"
-                        style={{ backgroundColor: category.color + '30' }}
+                        style={{ backgroundColor: category.color + "30" }}
                       >
-                        <Ionicons 
-                          name={category.icon as any} 
-                          size={16} 
-                          color={category.color} 
+                        <Ionicons
+                          name={category.icon as any}
+                          size={16}
+                          color={category.color}
                         />
                       </View>
                       <View className="flex-1">
-                        <Text 
-                          className="text-sm font-rubik-medium" 
-                          style={{ color: isActive ? category.color : theme.text }}
+                        <Text
+                          className="text-sm font-rubik-medium"
+                          style={{
+                            color: isActive ? category.color : theme.text,
+                          }}
                         >
                           {category.label}
                         </Text>
-                        <Text className="text-xs" style={{ color: theme.muted }}>
+                        <Text
+                          className="text-xs"
+                          style={{ color: theme.muted }}
+                        >
                           {count} locations
                         </Text>
                       </View>
                       {isActive && (
-                        <Ionicons name="checkmark-circle" size={16} color={category.color} />
+                        <Ionicons
+                          name="checkmark-circle"
+                          size={16}
+                          color={category.color}
+                        />
                       )}
                     </TouchableOpacity>
                   );
@@ -147,7 +168,7 @@ export const MapLayers = ({
 
           <TouchableOpacity
             onPress={() => {
-              activeLayers.forEach(layerId => onLayerToggle(layerId, false));
+              activeLayers.forEach((layerId) => onLayerToggle(layerId, false));
             }}
             className="mt-4 py-2 rounded-xl border border-red-500"
           >

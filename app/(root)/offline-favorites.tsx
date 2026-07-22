@@ -1,5 +1,4 @@
-// app/offline-favorites.tsx
-
+import ContactModal from "@/components/ContactModal";
 import { Colors } from "@/constants/Colors";
 import icons from "@/constants/icons";
 import {
@@ -7,10 +6,14 @@ import {
   getFavorites,
   removeFromFavorites,
 } from "@/lib/localFavorites";
-import { useFocusEffect } from "expo-router";
-import React, { useState } from "react";
+import { isStudentPropertyType } from "@/lib/studentHousing";
+import useAuthStore from "@/store/auth.store";
+import * as Haptics from "expo-haptics";
+import { router, useFocusEffect } from "expo-router";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ScrollView,
   Text,
@@ -18,54 +21,75 @@ import {
   useColorScheme,
   View,
 } from "react-native";
+import Animated, { FadeInDown, Layout } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-// --- Imports for a more "lively" UI ---
-import * as Haptics from "expo-haptics";
-import Animated, { FadeInDown, Layout } from "react-native-reanimated";
-
-// Helper function to get price suffix based on property type
 const getPriceSuffix = (propertyType: string) => {
-  return propertyType?.toLowerCase() === "boarding" ? "/head/room" : "/month";
+  const normalized = propertyType?.trim().toLowerCase();
+  return normalized === "boarding" || normalized === "boarding house"
+    ? "/head/room"
+    : "/month";
 };
 
 export default function OfflineFavorites() {
+  const { user } = useAuthStore();
   const [favorites, setFavorites] = useState<FavoriteProperty[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedProperty, setSelectedProperty] =
+    useState<FavoriteProperty | null>(null);
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
 
-  // Use useFocusEffect to refetch favorites every time the screen is viewed
   useFocusEffect(
     React.useCallback(() => {
+      let mounted = true;
+
       const fetchFavorites = async () => {
-        setLoading(true); // Show loader while refetching
+        setLoading(true);
         try {
           const storedFavorites = await getFavorites();
-          setFavorites(storedFavorites);
-        } catch (err) {
-          console.error("Error fetching favorites:", err);
-          setFavorites([]);
+          if (mounted) setFavorites(storedFavorites);
+        } catch (error) {
+          console.error("Error fetching favorites:", error);
+          if (mounted) setFavorites([]);
         } finally {
-          setLoading(false);
+          if (mounted) setLoading(false);
         }
       };
 
       fetchFavorites();
+      return () => {
+        mounted = false;
+      };
     }, []),
   );
 
+  const visibleFavorites = useMemo(() => {
+    if (user?.userMode !== "student") return favorites;
+    return favorites.filter((property) => isStudentPropertyType(property.type));
+  }, [favorites, user?.userMode]);
+
   const handleRemove = async (propertyId: string) => {
     try {
-      // 💥 Add Haptic feedback for a satisfying feel
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-      // The animation will be handled automatically by the Layout prop
       await removeFromFavorites(propertyId);
-      setFavorites(favorites.filter((fav) => fav.$id !== propertyId));
-    } catch (err) {
-      console.error("Error removing favorite:", err);
+      setFavorites((current) =>
+        current.filter((favorite) => favorite.$id !== propertyId),
+      );
+    } catch (error) {
+      console.error("Error removing favorite:", error);
     }
+  };
+
+  const openContact = (property: FavoriteProperty) => {
+    if (!property.creatorEmail && !property.creatorPhone) {
+      Alert.alert(
+        "Contact unavailable",
+        "This older cached favorite does not contain owner contact details. Open it while online and save it again to refresh the cache.",
+      );
+      return;
+    }
+    setSelectedProperty(property);
   };
 
   if (loading) {
@@ -81,24 +105,35 @@ export default function OfflineFavorites() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
-      {/* Custom Header */}
       <View
         className="flex-row items-center px-5 py-4"
         style={{
-          backgroundColor: theme.background,
           borderBottomWidth: 1,
-          borderBottomColor: theme.muted + "30",
+          borderBottomColor: `${theme.muted}30`,
         }}
       >
-        <Text
-          className="text-2xl font-rubik-bold"
-          style={{ color: theme.title }}
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="w-10 h-10 rounded-full items-center justify-center mr-3"
+          style={{ backgroundColor: theme.surface }}
         >
-          Offline Favorites
-        </Text>
+          <Text className="text-xl" style={{ color: theme.title }}>
+            ‹
+          </Text>
+        </TouchableOpacity>
+        <View>
+          <Text
+            className="text-2xl font-rubik-bold"
+            style={{ color: theme.title }}
+          >
+            Offline Favorites
+          </Text>
+          <Text className="text-xs" style={{ color: theme.muted }}>
+            Cached property and owner details
+          </Text>
+        </View>
       </View>
 
-      {/* --- Info Banner --- */}
       <View
         className="flex-row items-center p-3 mx-5 my-2 rounded-lg"
         style={{ backgroundColor: theme.navBackground }}
@@ -106,19 +141,20 @@ export default function OfflineFavorites() {
         <Image
           source={icons.info}
           className="w-5 h-5 mr-3"
-          style={{ tintColor: theme.primary[400] }}
+          style={{ tintColor: theme.primary[300] }}
         />
         <Text className="text-xs flex-1" style={{ color: theme.muted }}>
-          You&apos;re offline. Connect to the internet to view property details.
+          Property details are cached. Calls, SMS and email open directly in
+          your phone apps, even while Nookly is offline.
         </Text>
       </View>
 
       <ScrollView
         className="px-5 pt-4"
-        style={{ backgroundColor: theme.background }}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
       >
-        {favorites.length === 0 ? (
+        {visibleFavorites.length === 0 ? (
           <View className="items-center mt-20">
             <Image
               source={icons.heart}
@@ -129,36 +165,32 @@ export default function OfflineFavorites() {
               className="text-lg font-rubik-medium text-center"
               style={{ color: theme.text }}
             >
-              No favorites yet
+              No cached favorites yet
             </Text>
             <Text
               className="text-sm text-center mt-2 px-10"
               style={{ color: theme.muted }}
             >
-              Tap the heart icon on properties you love to save them here
+              Save a property while online to keep its details and owner
+              contacts available here.
             </Text>
           </View>
         ) : (
-          favorites.map((property, index) => (
+          visibleFavorites.map((property, index) => (
             <Animated.View
               key={property.$id}
               layout={Layout.springify()}
-              entering={FadeInDown.delay(index * 100).duration(300)}
+              entering={FadeInDown.delay(index * 80).duration(300)}
             >
               <View
                 className="mb-4 rounded-xl overflow-hidden"
                 style={{
                   backgroundColor: theme.surface,
                   borderWidth: 1,
-                  borderColor: theme.muted + "30",
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 6,
+                  borderColor: `${theme.muted}30`,
                   elevation: 3,
                 }}
               >
-                {/* Property Image */}
                 {property.image1 && (
                   <Image
                     source={{ uri: property.image1 }}
@@ -167,24 +199,22 @@ export default function OfflineFavorites() {
                   />
                 )}
 
-                {/* Property Details */}
                 <View className="p-4">
                   <Text
                     className="text-lg font-rubik-bold mb-1"
                     style={{ color: theme.title }}
                     numberOfLines={1}
                   >
-                    {property.propertyName}
+                    {property.propertyName || "Property"}
                   </Text>
 
-                  {/* Type + Rating */}
                   <View className="flex-row items-center mb-2">
-                    <View className="flex-row items-center px-3 py-1 bg-primary-100 rounded-full">
+                    <View className="px-3 py-1 bg-primary-100 rounded-full">
                       <Text className="text-xs font-rubik-medium text-primary-300">
                         {property.type || "Property"}
                       </Text>
                     </View>
-                    {property.rating && property.rating > 0 && (
+                    {!!property.rating && property.rating > 0 && (
                       <View className="flex-row items-center ml-2">
                         <Image source={icons.star} className="w-3 h-3 mr-1" />
                         <Text
@@ -197,7 +227,6 @@ export default function OfflineFavorites() {
                     )}
                   </View>
 
-                  {/* Address */}
                   <View className="flex-row items-center mb-2">
                     <Image
                       source={icons.location}
@@ -207,13 +236,12 @@ export default function OfflineFavorites() {
                     <Text
                       className="text-sm flex-1"
                       style={{ color: theme.muted }}
-                      numberOfLines={1}
+                      numberOfLines={2}
                     >
                       {property.address}
                     </Text>
                   </View>
 
-                  {/* Price with conditional suffix */}
                   <Text
                     className="text-xl font-rubik-bold mt-2"
                     style={{ color: theme.primary[300] }}
@@ -224,51 +252,95 @@ export default function OfflineFavorites() {
                     </Text>
                   </Text>
 
-                  {/*Owner info and contact button*/}
-                  <View className="flex-row items-center mt-4">
-                    <Image
-                      source={{ uri: property.creatorAvatar }}
-                      className="w-10 h-10 rounded-full mr-3"
-                    />
+                  <View
+                    className="flex-row items-center mt-4 pt-3"
+                    style={{
+                      borderTopWidth: 1,
+                      borderTopColor: `${theme.muted}20`,
+                    }}
+                  >
+                    {property.creatorAvatar ? (
+                      <Image
+                        source={{ uri: property.creatorAvatar }}
+                        className="w-10 h-10 rounded-full mr-3"
+                      />
+                    ) : (
+                      <View
+                        className="w-10 h-10 rounded-full mr-3 items-center justify-center"
+                        style={{ backgroundColor: theme.primary[100] }}
+                      >
+                        <Image
+                          source={icons.person}
+                          className="w-5 h-5"
+                          style={{ tintColor: theme.primary[300] }}
+                        />
+                      </View>
+                    )}
+
                     <View className="flex-1">
                       <Text
                         className="text-sm font-rubik-medium"
-                        style={{ color: theme.muted }}
+                        style={{ color: theme.text }}
                       >
-                        {property.creatorName || "Owner"}
+                        {property.creatorName || "Property Owner"}
                       </Text>
-                      <Text className="text-xs" style={{ color: theme.muted }}>
-                        {property.creatorEmail}
+                      <Text
+                        className="text-xs"
+                        style={{ color: theme.muted }}
+                        numberOfLines={1}
+                      >
+                        {property.creatorEmail ||
+                          property.creatorPhone ||
+                          "Contact not cached"}
                       </Text>
                     </View>
-                    <Text
-                      className="text-xs font-rubik"
-                      style={{ color: theme.muted }}
-                    >
-                      {property.creatorPhone}
-                    </Text>
                   </View>
 
-                  {/* Remove button */}
-                  <TouchableOpacity
-                    onPress={() => handleRemove(property.$id)}
-                    className="mt-4 py-3 rounded-full"
-                    style={{ backgroundColor: theme.danger + "20" }}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      className="text-center font-rubik-medium"
-                      style={{ color: theme.danger }}
+                  <View className="flex-row gap-2 mt-4">
+                    <TouchableOpacity
+                      onPress={() => openContact(property)}
+                      className="flex-1 py-3 rounded-full items-center justify-center"
+                      style={{ backgroundColor: theme.primary[300] }}
                     >
-                      ✖ Remove from Favorites
-                    </Text>
-                  </TouchableOpacity>
+                      <Text className="text-white font-rubik-medium">
+                        Contact Owner
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => handleRemove(property.$id)}
+                      className="px-5 py-3 rounded-full"
+                      style={{ backgroundColor: `${theme.danger}18` }}
+                    >
+                      <Text
+                        className="font-rubik-medium"
+                        style={{ color: theme.danger }}
+                      >
+                        Remove
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             </Animated.View>
           ))
         )}
       </ScrollView>
+
+      <ContactModal
+        visible={selectedProperty !== null}
+        onClose={() => setSelectedProperty(null)}
+        name={selectedProperty?.creatorName || "Property Owner"}
+        email={selectedProperty?.creatorEmail}
+        phone={selectedProperty?.creatorPhone}
+        avatar={selectedProperty?.creatorAvatar}
+        subject={`Nookly enquiry: ${
+          selectedProperty?.propertyName || "Property"
+        }`}
+        message={`Hello, I am interested in ${
+          selectedProperty?.propertyName || "your property"
+        } at ${selectedProperty?.address || "the listed address"}.`}
+      />
     </SafeAreaView>
   );
 }

@@ -1,5 +1,6 @@
 // app/(root)/profile.tsx (Tenant Profile - Using Local Storage)
 import AvatarSuccessModal from "@/components/AvatarSuccessModal";
+import StudentProfileHighlights from "@/components/StudentProfileHighlights";
 import icons from "@/constants/icons";
 import {
   config,
@@ -406,11 +407,19 @@ const Profile = () => {
                 className="text-xs font-rubik-medium"
                 style={{ color: theme.primary[300] }}
               >
-                Tenant
+                Student
               </Text>
             </View>
           </View>
         </View>
+
+        <StudentProfileHighlights
+          user={user}
+          favorites={stats.totalFavorites}
+          applications={stats.totalApplications}
+          viewed={stats.viewedProperties}
+          loading={loadingStats}
+        />
 
         {/* ✅ Tenant Score Section - INTEGERS ONLY */}
         {(user?.userMode === "tenant" || user?.userMode === "student") && (
@@ -427,7 +436,7 @@ const Profile = () => {
                 className="text-lg font-rubik-bold"
                 style={{ color: theme.title }}
               >
-                🛡️ Tenant Score
+                🛡️ Student Rental Score
               </Text>
               {!loadingScore && tenantScore && (
                 <View
@@ -591,13 +600,14 @@ const Profile = () => {
             ) : (
               <View className="py-4 items-center">
                 <Text className="text-sm" style={{ color: theme.muted }}>
-                  No tenant score available yet
+                  No rental score available yet
                 </Text>
                 <Text
                   className="text-xs mt-1"
                   style={{ color: theme.muted + "80" }}
                 >
-                  Start renting to build your reputation
+                  Complete rentals and receive reviews to build your student
+                  rental reputation
                 </Text>
               </View>
             )}
@@ -617,7 +627,7 @@ const Profile = () => {
             className="text-lg font-rubik-bold mb-3"
             style={{ color: theme.title }}
           >
-            My Activity
+            My Student Housing Activity
           </Text>
 
           {loadingStats ? (

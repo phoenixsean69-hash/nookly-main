@@ -18,7 +18,12 @@ interface Props {
   currentAvatarId: string;
 }
 
-export default function AvatarModal({ visible, onClose, onSelect, currentAvatarId }: Props) {
+export default function AvatarModal({
+  visible,
+  onClose,
+  onSelect,
+  currentAvatarId,
+}: Props) {
   const screenWidth = Dimensions.get("window").width;
   const size = (screenWidth - 80) / 3;
 
@@ -48,11 +53,11 @@ export default function AvatarModal({ visible, onClose, onSelect, currentAvatarI
                 <Image
                   source={item.source}
                   style={{
-                    width: '100%',
-                    height: '100%',
-                    borderRadius: size/2,
+                    width: "100%",
+                    height: "100%",
+                    borderRadius: size / 2,
                     borderWidth: currentAvatarId === item.id ? 3 : 0,
-                    borderColor: '#0066FF'
+                    borderColor: "#0066FF",
                   }}
                 />
               </TouchableOpacity>

@@ -1,10 +1,10 @@
 import { ID, Query } from "react-native-appwrite";
 import { config, databases } from "./appwrite";
 import {
-    agentImages,
-    galleryImages,
-    propertiesImages,
-    reviewImages,
+  agentImages,
+  galleryImages,
+  propertiesImages,
+  reviewImages,
 } from "./data";
 
 // =============================
@@ -199,7 +199,8 @@ async function seed() {
     // =============================
 
     for (let i = 1; i <= 20; i++) {
-      const assignedAgent = landlords[Math.floor(Math.random() * landlords.length)];
+      const assignedAgent =
+        landlords[Math.floor(Math.random() * landlords.length)];
 
       const assignedReviews = getRandomSubset(reviews, 5, 7);
 
