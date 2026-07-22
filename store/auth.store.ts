@@ -35,6 +35,7 @@ interface User {
   accountId: string;
   name: string;
   userMode: "tenant" | "landlord" | "student";
+  schoolLocation?: string;
   email: string;
   phone: string;
   avatar?: string;
@@ -95,6 +96,7 @@ interface AuthState {
 interface SignUpData {
   name: string;
   userMode: "tenant" | "landlord" | "student";
+  schoolLocation?: string;
   email: string;
   phone: string;
   password: string;
@@ -690,6 +692,21 @@ const useAuthStore = create<AuthState>((set, get) => ({
     try {
       set({ isLoading: true });
 
+      const normalizedUserMode = userData.userMode.trim().toLowerCase() as
+        | "tenant"
+        | "landlord"
+        | "student";
+      const normalizedSchoolLocation =
+        userData.schoolLocation?.trim().toLowerCase() ?? "";
+
+      if (normalizedUserMode === "student" && !normalizedSchoolLocation) {
+        set({ isLoading: false });
+        return {
+          success: false,
+          error: "School location is required for student accounts",
+        };
+      }
+
       const accountId = createValidAppwriteId();
       const userDocumentId = createValidAppwriteId();
       createdAccountId = accountId;
@@ -722,7 +739,10 @@ const useAuthStore = create<AuthState>((set, get) => ({
         {
           accountId: newAccount.$id,
           name: userData.name,
-          userMode: userData.userMode,
+          userMode: normalizedUserMode,
+          ...(normalizedUserMode === "student"
+            ? { schoolLocation: normalizedSchoolLocation }
+            : {}),
           email: userData.email,
           avatar: avatarUrl,
           phone: userData.phone,
@@ -760,7 +780,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       console.log("✅ User state updated and data persisted");
 
       // Step 8: If landlord, add to landlords collection in background
-      if (userData.userMode === "landlord") {
+      if (normalizedUserMode === "landlord") {
         setTimeout(async () => {
           try {
             const agentId = createValidAppwriteId();

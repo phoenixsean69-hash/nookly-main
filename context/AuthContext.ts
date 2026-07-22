@@ -29,6 +29,7 @@ export interface User {
   accountId: string;
   name: string;
   userMode: "tenant" | "landlord" | "student";
+  schoolLocation?: string;
   email: string;
   phone: string;
   avatar?: string;
@@ -38,6 +39,7 @@ export interface User {
 export interface SignUpData {
   name: string;
   userMode: "tenant" | "landlord" | "student";
+  schoolLocation?: string;
   email: string;
   phone: string;
   password: string;
@@ -109,7 +111,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   ): Promise<{ success: boolean; error?: string; user?: User }> => {
     try {
       console.log("Starting signup process for:", userData.email);
-      const avatarUrl = userData.avatar?.trim() || getDefaultAvatarUrl(userData.name);
+      const avatarUrl =
+        userData.avatar?.trim() || getDefaultAvatarUrl(userData.name);
+      const normalizedUserMode = userData.userMode.trim().toLowerCase() as
+        | "tenant"
+        | "landlord"
+        | "student";
+      const normalizedSchoolLocation =
+        userData.schoolLocation?.trim().toLowerCase() ?? "";
 
       // Validate inputs
       if (
@@ -119,6 +128,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         !userData.phone
       ) {
         return { success: false, error: "Please fill in all required fields" };
+      }
+
+      if (normalizedUserMode === "student" && !normalizedSchoolLocation) {
+        return {
+          success: false,
+          error: "School location is required for student accounts",
+        };
       }
 
       // Create account in Appwrite Auth
@@ -178,7 +194,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           {
             accountId: newAccount.$id,
             name: userData.name,
-            userMode: userData.userMode,
+            userMode: normalizedUserMode,
+            ...(normalizedUserMode === "student"
+              ? { schoolLocation: normalizedSchoolLocation }
+              : {}),
             email: userData.email,
             avatar: avatarUrl,
             phone: userData.phone,

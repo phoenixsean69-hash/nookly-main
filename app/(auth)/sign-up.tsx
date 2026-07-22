@@ -32,6 +32,7 @@ interface FormData {
   password: string;
   confirmPassword: string;
   avatar: string;
+  schoolLocation: string;
 }
 
 interface ValidationError {
@@ -85,6 +86,7 @@ const SignUp = () => {
     password: "",
     confirmPassword: "",
     avatar: "",
+    schoolLocation: "",
   });
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -199,6 +201,13 @@ const SignUp = () => {
       });
     }
 
+    if (formData.userMode === "student" && !formData.schoolLocation.trim()) {
+      errors.push({
+        field: "schoolLocation",
+        message: "Please enter your school location",
+      });
+    }
+
     if (!formData.email?.trim()) {
       errors.push({ field: "email", message: "Please enter your email" });
     }
@@ -292,7 +301,14 @@ const SignUp = () => {
         email: formData.email,
         password: formData.password,
         phone: formData.phone,
-        userMode: formData.userMode as "tenant" | "landlord" | "student",
+        userMode: formData.userMode.toLowerCase() as
+          | "tenant"
+          | "landlord"
+          | "student",
+        schoolLocation:
+          formData.userMode === "student"
+            ? formData.schoolLocation.trim().toLowerCase()
+            : undefined,
         avatar: uploadedAvatarUrl,
       });
 
@@ -588,7 +604,20 @@ const SignUp = () => {
                           <TouchableOpacity
                             key={mode}
                             onPress={() => {
-                              setFormData({ ...formData, userMode: mode });
+                              setFormData({
+                                ...formData,
+                                userMode: mode,
+                                schoolLocation:
+                                  mode === "student"
+                                    ? formData.schoolLocation
+                                    : "",
+                              });
+                              if (
+                                mode !== "student" &&
+                                getFieldError("schoolLocation")
+                              ) {
+                                clearError("schoolLocation");
+                              }
                               if (getFieldError("userMode"))
                                 clearError("userMode");
                             }}
@@ -615,6 +644,23 @@ const SignUp = () => {
                     </Text>
                   )}
                 </View>
+
+                {formData.userMode === "student" && (
+                  <CustomInput
+                    label="School location"
+                    value={formData.schoolLocation}
+                    onChangeText={(text) => {
+                      setFormData({ ...formData, schoolLocation: text });
+
+                      if (getFieldError("schoolLocation")) {
+                        clearError("schoolLocation");
+                      }
+                    }}
+                    placeholder="Enter your school location"
+                    autoCapitalize="words"
+                    error={getFieldError("schoolLocation")}
+                  />
+                )}
 
                 <CustomInput
                   label="Password"

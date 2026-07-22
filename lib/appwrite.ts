@@ -59,9 +59,9 @@ interface PropertyData {
   reviews?: string;
   isAvailable?: boolean;
   creatorId?: string;
-   totalSlots?: number;        // Total slots (set by landlord)
-  occupiedSlots?: number;     // Currently occupied
-  availableSlots?: number;    // Calculated: totalSlots - occupiedSlots
+  totalSlots?: number; // Total slots (set by landlord)
+  occupiedSlots?: number; // Currently occupied
+  availableSlots?: number; // Calculated: totalSlots - occupiedSlots
 }
 
 // Add after your existing interfaces
@@ -127,7 +127,8 @@ export const config = {
   usersCollectionId: process.env.EXPO_PUBLIC_APPWRITE_USERS_COLLECTION_ID,
   propertiesCollectionId:
     process.env.EXPO_PUBLIC_APPWRITE_PROPERTIES_COLLECTION_ID,
-  landlordsCollectionId: process.env.EXPO_PUBLIC_APPWRITE_LANDLORDS_COLLECTION_ID,
+  landlordsCollectionId:
+    process.env.EXPO_PUBLIC_APPWRITE_LANDLORDS_COLLECTION_ID,
   galleriesCollectionId:
     process.env.EXPO_PUBLIC_APPWRITE_GALLERIES_COLLECTION_ID,
   reviewsCollectionId: process.env.EXPO_PUBLIC_APPWRITE_REVIEWS_COLLECTION_ID,
@@ -149,7 +150,8 @@ export const config = {
   organizationTenantsCollectionId:
     process.env.EXPO_PUBLIC_APPWRITE_ORGANIZATION_TENANTS_COLLECTION_ID,
   queriesCollectionId: process.env.EXPO_PUBLIC_APPWRITE_QUERIES_COLLECTION_ID,
-  tenantProfilesCollectionId: process.env.EXPO_PUBLIC_APPWRITE_TENANT_PROFILES_COLLECTION_ID,
+  tenantProfilesCollectionId:
+    process.env.EXPO_PUBLIC_APPWRITE_TENANT_PROFILES_COLLECTION_ID,
 };
 
 interface CreateUserParams {
@@ -158,6 +160,7 @@ interface CreateUserParams {
   phone: string;
   name: string;
   userMode: string;
+  schoolLocation?: string;
   avatar?: string;
   pushToken?: string | null;
 }
@@ -230,7 +233,7 @@ export const uploadLeaseDocument = async (fileAsset: any) => {
 
     const file = {
       name: fileAsset.name || `lease_${Date.now()}.pdf`,
-      type: fileAsset.mimeType || 'application/pdf',
+      type: fileAsset.mimeType || "application/pdf",
       size: fileAsset.size || 0,
       uri: fileAsset.uri,
     };
@@ -238,7 +241,7 @@ export const uploadLeaseDocument = async (fileAsset: any) => {
     const response = await storage.createFile(
       config.bucketId!,
       ID.unique(),
-      file
+      file,
     );
 
     console.log("✅ Lease document uploaded:", response.$id);
@@ -253,8 +256,6 @@ export const uploadLeaseDocument = async (fileAsset: any) => {
     throw error;
   }
 };
-
-
 
 export async function sendExpoPushToUser(
   userId: string,
@@ -309,6 +310,7 @@ export const createUser = async ({
   name,
   phone,
   userMode,
+  schoolLocation,
   avatar,
 }: CreateUserParams) => {
   let createdAccountId = null;
@@ -329,6 +331,13 @@ export const createUser = async ({
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       throw new Error("Please enter a valid email address");
+    }
+
+    const normalizedUserMode = userMode.trim().toLowerCase();
+    const normalizedSchoolLocation = schoolLocation?.trim().toLowerCase() ?? "";
+
+    if (normalizedUserMode === "student" && !normalizedSchoolLocation) {
+      throw new Error("School location is required for student accounts");
     }
 
     const accountId = createValidAppwriteId();
@@ -355,18 +364,21 @@ export const createUser = async ({
         accountId: newAccount.$id,
         phone,
         avatar: avatarUrl,
-        userMode,
+        userMode: normalizedUserMode,
+        ...(normalizedUserMode === "student"
+          ? { schoolLocation: normalizedSchoolLocation }
+          : {}),
       },
     );
 
     // ✅ If user is a tenant, create their tenant profile
-    if (userMode?.toLowerCase() === "tenant") {
+    if (normalizedUserMode === "tenant") {
       try {
         const tenantProfileId = createValidAppwriteId();
         createdTenantProfileId = tenantProfileId;
-        
+
         const now = new Date().toISOString();
-        
+
         await databases.createDocument(
           config.databaseId!,
           config.tenantProfilesCollectionId!,
@@ -388,16 +400,13 @@ export const createUser = async ({
         );
         console.log("✅ Tenant profile created for user:", newAccount.$id);
       } catch (tenantProfileError) {
-        console.error(
-          "Error creating tenant profile:",
-          tenantProfileError,
-        );
+        console.error("Error creating tenant profile:", tenantProfileError);
         // Don't throw - user was created successfully
       }
     }
 
     // If user is a tenant, add them to the organization_tenants collection
-    if (userMode?.toLowerCase() === "tenant") {
+    if (normalizedUserMode === "tenant") {
       try {
         const tenantId = createValidAppwriteId();
         await databases.createDocument(
@@ -423,19 +432,19 @@ export const createUser = async ({
     }
 
     // If user is a landlord, add them to landlords collection
-    if (userMode?.toLowerCase() === "landlord") {
+    if (normalizedUserMode === "landlord") {
       try {
         const landlordId = createValidAppwriteId();
         createdLandlordDocumentId = landlordId;
-        
+
         await databases.createDocument(
           config.databaseId!,
           config.landlordsCollectionId!,
           landlordId,
           {
-            userId: userDocumentId,    // Reference to the user document
-            email: email,              // Landlord's email
-            phone: phone,              // Landlord's phone number
+            userId: userDocumentId, // Reference to the user document
+            email: email, // Landlord's email
+            phone: phone, // Landlord's phone number
             properties: 0,
           },
         );
@@ -581,7 +590,6 @@ export async function uploadImage(image: any) {
   }
 }
 
-
 export async function uploadVideo(video: {
   uri: string;
   fileName?: string | null;
@@ -591,12 +599,16 @@ export async function uploadVideo(video: {
   if (!video.uri) throw new Error("The selected video is unavailable.");
 
   const uriWithoutQuery = video.uri.split("?")[0];
-  const uriExtension = uriWithoutQuery.match(/\.([a-zA-Z0-9]+)$/)?.[1]?.toLowerCase();
+  const uriExtension = uriWithoutQuery
+    .match(/\.([a-zA-Z0-9]+)$/)?.[1]
+    ?.toLowerCase();
   const mimeExtension = video.mimeType?.split("/")[1]?.split(";")[0];
   const extension = uriExtension || mimeExtension || "mp4";
-  const rawName = video.fileName?.trim() || `verification-video-${Date.now()}.${extension}`;
+  const rawName =
+    video.fileName?.trim() || `verification-video-${Date.now()}.${extension}`;
   const fileName = rawName.includes(".") ? rawName : `${rawName}.${extension}`;
-  const mimeType = video.mimeType || `video/${extension === "mov" ? "quicktime" : extension}`;
+  const mimeType =
+    video.mimeType || `video/${extension === "mov" ? "quicktime" : extension}`;
 
   const localFile = new ExpoFile(video.uri);
   const fileSize = video.fileSize || localFile.size;
@@ -625,7 +637,7 @@ export async function AddListing(
     price: number;
     area: number;
     curfew: string;
-    latitude?: number; 
+    latitude?: number;
     longitude?: number;
     isAvailable: boolean;
     roomFor: number;
@@ -674,7 +686,7 @@ export async function AddListing(
         price: listing.price,
         area: listing.area,
         roomFor: listing.roomFor,
-        latitude: listing.latitude ?? null, 
+        latitude: listing.latitude ?? null,
         longitude: listing.longitude ?? null,
         bedrooms: listing.bedrooms,
         bathrooms: listing.bathrooms,
@@ -794,7 +806,7 @@ export const releaseTenantSlot = async (propertyId: string) => {
     );
 
     const totalSlots = property.totalSlots || 0;
-    
+
     // Only process if totalSlots > 0 (slot-based property)
     if (totalSlots === 0) {
       console.log("Property has no slot limit, skipping release");
@@ -880,7 +892,9 @@ export const getCurrentUser = async () => {
   }
 };
 
-export async function loginWithGoogle(userMode?: "tenant" | "landlord" | "student") {
+export async function loginWithGoogle(
+  userMode?: "tenant" | "landlord" | "student",
+) {
   try {
     const redirectUri = Linking.createURL("/");
     const response = await account.createOAuth2Token(
@@ -1606,7 +1620,7 @@ export async function getProperties({
 
         property.isAccredited = isAccredited(
           property.reviews,
-          property.$createdAt || property.createdAt
+          property.$createdAt || property.createdAt,
         );
 
         return property;
@@ -1619,7 +1633,6 @@ export async function getProperties({
     return [];
   }
 }
-
 
 export async function getLatestProperties() {
   try {
@@ -1906,13 +1919,13 @@ export async function checkUserLiked(propertyId: string, userId: string) {
 
 // Get properties sorted by likes (for My Top Listings)
 export async function getTopListingsByLikes(
-    creatorId: string,
+  creatorId: string,
   limit: number = 5,
   options?: {
-    minRating?: number;      // Minimum rating to qualify
-    minLikes?: number;       // Minimum likes to qualify
-    minViews?: number;       // Minimum views to qualify
-    maxAgeDays?: number;     // Max age in days to qualify
+    minRating?: number; // Minimum rating to qualify
+    minLikes?: number; // Minimum likes to qualify
+    minViews?: number; // Minimum views to qualify
+    maxAgeDays?: number; // Max age in days to qualify
     weights?: {
       likes?: number;
       views?: number;
@@ -1921,7 +1934,7 @@ export async function getTopListingsByLikes(
       completeness?: number;
       engagement?: number;
     };
-  }
+  },
 ) {
   try {
     const {
@@ -1929,7 +1942,7 @@ export async function getTopListingsByLikes(
       minLikes = 0,
       minViews = 0,
       maxAgeDays = 365,
-      weights = {}
+      weights = {},
     } = options || {};
 
     const {
@@ -1958,7 +1971,7 @@ export async function getTopListingsByLikes(
         try {
           // Get like count
           const likeCount = await getLikeCount(property.$id);
-          
+
           // Get reviews and calculate rating
           let rating = 0;
           try {
@@ -1968,7 +1981,7 @@ export async function getTopListingsByLikes(
                 (
                   reviews.reduce((sum, r) => sum + (r.rating || 0), 0) /
                   reviews.length
-                ).toFixed(1)
+                ).toFixed(1),
               );
             }
           } catch {
@@ -1979,14 +1992,20 @@ export async function getTopListingsByLikes(
           const viewCount = property.views || 0;
 
           // Check if property meets minimum requirements
-          if (rating < minRating || likeCount < minLikes || viewCount < minViews) {
+          if (
+            rating < minRating ||
+            likeCount < minLikes ||
+            viewCount < minViews
+          ) {
             return null; // Skip this property
           }
 
           // Check age limit
           const createdAt = property.$createdAt || property.createdAt;
           if (createdAt) {
-            const ageInDays = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
+            const ageInDays =
+              (Date.now() - new Date(createdAt).getTime()) /
+              (1000 * 60 * 60 * 24);
             if (ageInDays > maxAgeDays) {
               return null; // Too old, skip
             }
@@ -1995,7 +2014,9 @@ export async function getTopListingsByLikes(
           // Calculate recency score
           let recencyScore = 0;
           if (createdAt) {
-            const ageInDays = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
+            const ageInDays =
+              (Date.now() - new Date(createdAt).getTime()) /
+              (1000 * 60 * 60 * 24);
             recencyScore = Math.max(0, 100 * Math.exp(-ageInDays / 30));
           }
 
@@ -2004,8 +2025,14 @@ export async function getTopListingsByLikes(
           if (property.image1) completenessScore += 20;
           if (property.image2) completenessScore += 10;
           if (property.image3) completenessScore += 5;
-          if (property.description && property.description.length > 100) completenessScore += 15;
-          if (property.facilities && Array.isArray(property.facilities) && property.facilities.length > 5) completenessScore += 10;
+          if (property.description && property.description.length > 100)
+            completenessScore += 15;
+          if (
+            property.facilities &&
+            Array.isArray(property.facilities) &&
+            property.facilities.length > 5
+          )
+            completenessScore += 10;
           if (property.area > 0) completenessScore += 10;
           if (property.bedrooms > 0) completenessScore += 10;
           if (property.bathrooms > 0) completenessScore += 10;
@@ -2015,14 +2042,13 @@ export async function getTopListingsByLikes(
           const engagementScore = likeCount + rating * 2;
 
           // ✅ Calculate weighted score
-          const weightedScore = (
+          const weightedScore =
             (likeCount || 0) * likesWeight +
             (viewCount || 0) * viewsWeight +
             (rating || 0) * ratingWeight * 10 +
             recencyScore * recencyWeight +
             completenessScore * completenessWeight +
-            engagementScore * engagementWeight
-          );
+            engagementScore * engagementWeight;
 
           return {
             ...property,
@@ -2042,7 +2068,7 @@ export async function getTopListingsByLikes(
     );
 
     // Filter out null entries (properties that didn't meet minimum requirements)
-    const validProperties = propertiesWithMetrics.filter(p => p !== null);
+    const validProperties = propertiesWithMetrics.filter((p) => p !== null);
 
     // Sort by weightedScore descending and take top 'limit'
     const sorted = validProperties
@@ -2055,7 +2081,6 @@ export async function getTopListingsByLikes(
     return [];
   }
 }
-
 
 // Get like count for multiple properties at once (efficient)
 export async function getLikeCountsForProperties(propertyIds: string[]) {
@@ -2681,14 +2706,17 @@ export const requestProperty = async (
 
       if (tenantProfileDocs.documents.length > 0) {
         tenantProfileDoc = tenantProfileDocs.documents[0];
-        
+
         // Get current data
         const currentRequests = tenantProfileDoc.requests || 0;
-        
+
         // ✅ Parse existing propertiesRequested from JSON string
-        const currentPropertiesRequested = parseArrayField(tenantProfileDoc.propertiesRequested);
-        
-        const propertyName = property.propertyName || requestData?.propertyName || "Property";
+        const currentPropertiesRequested = parseArrayField(
+          tenantProfileDoc.propertiesRequested,
+        );
+
+        const propertyName =
+          property.propertyName || requestData?.propertyName || "Property";
 
         // 🔄 Update tenant profile with JSON string
         await databases.updateDocument(
@@ -2697,11 +2725,18 @@ export const requestProperty = async (
           tenantProfileDoc.$id,
           {
             requests: currentRequests + 1, // ✅ +1 to requests
-            propertiesRequested: JSON.stringify([...currentPropertiesRequested, propertyName]), // ✅ Store as JSON string
-          }
+            propertiesRequested: JSON.stringify([
+              ...currentPropertiesRequested,
+              propertyName,
+            ]), // ✅ Store as JSON string
+          },
         );
-        console.log("✅ Updated tenant profile: requests +1, property added to propertiesRequested");
-        console.log(`✅ Current properties requested: ${[...currentPropertiesRequested, propertyName].join(', ')}`);
+        console.log(
+          "✅ Updated tenant profile: requests +1, property added to propertiesRequested",
+        );
+        console.log(
+          `✅ Current properties requested: ${[...currentPropertiesRequested, propertyName].join(", ")}`,
+        );
       } else {
         console.warn("⚠️ Tenant profile not found for tenantId:", tenantId);
       }
@@ -3407,7 +3442,7 @@ export async function getPropertiesWithFilters({
 
     // 7. Text search - build LAST and only if no location (avoid double search)
     let useSearch = false;
-    if (query && query.trim() !== "" &&!location) {
+    if (query && query.trim() !== "" && !location) {
       useSearch = true;
       const term = query.trim();
       // NOTE: You MUST have fulltext indexes on these 4 fields or this will fail
@@ -3419,7 +3454,7 @@ export async function getPropertiesWithFilters({
             Query.search("address", term),
             Query.search("description", term),
             Query.search("type", term),
-          ])
+          ]),
         );
       } catch {
         // If OR fails, just search propertyName
@@ -3430,16 +3465,22 @@ export async function getPropertiesWithFilters({
     const result = await databases.listDocuments(
       config.databaseId!,
       config.propertiesCollectionId!,
-      buildQuery
+      buildQuery,
     );
 
     const propertiesWithDetails = result.documents.map((property: any) => {
       // Rating - fast, no network
       try {
         if (property.reviews) {
-          const parsed = typeof property.reviews === "string" ? JSON.parse(property.reviews) : property.reviews;
+          const parsed =
+            typeof property.reviews === "string"
+              ? JSON.parse(property.reviews)
+              : property.reviews;
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const sum = parsed.reduce((acc: number, r: any) => acc + (r.rating || 0), 0);
+            const sum = parsed.reduce(
+              (acc: number, r: any) => acc + (r.rating || 0),
+              0,
+            );
             property.rating = Number((sum / parsed.length).toFixed(1));
           } else {
             property.rating = 0;
@@ -3458,12 +3499,13 @@ export async function getPropertiesWithFilters({
     console.error("getPropertiesWithFilters error:", error.message);
     // If error is about missing index, log which index
     if (error.message?.includes("Index")) {
-      console.warn("⚠️ You need to create a fulltext index in Appwrite Console for: address, propertyName, description, type, facilities");
+      console.warn(
+        "⚠️ You need to create a fulltext index in Appwrite Console for: address, propertyName, description, type, facilities",
+      );
     }
     return [];
   }
 }
-
 
 // Get price statistics for properties
 export async function getPriceStats() {
@@ -3796,16 +3838,17 @@ export async function getAvailableProperties({
   }
 }
 
-
 // ✅ Get available slots for a property
-export const getAvailableSlots = async (propertyId: string): Promise<number> => {
+export const getAvailableSlots = async (
+  propertyId: string,
+): Promise<number> => {
   try {
     const property = await databases.getDocument(
       config.databaseId!,
       config.propertiesCollectionId!,
       propertyId,
     );
-    
+
     const totalSlots = property.totalSlots || 0;
     const occupiedSlots = property.occupiedSlots || 0;
     return Math.max(0, totalSlots - occupiedSlots);
