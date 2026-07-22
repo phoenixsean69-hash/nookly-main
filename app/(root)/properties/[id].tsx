@@ -10,7 +10,7 @@ import { RequestData, RequestModal } from "@/components/RequestModal";
 import ReviewSuccessModal from "@/components/ReviewSuccessModal";
 import { facilities, getAvatarSource } from "@/constants/data";
 import icons from "@/constants/icons";
-import { usePOIs } from '@/hooks/usePOIs';
+import { usePOIs } from "@/hooks/usePOIs";
 import {
   addReview,
   checkUserLiked,
@@ -57,7 +57,7 @@ import {
   TextInput,
   TouchableOpacity,
   useColorScheme,
-  View
+  View,
 } from "react-native";
 import { useSharedValue, withSpring } from "react-native-reanimated";
 
@@ -85,9 +85,9 @@ export interface PropertyData {
   description: string;
   address: string;
   price: number;
-  new_price?: number; 
-  price_change_date?: string; 
-  price_change_type?: "drop" | "hike"; 
+  new_price?: number;
+  price_change_date?: string;
+  price_change_type?: "drop" | "hike";
   area: number;
   rating: number;
   views: number;
@@ -237,11 +237,8 @@ const Property = () => {
   const [loadingAgent, setLoadingAgent] = useState(false);
   const [confirmationModalVisible, setConfirmationModalVisible] =
     useState(false);
-  const [propertyToDelete, setPropertyToDelete] = useState<string | null>(
-    null,
-  );
-  const [operationSuccessVisible, setOperationSuccessVisible] =
-    useState(false);
+  const [propertyToDelete, setPropertyToDelete] = useState<string | null>(null);
+  const [operationSuccessVisible, setOperationSuccessVisible] = useState(false);
   const [operationSuccessConfig, setOperationSuccessConfig] = useState({
     title: "",
     message: "",
@@ -251,46 +248,51 @@ const Property = () => {
     message: "",
   });
 
-
   // Helper function to build price history from property data
-const buildPriceHistory = (property: PropertyData | null) => {
-  if (!property) return [];
+  const buildPriceHistory = (property: PropertyData | null) => {
+    if (!property) return [];
 
-  const history: { price: number; date: string; type: "drop" | "hike" }[] = [];
+    const history: { price: number; date: string; type: "drop" | "hike" }[] =
+      [];
 
-  // If there's a new_price and it's different from the original price
-  if (property.new_price && property.new_price !== property.price) {
+    // If there's a new_price and it's different from the original price
+    if (property.new_price && property.new_price !== property.price) {
+      history.push({
+        price: property.new_price,
+        date:
+          property.price_change_date ||
+          property.$createdAt ||
+          new Date().toISOString(),
+        type:
+          property.price_change_type ||
+          (property.new_price < property.price ? "drop" : "hike"),
+      });
+    }
+
+    // Add the original price as the first entry
     history.push({
-      price: property.new_price,
-      date: property.price_change_date || property.$createdAt || new Date().toISOString(),
-      type: property.price_change_type || (property.new_price < property.price ? "drop" : "hike"),
+      price: property.price,
+      date: property.$createdAt || new Date().toISOString(),
+      type: "hike", // Default type for original price
     });
-  }
 
-  // Add the original price as the first entry
-  history.push({
-    price: property.price,
-    date: property.$createdAt || new Date().toISOString(),
-    type: "hike", // Default type for original price
-  });
-
-  // Sort by date (newest first)
-  return history.sort((a, b) => 
-    new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
-};
+    // Sort by date (newest first)
+    return history.sort(
+      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
+  };
 
   // ============================================================================
   // DOWNLOAD STATE
   // ============================================================================
-  const [downloadingMedia, setDownloadingMedia] = useState<string | null>(
-    null,
-  );
+  const [downloadingMedia, setDownloadingMedia] = useState<string | null>(null);
 
   // ============================================================================
   // TENANTS STATE
   // ============================================================================
-  const [tenantsForProperty, setTenantsForProperty] = useState<TenantWithProfile[]>([]);
+  const [tenantsForProperty, setTenantsForProperty] = useState<
+    TenantWithProfile[]
+  >([]);
   const [loadingTenants, setLoadingTenants] = useState(false);
 
   // ============================================================================
@@ -337,10 +339,11 @@ const buildPriceHistory = (property: PropertyData | null) => {
     if (downloadingMedia) return;
     setDownloadingMedia(uri);
     try {
-      const filename = `${property?.propertyName || "property"}_image_${index + 1}.jpg`.replace(
-        /\s+/g,
-        "_",
-      );
+      const filename =
+        `${property?.propertyName || "property"}_image_${index + 1}.jpg`.replace(
+          /\s+/g,
+          "_",
+        );
       await downloadMediaToDevice(uri, filename);
       setOperationSuccessConfig({
         title: "Saved!",
@@ -363,11 +366,13 @@ const buildPriceHistory = (property: PropertyData | null) => {
     if (downloadingMedia) return;
     setDownloadingMedia(uri);
     try {
-      const extension = uri.split("?")[0].match(/\.([a-zA-Z0-9]+)$/)?.[1] || "mp4";
-      const filename = `${property?.propertyName || "property"}_verification_video_${index + 1}.${extension}`.replace(
-        /\s+/g,
-        "_",
-      );
+      const extension =
+        uri.split("?")[0].match(/\.([a-zA-Z0-9]+)$/)?.[1] || "mp4";
+      const filename =
+        `${property?.propertyName || "property"}_verification_video_${index + 1}.${extension}`.replace(
+          /\s+/g,
+          "_",
+        );
       await downloadMediaToDevice(uri, filename);
       setOperationSuccessConfig({
         title: "Saved!",
@@ -390,13 +395,17 @@ const buildPriceHistory = (property: PropertyData | null) => {
   const isLandlordOwner =
     user?.userMode === "landlord" && property?.creatorId === user?.accountId;
 
-    const priceHistory = buildPriceHistory(property);
+  const priceHistory = buildPriceHistory(property);
 
   useEffect(() => {
     const backAction = () => {
       console.log("Back button pressed");
       router.replace(
-        user?.userMode === "landlord" ? "/landHome" : "/tenantHome",
+        user?.userMode === "landlord"
+          ? "/landHome"
+          : user?.userMode === "student"
+            ? "/s-tenantHome"
+            : "/tenantHome",
       );
       return true;
     };
@@ -425,7 +434,7 @@ const buildPriceHistory = (property: PropertyData | null) => {
   // ============================================================================
   const fetchTenantsForProperty = async () => {
     if (!property?.$id || user?.userMode !== "landlord") return;
-    
+
     setLoadingTenants(true);
     try {
       // Query tenant profiles where currentProperty matches this property ID
@@ -469,10 +478,12 @@ const buildPriceHistory = (property: PropertyData | null) => {
             console.error("Error fetching user for tenant:", error);
             return null;
           }
-        })
+        }),
       );
 
-      setTenantsForProperty(tenantsWithDetails.filter(Boolean) as TenantWithProfile[]);
+      setTenantsForProperty(
+        tenantsWithDetails.filter(Boolean) as TenantWithProfile[],
+      );
     } catch (error) {
       console.error("Error fetching tenants for property:", error);
     } finally {
@@ -485,7 +496,7 @@ const buildPriceHistory = (property: PropertyData | null) => {
     const score = Math.round(tenant.tenantScore || 0);
     const scoreColor = getScoreColor(score);
     const scoreLabel = getScoreLabel(score);
-    
+
     Alert.alert(
       "👤 Tenant Details",
       `Name: ${tenant.name}\nEmail: ${tenant.email}\nPhone: ${tenant.phone || "Not available"}\n\n📊 Tenant Score: ${score}/100 (${scoreLabel})\n✅ ID Verified: ${tenant.isIdVerified ? "Yes" : "No"}`,
@@ -501,7 +512,7 @@ const buildPriceHistory = (property: PropertyData | null) => {
                   text: "📧 Send Email",
                   onPress: () => {
                     Linking.openURL(`mailto:${tenant.email}`);
-                  }
+                  },
                 },
                 {
                   text: "📞 Call",
@@ -511,15 +522,15 @@ const buildPriceHistory = (property: PropertyData | null) => {
                     } else {
                       Alert.alert("Error", "No phone number available");
                     }
-                  }
+                  },
                 },
-                { text: "Cancel", style: "cancel" }
-              ]
+                { text: "Cancel", style: "cancel" },
+              ],
             );
-          }
+          },
         },
-        { text: "Close" }
-      ]
+        { text: "Close" },
+      ],
     );
   };
 
@@ -644,73 +655,73 @@ const buildPriceHistory = (property: PropertyData | null) => {
     setEditForm({ ...editForm, isAvailable: !editForm.isAvailable });
   };
 
-const handleSaveEdit = async () => {
-  if (!property) return;
+  const handleSaveEdit = async () => {
+    if (!property) return;
 
-  if (!editForm.propertyName.trim() || !editForm.price.trim()) {
-    setErrorModalConfig({
-      title: "Validation Error",
-      message: "Property name and price are required",
-    });
-    setErrorModalVisible(true);
-    return;
-  }
-
-  setSavingEdit(true);
-  try {
-    const newPrice = Number(editForm.price);
-    const oldPrice = property.price;
-    const hasPriceChanged = newPrice !== oldPrice;
-
-    // Prepare update data
-    const updateData: any = {
-      propertyName: editForm.propertyName,
-      description: editForm.description,
-      price: newPrice,
-      bedrooms: Number(editForm.bedrooms) || 0,
-      bathrooms: Number(editForm.bathrooms) || 0,
-      area: Number(editForm.area) || 0,
-      type: editForm.type,
-      address: editForm.address,
-      isAvailable: editForm.isAvailable,
-      facilities: editSelectedFacilities.join(", "),
-    };
-
-    // ✅ Track price changes
-    if (hasPriceChanged) {
-      updateData.new_price = newPrice;
-      updateData.price_change_date = new Date().toISOString();
-      updateData.price_change_type = newPrice < oldPrice ? "drop" : "hike";
+    if (!editForm.propertyName.trim() || !editForm.price.trim()) {
+      setErrorModalConfig({
+        title: "Validation Error",
+        message: "Property name and price are required",
+      });
+      setErrorModalVisible(true);
+      return;
     }
 
-    await databases.updateDocument(
-      config.databaseId!,
-      config.propertiesCollectionId!,
-      property.$id,
-      updateData,
-    );
+    setSavingEdit(true);
+    try {
+      const newPrice = Number(editForm.price);
+      const oldPrice = property.price;
+      const hasPriceChanged = newPrice !== oldPrice;
 
-    await refetch({ id: property.$id });
+      // Prepare update data
+      const updateData: any = {
+        propertyName: editForm.propertyName,
+        description: editForm.description,
+        price: newPrice,
+        bedrooms: Number(editForm.bedrooms) || 0,
+        bathrooms: Number(editForm.bathrooms) || 0,
+        area: Number(editForm.area) || 0,
+        type: editForm.type,
+        address: editForm.address,
+        isAvailable: editForm.isAvailable,
+        facilities: editSelectedFacilities.join(", "),
+      };
 
-    setOperationSuccessConfig({
-      title: "Success",
-      message: hasPriceChanged 
-        ? `Price updated from $${oldPrice} to $${newPrice}!` 
-        : "Property updated successfully!",
-    });
-    setOperationSuccessVisible(true);
-    closeEditModal();
-  } catch (error) {
-    console.error("Error updating property:", error);
-    setErrorModalConfig({
-      title: "Error",
-      message: "Failed to update property. Please try again.",
-    });
-    setErrorModalVisible(true);
-  } finally {
-    setSavingEdit(false);
-  }
-};
+      // ✅ Track price changes
+      if (hasPriceChanged) {
+        updateData.new_price = newPrice;
+        updateData.price_change_date = new Date().toISOString();
+        updateData.price_change_type = newPrice < oldPrice ? "drop" : "hike";
+      }
+
+      await databases.updateDocument(
+        config.databaseId!,
+        config.propertiesCollectionId!,
+        property.$id,
+        updateData,
+      );
+
+      await refetch({ id: property.$id });
+
+      setOperationSuccessConfig({
+        title: "Success",
+        message: hasPriceChanged
+          ? `Price updated from $${oldPrice} to $${newPrice}!`
+          : "Property updated successfully!",
+      });
+      setOperationSuccessVisible(true);
+      closeEditModal();
+    } catch (error) {
+      console.error("Error updating property:", error);
+      setErrorModalConfig({
+        title: "Error",
+        message: "Failed to update property. Please try again.",
+      });
+      setErrorModalVisible(true);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const handleSendDetailedRequest = async (data: RequestData) => {
     if (!property || !user?.accountId) return;
@@ -831,10 +842,7 @@ const handleSaveEdit = async () => {
     const checkLikeStatus = async () => {
       if (property && user?.accountId) {
         try {
-          const userLiked = await checkUserLiked(
-            property.$id,
-            user.accountId,
-          );
+          const userLiked = await checkUserLiked(property.$id, user.accountId);
           const count = await getLikeCount(property.$id);
           setLiked(userLiked);
           setLikeCount(count);
@@ -848,12 +856,14 @@ const handleSaveEdit = async () => {
   }, [property, user]);
 
   useEffect(() => {
-    if (property && user?.userMode === "tenant" && !viewRecorded.current) {
+    if (
+      property &&
+      (user?.userMode === "tenant" || user?.userMode === "student") &&
+      !viewRecorded.current
+    ) {
       viewRecorded.current = true;
 
-      incrementPropertyViews(property.$id, user.accountId).catch(
-        console.error,
-      );
+      incrementPropertyViews(property.$id, user.accountId).catch(console.error);
 
       const recordLocalView = async () => {
         const key = `user_viewed_properties_${user.accountId}`;
@@ -897,7 +907,11 @@ const handleSaveEdit = async () => {
   const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (!property || user?.userMode !== "tenant") return;
+    if (
+      !property ||
+      (user?.userMode !== "tenant" && user?.userMode !== "student")
+    )
+      return;
 
     let isActive = true;
 
@@ -936,7 +950,11 @@ const handleSaveEdit = async () => {
 
   const [reviewSuccessVisible, setReviewSuccessVisible] = useState(false);
   const handleAddReview = async () => {
-    if (!property || !reviewText.trim() || user?.userMode !== "tenant")
+    if (
+      !property ||
+      !reviewText.trim() ||
+      (user?.userMode !== "tenant" && user?.userMode !== "student")
+    )
       return;
 
     try {
@@ -969,7 +987,12 @@ const handleSaveEdit = async () => {
   // HANDLE LIKE/UNLIKE
   // ============================================================================
   const handleLike = async () => {
-    if (!property || !user?.accountId || user?.userMode !== "tenant") return;
+    if (
+      !property ||
+      !user?.accountId ||
+      (user?.userMode !== "tenant" && user?.userMode !== "student")
+    )
+      return;
 
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1085,7 +1108,11 @@ const handleSaveEdit = async () => {
       if (!navigation.canGoBack()) {
         e.preventDefault();
         router.replace(
-          user?.userMode === "landlord" ? "/landHome" : "/tenantHome",
+          user?.userMode === "landlord"
+            ? "/landHome"
+            : user?.userMode === "student"
+              ? "/s-tenantHome"
+              : "/tenantHome",
         );
       }
     });
@@ -1094,23 +1121,19 @@ const handleSaveEdit = async () => {
   }, [navigation, user]);
 
   const { amenities, loading: amenitiesLoading } = usePOIs(
-  property?.latitude,
-  property?.longitude,
-  3
-);
+    property?.latitude,
+    property?.longitude,
+    3,
+  );
 
   const handleImageNavigation = (direction: "prev" | "next") => {
     const images = getPropertyImages();
     if (images.length === 0) return;
 
     if (direction === "prev") {
-      setCurrentImageIndex((prev) =>
-        prev > 0 ? prev - 1 : images.length - 1,
-      );
+      setCurrentImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
     } else {
-      setCurrentImageIndex((prev) =>
-        prev < images.length - 1 ? prev + 1 : 0,
-      );
+      setCurrentImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
     }
   };
 
@@ -1215,7 +1238,11 @@ const handleSaveEdit = async () => {
             <TouchableOpacity
               onPress={() => {
                 router.replace(
-                  user?.userMode === "landlord" ? "/landHome" : "/tenantHome",
+                  user?.userMode === "landlord"
+                    ? "/landHome"
+                    : user?.userMode === "student"
+                      ? "/s-tenantHome"
+                      : "/tenantHome",
                 );
               }}
               className="flex flex-row rounded-full mt-5 px-5 py-2 items-center justify-center"
@@ -1228,9 +1255,7 @@ const handleSaveEdit = async () => {
                 elevation: 3,
               }}
             >
-              <Text className="text-white font-rubik-bold text-base">
-                Back
-              </Text>
+              <Text className="text-white font-rubik-bold text-base">Back</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1280,45 +1305,952 @@ const handleSaveEdit = async () => {
     );
   };
 
-const renderTenantView = () => {
-  if (!property) return null;
+  const renderTenantView = () => {
+    if (!property) return null;
 
-  const propertyImages = getPropertyImages();
-  const propertyVideos = getPropertyVideos();
-  const facilityList = normalizeFacilities();
-  const avgRating = calculateAverageRating();
-  const isAccredited = checkAccreditation(property);
+    const propertyImages = getPropertyImages();
+    const propertyVideos = getPropertyVideos();
+    const facilityList = normalizeFacilities();
+    const avgRating = calculateAverageRating();
+    const isAccredited = checkAccreditation(property);
 
-  const priceHistory = buildPriceHistory(property);
+    const priceHistory = buildPriceHistory(property);
 
-  const creator = property.agent || {
-    name: property.creatorName || "Property Owner",
-    email: property.creatorEmail || "Not available",
-    phone: property.creatorPhone || "Not available",
-    avatar: property.creatorAvatar || null,
-  };
+    const creator = property.agent || {
+      name: property.creatorName || "Property Owner",
+      email: property.creatorEmail || "Not available",
+      phone: property.creatorPhone || "Not available",
+      avatar: property.creatorAvatar || null,
+    };
 
-  return (
-    <>
-      <View
-        className="px-5 mt-7 gap-2"
-        style={{ backgroundColor: theme.navBackground }}
-      >
-        <View className="flex-row items-center justify-between">
-          <Text
-            className="text-2xl font-rubik-extrabold flex-1"
-            style={{ color: theme.title }}
-          >
-            {property.propertyName || "Property"}
-          </Text>
-          {isAccredited && (
-            <View className="bg-yellow-500 px-3 py-1 rounded-full flex-row items-center ml-2">
-              <Ionicons name="checkmark-circle" size={14} color="white" />
+    return (
+      <>
+        <View
+          className="px-5 mt-7 gap-2"
+          style={{ backgroundColor: theme.navBackground }}
+        >
+          <View className="flex-row items-center justify-between">
+            <Text
+              className="text-2xl font-rubik-extrabold flex-1"
+              style={{ color: theme.title }}
+            >
+              {property.propertyName || "Property"}
+            </Text>
+            {isAccredited && (
+              <View className="bg-yellow-500 px-3 py-1 rounded-full flex-row items-center ml-2">
+                <Ionicons name="checkmark-circle" size={14} color="white" />
+              </View>
+            )}
+          </View>
+
+          <View className="flex flex-row items-center justify-between gap-3">
+            <View className="flex flex-row items-center gap-3">
+              <View className="flex flex-row items-center px-4 py-2 bg-primary-100 rounded-full">
+                <Text className="text-xs font-rubik-bold text-primary-300">
+                  {property.type}
+                </Text>
+              </View>
+              <Image source={icons.star} className="size-3.5" />
+              <Text className="text-black-200 text-sm mt-1 font-rubik-medium">
+                {avgRating}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => setShowRequestModal(true)}
+              disabled={
+                requesting || (hasRequested && requestStatus !== "rejected")
+              }
+              className={`px-4 py-2 rounded-full ${
+                requestStatus === "accepted"
+                  ? "bg-green-500"
+                  : requestStatus === "pending"
+                    ? "bg-yellow-500"
+                    : requestStatus === "rejected"
+                      ? "bg-orange-500"
+                      : requesting
+                        ? "bg-gray-400"
+                        : "bg-orange-500"
+              }`}
+            >
+              <Text className="text-white font-rubik-medium text-sm">
+                {requestStatus === "accepted"
+                  ? "Accepted"
+                  : requestStatus === "pending"
+                    ? "Pending"
+                    : requestStatus === "rejected"
+                      ? "Try Again"
+                      : requesting
+                        ? "Requesting..."
+                        : "Request to Rent"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* ✅ PRICE DISPLAY */}
+          <View>
+            <Text
+              className="text-2xl font-rubik-bold"
+              style={{ color: theme.text }}
+            >
+              {property.type === "Boarding" && `$${property.price} /head/room`}
+              {property.type === "Full House" &&
+                `$${property.price} /full house`}
+              {property.type !== "Boarding" &&
+                property.type !== "Full House" &&
+                `$${property.price} /month`}
+            </Text>
+            {property.type === "Full House" && (
+              <Text className="text-sm mt-1" style={{ color: theme.muted }}>
+                Entire property rental
+              </Text>
+            )}
+          </View>
+
+          {/* ✅ PRICE CHANGE SECTION */}
+          {property?.new_price && property.new_price !== property.price && (
+            <View
+              className="rounded-2xl p-4 mt-4"
+              style={{
+                backgroundColor: theme.surface,
+                borderWidth: 1,
+                borderColor: theme.muted + "30",
+              }}
+            >
+              <Text
+                className="text-base font-rubik-bold mb-3"
+                style={{ color: theme.title }}
+              >
+                📊 Price Change
+              </Text>
+
+              <View className="flex-row items-center justify-between">
+                <View>
+                  <Text className="text-sm text-gray-500">Previous Price</Text>
+                  <Text
+                    className="text-lg font-rubik-bold line-through"
+                    style={{ color: theme.muted }}
+                  >
+                    ${property.price}/month
+                  </Text>
+                </View>
+
+                <View className="items-center">
+                  <Text className="text-sm text-gray-500">Change</Text>
+                  <View
+                    className={`px-3 py-1.5 rounded-full flex-row items-center ${
+                      property.new_price < property.price
+                        ? "bg-red-100"
+                        : "bg-green-100"
+                    }`}
+                    style={{
+                      backgroundColor:
+                        property.new_price < property.price
+                          ? "#FEE2E2"
+                          : "#D1FAE5",
+                    }}
+                  >
+                    <Ionicons
+                      name={
+                        property.new_price < property.price
+                          ? "trending-down"
+                          : "trending-up"
+                      }
+                      size={16}
+                      color={
+                        property.new_price < property.price
+                          ? "#DC2626"
+                          : "#059669"
+                      }
+                    />
+                    <Text
+                      className={`font-rubik-bold ml-1 ${
+                        property.new_price < property.price
+                          ? "text-red-600"
+                          : "text-green-600"
+                      }`}
+                    >
+                      {property.new_price < property.price ? "-" : "+"}$
+                      {Math.abs(property.new_price - property.price)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="items-end">
+                  <Text className="text-sm text-gray-500">Current Price</Text>
+                  <Text
+                    className="text-lg font-rubik-bold"
+                    style={{
+                      color:
+                        property.new_price < property.price
+                          ? "#DC2626"
+                          : "#059669",
+                    }}
+                  >
+                    ${property.new_price}/month
+                  </Text>
+                </View>
+              </View>
+
+              {property.price_change_date && (
+                <Text className="text-xs text-gray-400 mt-3">
+                  Changed on:{" "}
+                  {new Date(property.price_change_date).toLocaleDateString()}
+                </Text>
+              )}
             </View>
           )}
-        </View>
 
-        <View className="flex flex-row items-center justify-between gap-3">
+          {/* ✅ PRICE HISTORY COMPONENT */}
+          <View className="mt-4">
+            <PriceHistory
+              history={priceHistory}
+              currentPrice={property.price}
+              theme={theme.navBackground}
+            />
+          </View>
+
+          <View className="flex flex-row items-center mt-5">
+            <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10">
+              <Image source={icons.bed} className="size-4" />
+            </View>
+            <Text
+              className="text-black-300 text-sm font-rubik-medium ml-2"
+              style={{ color: theme.title }}
+            >
+              {property.bedrooms || 0} Beds
+            </Text>
+
+            <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10 ml-7">
+              <Image source={icons.bath} className="size-4" />
+            </View>
+            <Text
+              className="text-black-300 text-sm font-rubik-medium ml-2"
+              style={{ color: theme.title }}
+            >
+              {property.bathrooms || 0} Baths
+            </Text>
+
+            <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10 ml-7">
+              <Image source={icons.area} className="size-4" />
+            </View>
+            <Text
+              className="text-black-300 text-sm font-rubik-medium ml-2"
+              style={{ color: theme.title }}
+            >
+              {property.area || 0} sqm
+            </Text>
+          </View>
+
+          {/* CREATOR/LANDLORD INFO SECTION WITH CONTACT BUTTON */}
+          <View className="mt-6">
+            <Text
+              className="text-xl font-rubik-bold mb-3"
+              style={{ color: theme.title }}
+            >
+              {(property.agent as any)?.isOrganization
+                ? "About the Organization"
+                : "About the Landlord"}
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => {
+                const landlordId =
+                  property.creatorId || (property.agent as any)?.$id;
+                console.log("🏠 Property creatorId:", property.creatorId);
+                console.log("🏠 Agent $id:", (property.agent as any)?.$id);
+                console.log("🚀 Navigating with landlordId:", landlordId);
+
+                if (landlordId) {
+                  router.push(`/landlords?landlordId=${landlordId}`);
+                } else {
+                  Alert.alert("Error", "Landlord info not available");
+                }
+              }}
+              className="flex-row items-center"
+            >
+              <Image
+                source={
+                  creator.avatar
+                    ? creator.avatar.startsWith("http")
+                      ? { uri: creator.avatar }
+                      : getAvatarSource(creator.avatar)
+                    : icons.person
+                }
+                className="w-14 h-14 rounded-full mr-4"
+                style={{
+                  borderWidth: 1,
+                  borderColor: theme.muted + "30",
+                }}
+              />
+
+              <View className="flex-1">
+                <Text
+                  className="text-lg font-rubik-bold"
+                  style={{ color: theme.title }}
+                >
+                  {creator.name}
+                </Text>
+
+                <View className="flex-row items-center mt-2">
+                  <Image
+                    source={icons.mail}
+                    className="w-4 h-4 mr-2"
+                    style={{ tintColor: theme.muted }}
+                  />
+                  <Text
+                    className="text-sm font-rubik"
+                    style={{ color: theme.muted }}
+                  >
+                    {creator.email}
+                  </Text>
+                </View>
+
+                {creator.phone && creator.phone !== "Not available" && (
+                  <View className="flex-row items-center mt-1">
+                    <Image
+                      source={icons.phone}
+                      className="w-4 h-4 mr-2"
+                      style={{ tintColor: theme.muted }}
+                    />
+                    <Text
+                      className="text-sm font-rubik"
+                      style={{ color: theme.muted }}
+                    >
+                      {creator.phone}
+                    </Text>
+                  </View>
+                )}
+
+                <View className="flex-row items-center mt-3">
+                  <Text
+                    className="text-sm font-rubik-bold"
+                    style={{ color: theme.primary[300] }}
+                  >
+                    View Full Profile
+                  </Text>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={16}
+                    color={theme.primary[300]}
+                  />
+                </View>
+              </View>
+
+              <Ionicons name="chevron-forward" size={20} color={theme.muted} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Overview */}
+          <View className="mt-7">
+            <Text
+              className="text-black-300 text-xl font-rubik-bold"
+              style={{ color: theme.title }}
+            >
+              Overview
+            </Text>
+            <Text
+              className="text-black-200 text-base font-rubik mt-2"
+              style={{ color: theme.title }}
+            >
+              {property.description || "No description available"}
+            </Text>
+          </View>
+
+          {propertyVideos.length > 0 && (
+            <View className="mt-7">
+              <View className="flex-row items-center mb-2">
+                <Ionicons
+                  name="shield-checkmark"
+                  size={22}
+                  color={theme.primary[300]}
+                />
+                <Text
+                  className="text-xl font-rubik-bold ml-2"
+                  style={{ color: theme.title }}
+                >
+                  Property verification videos
+                </Text>
+              </View>
+              <Text
+                className="text-sm font-rubik mb-4"
+                style={{ color: theme.muted }}
+              >
+                Watch or download the landlord&apos;s videos to compare the
+                property with its photos.
+              </Text>
+              {propertyVideos.map((video, index) => (
+                <PropertyVerificationVideo
+                  key={video}
+                  uri={video}
+                  index={index}
+                  downloading={downloadingMedia === video}
+                  onDownload={() => handleDownloadVideo(video, index)}
+                  theme={theme}
+                />
+              ))}
+            </View>
+          )}
+
+          {/* Facilities */}
+          <View className="mt-7">
+            <Text
+              className="text-black-300 text-xl font-rubik-bold"
+              style={{ color: theme.title }}
+            >
+              Facilities
+            </Text>
+
+            {facilityList.length > 0 ? (
+              <View className="mt-2">
+                <View className="flex-row flex-wrap -mx-1">
+                  {facilityList.map((item, index) => {
+                    const facility = facilities.find(
+                      (f) => f.title === item,
+                    ) as
+                      | { title: string; icon: any; color?: string }
+                      | undefined;
+                    const colors = [
+                      "#3B82F6",
+                      "#10B981",
+                      "#F59E0B",
+                      "#EF4444",
+                      "#8B5CF6",
+                      "#EC4899",
+                    ];
+                    const iconColor =
+                      facility?.color || colors[index % colors.length];
+
+                    return (
+                      <View key={index} className="w-1/3 px-1 mb-3">
+                        <View
+                          className="rounded-xl p-3 items-center"
+                          style={{
+                            backgroundColor: theme.surface,
+                            borderWidth: 1,
+                            borderColor: theme.muted + "30",
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.05,
+                            shadowRadius: 2,
+                            elevation: 1,
+                          }}
+                        >
+                          <View
+                            className="size-14 rounded-full flex items-center justify-center"
+                            style={{
+                              backgroundColor: iconColor + "20",
+                            }}
+                          >
+                            <Image
+                              source={facility ? facility.icon : icons.info}
+                              className="size-6"
+                              style={{ tintColor: iconColor }}
+                            />
+                          </View>
+                          <Text
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                            className="text-sm text-center font-rubik mt-1.5"
+                            style={{ color: theme.text }}
+                          >
+                            {item}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : (
+              <Text
+                className="text-base font-rubik mt-2"
+                style={{ color: theme.muted }}
+              >
+                No facilities listed
+              </Text>
+            )}
+          </View>
+
+          {propertyImages.length > 1 && (
+            <View className="mt-7">
+              <Text
+                className="text-black-300 text-xl font-rubik-bold mb-3"
+                style={{ color: theme.text }}
+              >
+                All Photos
+              </Text>
+              <FlatList
+                data={propertyImages}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(_, index) => index.toString()}
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setCurrentImageIndex(index);
+                      openImageViewer(index);
+                    }}
+                    activeOpacity={0.8}
+                    className="mr-3"
+                  >
+                    <Image
+                      source={{ uri: item }}
+                      className="w-24 h-24 rounded-xl"
+                    />
+                    {index === currentImageIndex && (
+                      <View className="absolute inset-0 bg-primary-300/30 rounded-xl border-2 border-primary-300" />
+                    )}
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDownloadImage(item, index);
+                      }}
+                      disabled={downloadingMedia === item}
+                      className="absolute top-1 right-1 bg-black/60 rounded-full p-1"
+                    >
+                      {downloadingMedia === item ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Image
+                          source={icons.download}
+                          className="w-3 h-3"
+                          style={{ tintColor: "#FFFFFF" }}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          )}
+
+          {/* FULL-SCREEN IMAGE VIEWER (LIGHTBOX) */}
+          <Modal
+            visible={imageViewerVisible}
+            transparent
+            animationType="fade"
+            statusBarTranslucent
+            onRequestClose={() => setImageViewerVisible(false)}
+          >
+            <View className="flex-1 bg-black/95">
+              <View className="absolute top-14 left-0 right-0 z-10 flex-row items-center justify-between px-5">
+                <View className="px-3 py-1.5 rounded-full bg-black/60">
+                  <Text className="text-white font-rubik-medium text-sm">
+                    {viewerIndex + 1} / {propertyImages.length}
+                  </Text>
+                </View>
+
+                <View className="flex-row items-center">
+                  <TouchableOpacity
+                    onPress={() =>
+                      handleDownloadImage(
+                        propertyImages[viewerIndex],
+                        viewerIndex,
+                      )
+                    }
+                    disabled={downloadingMedia === propertyImages[viewerIndex]}
+                    className="w-10 h-10 rounded-full items-center justify-center bg-black/60 mr-3"
+                  >
+                    {downloadingMedia === propertyImages[viewerIndex] ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Ionicons
+                        name="download-outline"
+                        size={20}
+                        color="#FFFFFF"
+                      />
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setImageViewerVisible(false)}
+                    className="w-10 h-10 rounded-full items-center justify-center bg-black/60"
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Ionicons name="close" size={22} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <FlatList
+                data={propertyImages}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                initialScrollIndex={viewerIndex}
+                getItemLayout={(_, index) => ({
+                  length: Dimensions.get("window").width,
+                  offset: Dimensions.get("window").width * index,
+                  index,
+                })}
+                onMomentumScrollEnd={(e) => {
+                  const w = Dimensions.get("window").width;
+                  setViewerIndex(Math.round(e.nativeEvent.contentOffset.x / w));
+                }}
+                keyExtractor={(_, index) => index.toString()}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    activeOpacity={1}
+                    onPress={() => setImageViewerVisible(false)}
+                    style={{
+                      width: Dimensions.get("window").width,
+                      height: Dimensions.get("window").height,
+                    }}
+                    className="items-center justify-center"
+                  >
+                    <Image
+                      source={{ uri: item }}
+                      style={{
+                        width: Dimensions.get("window").width,
+                        height: Dimensions.get("window").height,
+                      }}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          </Modal>
+
+          {/* ✅ LOCATION WITH INLINE MAP */}
+          <View className="mt-7">
+            <Text
+              className="text-black-300 text-xl font-rubik-bold"
+              style={{ color: theme.title }}
+            >
+              Location
+            </Text>
+
+            {/* Address Display */}
+            <View className="flex flex-row items-center mt-4 gap-2">
+              <Image source={icons.location} className="w-7 h-7" />
+              <Text
+                className="text-black-200 text-sm font-rubik-medium flex-1"
+                style={{ color: theme.title }}
+              >
+                {property.address || "Address not available"}
+              </Text>
+            </View>
+
+            {/* ✅ Inline Map Preview */}
+            {property.latitude && property.longitude ? (
+              <View className="mt-3">
+                <PropertyMapCard
+                  latitude={property.latitude}
+                  longitude={property.longitude}
+                  propertyName={property.propertyName}
+                  address={property.address}
+                  propertyImage={property.image1}
+                  propertyPrice={property.price}
+                  propertyType={property.type}
+                  bedrooms={property.bedrooms}
+                  bathrooms={property.bathrooms}
+                  isInline={true}
+                />
+              </View>
+            ) : (
+              <View
+                className="mt-3 p-6 rounded-xl items-center"
+                style={{
+                  backgroundColor: theme.surface,
+                  borderWidth: 1,
+                  borderColor: theme.muted + "20",
+                  borderStyle: "dashed",
+                }}
+              >
+                <Ionicons name="map-outline" size={32} color={theme.muted} />
+                <Text
+                  className="text-sm font-rubik-medium mt-2"
+                  style={{ color: theme.muted }}
+                >
+                  No location data available
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Reviews */}
+          <View className="mt-7">
+            <Text
+              className="text-black-300 text-xl font-rubik-bold"
+              style={{ color: theme.muted }}
+            >
+              {reviews.length} Reviews
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => setReviewsExpanded(!reviewsExpanded)}
+              className="mt-2"
+            >
+              <Text className="text-primary-300 font-rubik-medium">
+                {reviewsExpanded ? "Hide Reviews" : "Show Reviews"}
+              </Text>
+            </TouchableOpacity>
+
+            {reviewsExpanded && (
+              <View className="mt-3">
+                {reviews.length > 0 ? (
+                  reviews.map((rev) => (
+                    <View
+                      key={rev.id}
+                      className="mt-3 pb-3 border-b border-primary-100"
+                      style={{ borderBottomColor: theme.muted + "30" }}
+                    >
+                      <View className="flex-row items-start">
+                        <Image
+                          source={
+                            rev.userAvatar
+                              ? rev.userAvatar.startsWith("http")
+                                ? { uri: rev.userAvatar }
+                                : getAvatarSource(rev.userAvatar)
+                              : icons.person
+                          }
+                          className="w-10 h-10 rounded-full mr-3"
+                          style={{
+                            borderWidth: 1,
+                            borderColor: theme.muted + "30",
+                          }}
+                        />
+
+                        <View className="flex-1">
+                          <View className="flex-row items-center justify-between">
+                            <Text
+                              className="font-rubik-bold text-base"
+                              style={{ color: theme.title }}
+                            >
+                              {rev.userName}
+                            </Text>
+                            <View className="flex-row items-center">
+                              <Text className="text-yellow-500 font-rubik-bold mr-1 text-sm">
+                                {rev.rating}
+                              </Text>
+                              <Image source={icons.star} className="size-3.5" />
+                            </View>
+                          </View>
+                          <Text
+                            className="text-sm mt-2 leading-5"
+                            style={{ color: theme.text }}
+                          >
+                            {rev.review}
+                          </Text>
+                          <Text
+                            className="text-xs mt-2"
+                            style={{ color: theme.muted }}
+                          >
+                            {new Date(rev.date).toLocaleDateString()}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))
+                ) : (
+                  <Text
+                    className="text-gray-500 mt-2"
+                    style={{ color: theme.muted }}
+                  >
+                    No reviews yet
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* Add Review */}
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+            className="mt-7 mb-5"
+          >
+            <Text
+              className="text-black-300 text-xl font-rubik-bold"
+              style={{ color: theme.title }}
+            >
+              Add a Review
+            </Text>
+            <TextInput
+              value={reviewText}
+              onChangeText={setReviewText}
+              placeholder="Write your review..."
+              className="border border-gray-300 rounded-xl p-3 mt-3"
+              multiline
+              numberOfLines={3}
+              placeholderTextColor="#9CA3AF"
+              style={{ color: theme.text, backgroundColor: theme.surface }}
+            />
+            <View className="flex flex-row gap-3 mt-3">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                  <Text
+                    className="text-3xl"
+                    style={{ color: rating >= star ? "#facc15" : "#9ca3af" }}
+                  >
+                    ★
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              onPress={handleAddReview}
+              className="bg-primary-300 py-3 rounded-full mt-3"
+            >
+              <Text className="text-white text-center font-rubik-bold">
+                Submit Review
+              </Text>
+            </TouchableOpacity>
+          </KeyboardAvoidingView>
+        </View>
+      </>
+    );
+  };
+
+  const renderLandlordView = () => {
+    if (!property) return null;
+
+    const propertyImages = getPropertyImages();
+    const facilityList = normalizeFacilities();
+    const avgRating = calculateAverageRating();
+
+    return (
+      <>
+        <View
+          className="px-5 mt-7 gap-2 pb-10"
+          style={{ backgroundColor: theme.navBackground }}
+        >
+          <View className="mb-2">
+            <Text className="text-3xl font-rubik-bold text-primary-300">
+              {property.propertyName}
+            </Text>
+          </View>
+
+          {isLandlordOwner && (
+            <TouchableOpacity
+              onPress={openEditModal}
+              className="bg-primary-300 py-2 px-4 rounded-full self-start mb-2 flex-row items-center"
+            >
+              <Image
+                source={icons.edit}
+                className="w-4 h-4 mr-2"
+                style={{ tintColor: "#FFFFFF" }}
+              />
+              <Text className="text-white font-rubik-medium text-sm">
+                Edit Property
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* ✅ PRICE DISPLAY */}
+          <Text
+            className="text-2xl font-rubik-bold"
+            style={{ color: theme.text }}
+          >
+            {property.type === "Boarding"
+              ? `$${property.price} /head/room`
+              : `$${property.price} /month`}
+          </Text>
+
+          {/* ✅ PRICE CHANGE SECTION */}
+          {property?.new_price && property.new_price !== property.price && (
+            <View
+              className="rounded-2xl p-4 mt-4"
+              style={{
+                backgroundColor: theme.surface,
+                borderWidth: 1,
+                borderColor: theme.muted + "30",
+              }}
+            >
+              <Text
+                className="text-base font-rubik-bold mb-3"
+                style={{ color: theme.title }}
+              >
+                📊 Price Change
+              </Text>
+
+              <View className="flex-row items-center justify-between">
+                <View>
+                  <Text className="text-sm text-gray-500">Previous Price</Text>
+                  <Text
+                    className="text-lg font-rubik-bold line-through"
+                    style={{ color: theme.muted }}
+                  >
+                    ${property.price}/month
+                  </Text>
+                </View>
+
+                <View className="items-center">
+                  <Text className="text-sm text-gray-500">Change</Text>
+                  <View
+                    className={`px-3 py-1.5 rounded-full flex-row items-center ${
+                      property.new_price < property.price
+                        ? "bg-red-100"
+                        : "bg-green-100"
+                    }`}
+                    style={{
+                      backgroundColor:
+                        property.new_price < property.price
+                          ? "#FEE2E2"
+                          : "#D1FAE5",
+                    }}
+                  >
+                    <Ionicons
+                      name={
+                        property.new_price < property.price
+                          ? "trending-down"
+                          : "trending-up"
+                      }
+                      size={16}
+                      color={
+                        property.new_price < property.price
+                          ? "#DC2626"
+                          : "#059669"
+                      }
+                    />
+                    <Text
+                      className={`font-rubik-bold ml-1 ${
+                        property.new_price < property.price
+                          ? "text-red-600"
+                          : "text-green-600"
+                      }`}
+                    >
+                      {property.new_price < property.price ? "-" : "+"}$
+                      {Math.abs(property.new_price - property.price)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="items-end">
+                  <Text className="text-sm text-gray-500">Current Price</Text>
+                  <Text
+                    className="text-lg font-rubik-bold"
+                    style={{
+                      color:
+                        property.new_price < property.price
+                          ? "#DC2626"
+                          : "#059669",
+                    }}
+                  >
+                    ${property.new_price}/month
+                  </Text>
+                </View>
+              </View>
+
+              {property.price_change_date && (
+                <Text className="text-xs text-gray-400 mt-3">
+                  Changed on:{" "}
+                  {new Date(property.price_change_date).toLocaleDateString()}
+                </Text>
+              )}
+            </View>
+          )}
+
+          <View className="mt-4">
+            <PriceHistory
+              history={priceHistory}
+              currentPrice={property.price}
+              theme={theme.navBackground}
+            />
+          </View>
+
           <View className="flex flex-row items-center gap-3">
             <View className="flex flex-row items-center px-4 py-2 bg-primary-100 rounded-full">
               <Text className="text-xs font-rubik-bold text-primary-300">
@@ -1331,1000 +2263,127 @@ const renderTenantView = () => {
             </Text>
           </View>
 
-          <TouchableOpacity
-            onPress={() => setShowRequestModal(true)}
-            disabled={
-              requesting || (hasRequested && requestStatus !== "rejected")
-            }
-            className={`px-4 py-2 rounded-full ${
-              requestStatus === "accepted"
-                ? "bg-green-500"
-                : requestStatus === "pending"
-                  ? "bg-yellow-500"
-                  : requestStatus === "rejected"
-                    ? "bg-orange-500"
-                    : requesting
-                      ? "bg-gray-400"
-                      : "bg-orange-500"
-            }`}
-          >
-            <Text className="text-white font-rubik-medium text-sm">
-              {requestStatus === "accepted"
-                ? "Accepted"
-                : requestStatus === "pending"
-                  ? "Pending"
-                  : requestStatus === "rejected"
-                    ? "Try Again"
-                    : requesting
-                      ? "Requesting..."
-                      : "Request to Rent"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-
-{/* ✅ PRICE DISPLAY */}
-<View>
-  <Text
-    className="text-2xl font-rubik-bold"
-    style={{ color: theme.text }}
-  >
-    {property.type === "Boarding" && `$${property.price} /head/room`}
-    {property.type === "Full House" && `$${property.price} /full house`}
-    {property.type !== "Boarding" && property.type !== "Full House" && `$${property.price} /month`}
-  </Text>
-  {property.type === "Full House" && (
-    <Text className="text-sm mt-1" style={{ color: theme.muted }}>
-      Entire property rental
-    </Text>
-  )}
-</View>
-
-
-        {/* ✅ PRICE CHANGE SECTION */}
-        {property?.new_price && property.new_price !== property.price && (
-          <View
-            className="rounded-2xl p-4 mt-4"
-            style={{
-              backgroundColor: theme.surface,
-              borderWidth: 1,
-              borderColor: theme.muted + "30",
-            }}
-          >
+          <View className="flex flex-row items-center mt-5">
+            <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10">
+              <Image source={icons.bed} className="size-4" />
+            </View>
             <Text
-              className="text-base font-rubik-bold mb-3"
-              style={{ color: theme.title }}
-            >
-              📊 Price Change
-            </Text>
-
-            <View className="flex-row items-center justify-between">
-              <View>
-                <Text className="text-sm text-gray-500">Previous Price</Text>
-                <Text
-                  className="text-lg font-rubik-bold line-through"
-                  style={{ color: theme.muted }}
-                >
-                  ${property.price}/month
-                </Text>
-              </View>
-
-              <View className="items-center">
-                <Text className="text-sm text-gray-500">Change</Text>
-                <View
-                  className={`px-3 py-1.5 rounded-full flex-row items-center ${
-                    property.new_price < property.price
-                      ? "bg-red-100"
-                      : "bg-green-100"
-                  }`}
-                  style={{
-                    backgroundColor:
-                      property.new_price < property.price ? "#FEE2E2" : "#D1FAE5",
-                  }}
-                >
-                  <Ionicons
-                    name={property.new_price < property.price ? "trending-down" : "trending-up"}
-                    size={16}
-                    color={property.new_price < property.price ? "#DC2626" : "#059669"}
-                  />
-                  <Text
-                    className={`font-rubik-bold ml-1 ${
-                      property.new_price < property.price
-                        ? "text-red-600"
-                        : "text-green-600"
-                    }`}
-                  >
-                    {property.new_price < property.price ? "-" : "+"}$
-                    {Math.abs(property.new_price - property.price)}
-                  </Text>
-                </View>
-              </View>
-
-              <View className="items-end">
-                <Text className="text-sm text-gray-500">Current Price</Text>
-                <Text
-                  className="text-lg font-rubik-bold"
-                  style={{
-                    color:
-                      property.new_price < property.price
-                        ? "#DC2626"
-                        : "#059669",
-                  }}
-                >
-                  ${property.new_price}/month
-                </Text>
-              </View>
-            </View>
-
-            {property.price_change_date && (
-              <Text className="text-xs text-gray-400 mt-3">
-                Changed on: {new Date(property.price_change_date).toLocaleDateString()}
-              </Text>
-            )}
-          </View>
-        )}
-
-                {/* ✅ PRICE HISTORY COMPONENT */}
-        <View className="mt-4">
-          <PriceHistory
-            history={priceHistory}
-            currentPrice={property.price}
-            theme={theme.navBackground}
-          />
-        </View>
-
-        <View className="flex flex-row items-center mt-5">
-          <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10">
-            <Image source={icons.bed} className="size-4" />
-          </View>
-          <Text
-            className="text-black-300 text-sm font-rubik-medium ml-2"
-            style={{ color: theme.title }}
-          >
-            {property.bedrooms || 0} Beds
-          </Text>
-
-          <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10 ml-7">
-            <Image source={icons.bath} className="size-4" />
-          </View>
-          <Text
-            className="text-black-300 text-sm font-rubik-medium ml-2"
-            style={{ color: theme.title }}
-          >
-            {property.bathrooms || 0} Baths
-          </Text>
-
-          <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10 ml-7">
-            <Image source={icons.area} className="size-4" />
-          </View>
-          <Text
-            className="text-black-300 text-sm font-rubik-medium ml-2"
-            style={{ color: theme.title }}
-          >
-            {property.area || 0} sqm
-          </Text>
-        </View>
-
-        {/* CREATOR/LANDLORD INFO SECTION WITH CONTACT BUTTON */}
-        <View className="mt-6">
-          <Text
-            className="text-xl font-rubik-bold mb-3"
-            style={{ color: theme.title }}
-          >
-            {(property.agent as any)?.isOrganization
-              ? "About the Organization"
-              : "About the Landlord"}
-          </Text>
-
-          <TouchableOpacity
-            onPress={() => {
-              const landlordId = property.creatorId || (property.agent as any)?.$id;
-              console.log("🏠 Property creatorId:", property.creatorId);
-              console.log("🏠 Agent $id:", (property.agent as any)?.$id);
-              console.log("🚀 Navigating with landlordId:", landlordId);
-              
-              if (landlordId) {
-                router.push(`/landlords?landlordId=${landlordId}`);
-              } else {
-                Alert.alert("Error", "Landlord info not available");
-              }
-            }}
-            className="flex-row items-center"
-          >
-            <Image
-              source={
-                creator.avatar
-                  ? creator.avatar.startsWith("http")
-                    ? { uri: creator.avatar }
-                    : getAvatarSource(creator.avatar)
-                  : icons.person
-              }
-              className="w-14 h-14 rounded-full mr-4"
-              style={{
-                borderWidth: 1,
-                borderColor: theme.muted + "30",
-              }}
-            />
-
-            <View className="flex-1">
-              <Text
-                className="text-lg font-rubik-bold"
-                style={{ color: theme.title }}
-              >
-                {creator.name}
-              </Text>
-
-              <View className="flex-row items-center mt-2">
-                <Image
-                  source={icons.mail}
-                  className="w-4 h-4 mr-2"
-                  style={{ tintColor: theme.muted }}
-                />
-                <Text className="text-sm font-rubik" style={{ color: theme.muted }}>
-                  {creator.email}
-                </Text>
-              </View>
-
-              {creator.phone && creator.phone !== "Not available" && (
-                <View className="flex-row items-center mt-1">
-                  <Image
-                    source={icons.phone}
-                    className="w-4 h-4 mr-2"
-                    style={{ tintColor: theme.muted }}
-                  />
-                  <Text className="text-sm font-rubik" style={{ color: theme.muted }}>
-                    {creator.phone}
-                  </Text>
-                </View>
-              )}
-
-              <View className="flex-row items-center mt-3">
-                <Text
-                  className="text-sm font-rubik-bold"
-                  style={{ color: theme.primary[300] }}
-                >
-                  View Full Profile
-                </Text>
-                <Ionicons
-                  name="chevron-forward"
-                  size={16}
-                  color={theme.primary[300]}
-                />
-              </View>
-            </View>
-
-            <Ionicons name="chevron-forward" size={20} color={theme.muted} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Overview */}
-        <View className="mt-7">
-          <Text
-            className="text-black-300 text-xl font-rubik-bold"
-            style={{ color: theme.title }}
-          >
-            Overview
-          </Text>
-          <Text
-            className="text-black-200 text-base font-rubik mt-2"
-            style={{ color: theme.title }}
-          >
-            {property.description || "No description available"}
-          </Text>
-        </View>
-
-        {propertyVideos.length > 0 && (
-          <View className="mt-7">
-            <View className="flex-row items-center mb-2">
-              <Ionicons name="shield-checkmark" size={22} color={theme.primary[300]} />
-              <Text className="text-xl font-rubik-bold ml-2" style={{ color: theme.title }}>
-                Property verification videos
-              </Text>
-            </View>
-            <Text className="text-sm font-rubik mb-4" style={{ color: theme.muted }}>
-              Watch or download the landlord&apos;s videos to compare the property with its photos.
-            </Text>
-            {propertyVideos.map((video, index) => (
-              <PropertyVerificationVideo
-                key={video}
-                uri={video}
-                index={index}
-                downloading={downloadingMedia === video}
-                onDownload={() => handleDownloadVideo(video, index)}
-                theme={theme}
-              />
-            ))}
-          </View>
-        )}
-
-        {/* Facilities */}
-        <View className="mt-7">
-          <Text
-            className="text-black-300 text-xl font-rubik-bold"
-            style={{ color: theme.title }}
-          >
-            Facilities
-          </Text>
-
-          {facilityList.length > 0 ? (
-            <View className="mt-2">
-              <View className="flex-row flex-wrap -mx-1">
-                {facilityList.map((item, index) => {
-                  const facility = facilities.find(
-                    (f) => f.title === item,
-                  ) as
-                    | { title: string; icon: any; color?: string }
-                    | undefined;
-                  const colors = [
-                    "#3B82F6",
-                    "#10B981",
-                    "#F59E0B",
-                    "#EF4444",
-                    "#8B5CF6",
-                    "#EC4899",
-                  ];
-                  const iconColor =
-                    facility?.color || colors[index % colors.length];
-
-                  return (
-                    <View key={index} className="w-1/3 px-1 mb-3">
-                      <View
-                        className="rounded-xl p-3 items-center"
-                        style={{
-                          backgroundColor: theme.surface,
-                          borderWidth: 1,
-                          borderColor: theme.muted + "30",
-                          shadowColor: "#000",
-                          shadowOffset: { width: 0, height: 1 },
-                          shadowOpacity: 0.05,
-                          shadowRadius: 2,
-                          elevation: 1,
-                        }}
-                      >
-                        <View
-                          className="size-14 rounded-full flex items-center justify-center"
-                          style={{
-                            backgroundColor: iconColor + "20",
-                          }}
-                        >
-                          <Image
-                            source={facility ? facility.icon : icons.info}
-                            className="size-6"
-                            style={{ tintColor: iconColor }}
-                          />
-                        </View>
-                        <Text
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                          className="text-sm text-center font-rubik mt-1.5"
-                          style={{ color: theme.text }}
-                        >
-                          {item}
-                        </Text>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          ) : (
-            <Text
-              className="text-base font-rubik mt-2"
-              style={{ color: theme.muted }}
-            >
-              No facilities listed
-            </Text>
-          )}
-        </View>
-
-        {propertyImages.length > 1 && (
-          <View className="mt-7">
-            <Text
-              className="text-black-300 text-xl font-rubik-bold mb-3"
+              className="text-black-300 text-sm font-rubik-medium ml-2"
               style={{ color: theme.text }}
             >
-              All Photos
+              {property.bedrooms || 0} Beds
             </Text>
-            <FlatList
-              data={propertyImages}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(_, index) => index.toString()}
-              renderItem={({ item, index }) => (
-                <TouchableOpacity
-                  onPress={() => {
-                    setCurrentImageIndex(index);
-                    openImageViewer(index);
-                  }}
-                  activeOpacity={0.8}
-                  className="mr-3"
-                >
-                  <Image
-                    source={{ uri: item }}
-                    className="w-24 h-24 rounded-xl"
-                  />
-                  {index === currentImageIndex && (
-                    <View className="absolute inset-0 bg-primary-300/30 rounded-xl border-2 border-primary-300" />
-                  )}
-                  <TouchableOpacity
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleDownloadImage(item, index);
-                    }}
-                    disabled={downloadingMedia === item}
-                    className="absolute top-1 right-1 bg-black/60 rounded-full p-1"
-                  >
-                    {downloadingMedia === item ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Image
-                        source={icons.download}
-                        className="w-3 h-3"
-                        style={{ tintColor: "#FFFFFF" }}
-                      />
-                    )}
-                  </TouchableOpacity>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        )}
 
-        {/* FULL-SCREEN IMAGE VIEWER (LIGHTBOX) */}
-        <Modal
-          visible={imageViewerVisible}
-          transparent
-          animationType="fade"
-          statusBarTranslucent
-          onRequestClose={() => setImageViewerVisible(false)}
-        >
-          <View className="flex-1 bg-black/95">
-            <View className="absolute top-14 left-0 right-0 z-10 flex-row items-center justify-between px-5">
-              <View className="px-3 py-1.5 rounded-full bg-black/60">
-                <Text className="text-white font-rubik-medium text-sm">
-                  {viewerIndex + 1} / {propertyImages.length}
-                </Text>
-              </View>
-
-              <View className="flex-row items-center">
-                <TouchableOpacity
-                  onPress={() => handleDownloadImage(propertyImages[viewerIndex], viewerIndex)}
-                  disabled={downloadingMedia === propertyImages[viewerIndex]}
-                  className="w-10 h-10 rounded-full items-center justify-center bg-black/60 mr-3"
-                >
-                  {downloadingMedia === propertyImages[viewerIndex] ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Ionicons name="download-outline" size={20} color="#FFFFFF" />
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => setImageViewerVisible(false)}
-                  className="w-10 h-10 rounded-full items-center justify-center bg-black/60"
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Ionicons name="close" size={22} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
+            <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10 ml-7">
+              <Image source={icons.bath} className="size-4" />
             </View>
-
-            <FlatList
-              data={propertyImages}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              initialScrollIndex={viewerIndex}
-              getItemLayout={(_, index) => ({
-                length: Dimensions.get("window").width,
-                offset: Dimensions.get("window").width * index,
-                index,
-              })}
-              onMomentumScrollEnd={(e) => {
-                const w = Dimensions.get("window").width;
-                setViewerIndex(Math.round(e.nativeEvent.contentOffset.x / w));
-              }}
-              keyExtractor={(_, index) => index.toString()}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  activeOpacity={1}
-                  onPress={() => setImageViewerVisible(false)}
-                  style={{
-                    width: Dimensions.get("window").width,
-                    height: Dimensions.get("window").height,
-                  }}
-                  className="items-center justify-center"
-                >
-                  <Image
-                    source={{ uri: item }}
-                    style={{
-                      width: Dimensions.get("window").width,
-                      height: Dimensions.get("window").height,
-                    }}
-                    resizeMode="contain"
-                  />
-                </TouchableOpacity>
-              )}
-            />
-          </View>
-        </Modal>
-
-        {/* ✅ LOCATION WITH INLINE MAP */}
-<View className="mt-7">
-  <Text
-    className="text-black-300 text-xl font-rubik-bold"
-    style={{ color: theme.title }}
-  >
-    Location
-  </Text>
-  
-  {/* Address Display */}
-  <View className="flex flex-row items-center mt-4 gap-2">
-    <Image source={icons.location} className="w-7 h-7" />
-    <Text
-      className="text-black-200 text-sm font-rubik-medium flex-1"
-      style={{ color: theme.title }}
-    >
-      {property.address || "Address not available"}
-    </Text>
-  </View>
-
-  {/* ✅ Inline Map Preview */}
-  {property.latitude && property.longitude ? (
-    <View className="mt-3">
-      <PropertyMapCard
-        latitude={property.latitude}
-        longitude={property.longitude}
-        propertyName={property.propertyName}
-        address={property.address}
-        propertyImage={property.image1}
-        propertyPrice={property.price}
-        propertyType={property.type}
-        bedrooms={property.bedrooms}
-        bathrooms={property.bathrooms}
-        isInline={true}
-      />
-    </View>
-  ) : (
-    <View
-      className="mt-3 p-6 rounded-xl items-center"
-      style={{
-        backgroundColor: theme.surface,
-        borderWidth: 1,
-        borderColor: theme.muted + "20",
-        borderStyle: "dashed",
-      }}
-    >
-      <Ionicons name="map-outline" size={32} color={theme.muted} />
-      <Text
-        className="text-sm font-rubik-medium mt-2"
-        style={{ color: theme.muted }}
-      >
-        No location data available
-      </Text>
-    </View>
-  )}
-</View>
-
-        {/* Reviews */}
-        <View className="mt-7">
-          <Text
-            className="text-black-300 text-xl font-rubik-bold"
-            style={{ color: theme.muted }}
-          >
-            {reviews.length} Reviews
-          </Text>
-
-          <TouchableOpacity
-            onPress={() => setReviewsExpanded(!reviewsExpanded)}
-            className="mt-2"
-          >
-            <Text className="text-primary-300 font-rubik-medium">
-              {reviewsExpanded ? "Hide Reviews" : "Show Reviews"}
-            </Text>
-          </TouchableOpacity>
-
-          {reviewsExpanded && (
-            <View className="mt-3">
-              {reviews.length > 0 ? (
-                reviews.map((rev) => (
-                  <View
-                    key={rev.id}
-                    className="mt-3 pb-3 border-b border-primary-100"
-                    style={{ borderBottomColor: theme.muted + "30" }}
-                  >
-                    <View className="flex-row items-start">
-                      <Image
-                        source={
-                          rev.userAvatar
-                            ? rev.userAvatar.startsWith("http")
-                              ? { uri: rev.userAvatar }
-                              : getAvatarSource(rev.userAvatar)
-                            : icons.person
-                        }
-                        className="w-10 h-10 rounded-full mr-3"
-                        style={{
-                          borderWidth: 1,
-                          borderColor: theme.muted + "30",
-                        }}
-                      />
-
-                      <View className="flex-1">
-                        <View className="flex-row items-center justify-between">
-                          <Text
-                            className="font-rubik-bold text-base"
-                            style={{ color: theme.title }}
-                          >
-                            {rev.userName}
-                          </Text>
-                          <View className="flex-row items-center">
-                            <Text className="text-yellow-500 font-rubik-bold mr-1 text-sm">
-                              {rev.rating}
-                            </Text>
-                            <Image source={icons.star} className="size-3.5" />
-                          </View>
-                        </View>
-                        <Text
-                          className="text-sm mt-2 leading-5"
-                          style={{ color: theme.text }}
-                        >
-                          {rev.review}
-                        </Text>
-                        <Text
-                          className="text-xs mt-2"
-                          style={{ color: theme.muted }}
-                        >
-                          {new Date(rev.date).toLocaleDateString()}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <Text
-                  className="text-gray-500 mt-2"
-                  style={{ color: theme.muted }}
-                >
-                  No reviews yet
-                </Text>
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* Add Review */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-          className="mt-7 mb-5"
-        >
-          <Text
-            className="text-black-300 text-xl font-rubik-bold"
-            style={{ color: theme.title }}
-          >
-            Add a Review
-          </Text>
-          <TextInput
-            value={reviewText}
-            onChangeText={setReviewText}
-            placeholder="Write your review..."
-            className="border border-gray-300 rounded-xl p-3 mt-3"
-            multiline
-            numberOfLines={3}
-            placeholderTextColor="#9CA3AF"
-            style={{ color: theme.text, backgroundColor: theme.surface }}
-          />
-          <View className="flex flex-row gap-3 mt-3">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <TouchableOpacity key={star} onPress={() => setRating(star)}>
-                <Text
-                  className="text-3xl"
-                  style={{ color: rating >= star ? "#facc15" : "#9ca3af" }}
-                >
-                  ★
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity
-            onPress={handleAddReview}
-            className="bg-primary-300 py-3 rounded-full mt-3"
-          >
-            <Text className="text-white text-center font-rubik-bold">
-              Submit Review
-            </Text>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      </View>
-    </>
-  );
-};
-
-const renderLandlordView = () => {
-  if (!property) return null;
-
-  const propertyImages = getPropertyImages();
-  const facilityList = normalizeFacilities();
-  const avgRating = calculateAverageRating();
-
-  return (
-    <>
-      <View
-        className="px-5 mt-7 gap-2 pb-10"
-        style={{ backgroundColor: theme.navBackground }}
-      >
-        <View className="mb-2">
-          <Text className="text-3xl font-rubik-bold text-primary-300">
-            {property.propertyName}
-          </Text>
-        </View>
-
-        {isLandlordOwner && (
-          <TouchableOpacity
-            onPress={openEditModal}
-            className="bg-primary-300 py-2 px-4 rounded-full self-start mb-2 flex-row items-center"
-          >
-            <Image
-              source={icons.edit}
-              className="w-4 h-4 mr-2"
-              style={{ tintColor: "#FFFFFF" }}
-            />
-            <Text className="text-white font-rubik-medium text-sm">
-              Edit Property
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* ✅ PRICE DISPLAY */}
-        <Text
-          className="text-2xl font-rubik-bold"
-          style={{ color: theme.text }}
-        >
-          {property.type === "Boarding"
-            ? `$${property.price} /head/room`
-            : `$${property.price} /month`}
-        </Text>
-
-        {/* ✅ PRICE CHANGE SECTION */}
-        {property?.new_price && property.new_price !== property.price && (
-          <View
-            className="rounded-2xl p-4 mt-4"
-            style={{
-              backgroundColor: theme.surface,
-              borderWidth: 1,
-              borderColor: theme.muted + "30",
-            }}
-          >
             <Text
-              className="text-base font-rubik-bold mb-3"
-              style={{ color: theme.title }}
+              className="text-black-300 text-sm font-rubik-medium ml-2"
+              style={{ color: theme.text }}
             >
-              📊 Price Change
+              {property.bathrooms || 0} Baths
             </Text>
 
-            <View className="flex-row items-center justify-between">
-              <View>
-                <Text className="text-sm text-gray-500">Previous Price</Text>
-                <Text
-                  className="text-lg font-rubik-bold line-through"
-                  style={{ color: theme.muted }}
-                >
-                  ${property.price}/month
-                </Text>
-              </View>
-
-              <View className="items-center">
-                <Text className="text-sm text-gray-500">Change</Text>
-                <View
-                  className={`px-3 py-1.5 rounded-full flex-row items-center ${
-                    property.new_price < property.price
-                      ? "bg-red-100"
-                      : "bg-green-100"
-                  }`}
-                  style={{
-                    backgroundColor:
-                      property.new_price < property.price ? "#FEE2E2" : "#D1FAE5",
-                  }}
-                >
-                  <Ionicons
-                    name={property.new_price < property.price ? "trending-down" : "trending-up"}
-                    size={16}
-                    color={property.new_price < property.price ? "#DC2626" : "#059669"}
-                  />
-                  <Text
-                    className={`font-rubik-bold ml-1 ${
-                      property.new_price < property.price
-                        ? "text-red-600"
-                        : "text-green-600"
-                    }`}
-                  >
-                    {property.new_price < property.price ? "-" : "+"}$
-                    {Math.abs(property.new_price - property.price)}
-                  </Text>
-                </View>
-              </View>
-
-              <View className="items-end">
-                <Text className="text-sm text-gray-500">Current Price</Text>
-                <Text
-                  className="text-lg font-rubik-bold"
-                  style={{
-                    color:
-                      property.new_price < property.price
-                        ? "#DC2626"
-                        : "#059669",
-                  }}
-                >
-                  ${property.new_price}/month
-                </Text>
-              </View>
+            <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10 ml-7">
+              <Image source={icons.area} className="size-4" />
             </View>
-
-            {property.price_change_date && (
-              <Text className="text-xs text-gray-400 mt-3">
-                Changed on: {new Date(property.price_change_date).toLocaleDateString()}
-              </Text>
-            )}
-          </View>
-        )}
-
-        <View className="mt-4">
-          <PriceHistory
-            history={priceHistory}
-            currentPrice={property.price}
-            theme={theme.navBackground}
-          />
-        </View>
-
-        <View className="flex flex-row items-center gap-3">
-          <View className="flex flex-row items-center px-4 py-2 bg-primary-100 rounded-full">
-            <Text className="text-xs font-rubik-bold text-primary-300">
-              {property.type}
+            <Text
+              className="text-black-300 text-sm font-rubik-medium ml-2"
+              style={{ color: theme.text }}
+            >
+              {property.area || 0} sqm
             </Text>
           </View>
-          <Image source={icons.star} className="size-3.5" />
-          <Text className="text-black-200 text-sm mt-1 font-rubik-medium">
-            {avgRating}
-          </Text>
-        </View>
 
-        <View className="flex flex-row items-center mt-5">
-          <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10">
-            <Image source={icons.bed} className="size-4" />
-          </View>
-          <Text
-            className="text-black-300 text-sm font-rubik-medium ml-2"
-            style={{ color: theme.text }}
-          >
-            {property.bedrooms || 0} Beds
-          </Text>
-
-          <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10 ml-7">
-            <Image source={icons.bath} className="size-4" />
-          </View>
-          <Text
-            className="text-black-300 text-sm font-rubik-medium ml-2"
-            style={{ color: theme.text }}
-          >
-            {property.bathrooms || 0} Baths
-          </Text>
-
-          <View className="flex flex-row items-center justify-center bg-primary-100 rounded-full size-10 ml-7">
-            <Image source={icons.area} className="size-4" />
-          </View>
-          <Text
-            className="text-black-300 text-sm font-rubik-medium ml-2"
-            style={{ color: theme.text }}
-          >
-            {property.area || 0} sqm
-          </Text>
-        </View>
-
-        <View className="mt-7">
-          <Text
-            className="text-black-300 text-xl font-rubik-bold"
-            style={{ color: theme.text }}
-          >
-            Overview
-          </Text>
-          <Text
-            className="text-black-200 text-base font-rubik mt-2"
-            style={{ color: theme.text }}
-          >
-            {property.description || "No description available"}
-          </Text>
-        </View>
-
-        {/* Current Tenants Section */}
-        <View className="mt-7">
-          <View className="flex-row items-center justify-between mb-3">
+          <View className="mt-7">
             <Text
               className="text-black-300 text-xl font-rubik-bold"
               style={{ color: theme.text }}
             >
-              Current Tenants
+              Overview
             </Text>
-            {loadingTenants && (
-              <ActivityIndicator size="small" color={theme.primary[300]} />
-            )}
+            <Text
+              className="text-black-200 text-base font-rubik mt-2"
+              style={{ color: theme.text }}
+            >
+              {property.description || "No description available"}
+            </Text>
           </View>
 
-          {loadingTenants ? (
-            <View className="py-4 items-center">
-              <ActivityIndicator size="small" color={theme.primary[300]} />
-              <Text className="text-sm mt-2" style={{ color: theme.muted }}>
-                Loading tenants...
+          {/* Current Tenants Section */}
+          <View className="mt-7">
+            <View className="flex-row items-center justify-between mb-3">
+              <Text
+                className="text-black-300 text-xl font-rubik-bold"
+                style={{ color: theme.text }}
+              >
+                Current Tenants
               </Text>
+              {loadingTenants && (
+                <ActivityIndicator size="small" color={theme.primary[300]} />
+              )}
             </View>
-          ) : tenantsForProperty.length > 0 ? (
-            <View>
-              {tenantsForProperty.map((tenant, index) => (
-                <TouchableOpacity
-                  key={tenant.userId}
-                  onPress={() => handleTenantPress(tenant)}
-                  className="p-4 rounded-xl mb-3"
-                  style={{
-                    backgroundColor: theme.surface,
-                    borderWidth: 1,
-                    borderColor: theme.muted + "30",
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 2,
-                    elevation: 1,
-                  }}
-                >
-                  <View className="flex-row items-center">
-                    <Image
-                      source={
-                        tenant.avatar
-                          ? tenant.avatar.startsWith("http")
-                            ? { uri: tenant.avatar }
-                            : getAvatarSource(tenant.avatar)
-                          : icons.person
-                      }
-                      className="w-12 h-12 rounded-full mr-3"
-                      style={{
-                        borderWidth: 1,
-                        borderColor: theme.muted + "30",
-                      }}
-                    />
-                    <View className="flex-1">
-                      <View className="flex-row items-center justify-between">
-                        <Text
-                          className="text-base font-rubik-bold"
-                          style={{ color: theme.title }}
-                        >
-                          {tenant.name}
-                        </Text>
-                        {tenant.isIdVerified && (
-                          <View className="bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
-                            <Text className="text-[10px] text-green-700 dark:text-green-400 font-rubik-bold">
-                              ✅ Verified
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      
-                      <View className="flex-row items-center mt-1">
-                        <Image
-                          source={icons.mail}
-                          className="w-3 h-3 mr-1"
-                          style={{ tintColor: theme.muted }}
-                        />
-                        <Text
-                          className="text-xs"
-                          style={{ color: theme.muted }}
-                          numberOfLines={1}
-                        >
-                          {tenant.email}
-                        </Text>
-                      </View>
-                      
-                      {tenant.phone && (
-                        <View className="flex-row items-center mt-0.5">
+
+            {loadingTenants ? (
+              <View className="py-4 items-center">
+                <ActivityIndicator size="small" color={theme.primary[300]} />
+                <Text className="text-sm mt-2" style={{ color: theme.muted }}>
+                  Loading tenants...
+                </Text>
+              </View>
+            ) : tenantsForProperty.length > 0 ? (
+              <View>
+                {tenantsForProperty.map((tenant, index) => (
+                  <TouchableOpacity
+                    key={tenant.userId}
+                    onPress={() => handleTenantPress(tenant)}
+                    className="p-4 rounded-xl mb-3"
+                    style={{
+                      backgroundColor: theme.surface,
+                      borderWidth: 1,
+                      borderColor: theme.muted + "30",
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 1 },
+                      shadowOpacity: 0.05,
+                      shadowRadius: 2,
+                      elevation: 1,
+                    }}
+                  >
+                    <View className="flex-row items-center">
+                      <Image
+                        source={
+                          tenant.avatar
+                            ? tenant.avatar.startsWith("http")
+                              ? { uri: tenant.avatar }
+                              : getAvatarSource(tenant.avatar)
+                            : icons.person
+                        }
+                        className="w-12 h-12 rounded-full mr-3"
+                        style={{
+                          borderWidth: 1,
+                          borderColor: theme.muted + "30",
+                        }}
+                      />
+                      <View className="flex-1">
+                        <View className="flex-row items-center justify-between">
+                          <Text
+                            className="text-base font-rubik-bold"
+                            style={{ color: theme.title }}
+                          >
+                            {tenant.name}
+                          </Text>
+                          {tenant.isIdVerified && (
+                            <View className="bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+                              <Text className="text-[10px] text-green-700 dark:text-green-400 font-rubik-bold">
+                                ✅ Verified
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+
+                        <View className="flex-row items-center mt-1">
                           <Image
-                            source={icons.phone}
+                            source={icons.mail}
                             className="w-3 h-3 mr-1"
                             style={{ tintColor: theme.muted }}
                           />
@@ -2333,396 +2392,428 @@ const renderLandlordView = () => {
                             style={{ color: theme.muted }}
                             numberOfLines={1}
                           >
-                            {tenant.phone}
+                            {tenant.email}
                           </Text>
                         </View>
-                      )}
+
+                        {tenant.phone && (
+                          <View className="flex-row items-center mt-0.5">
+                            <Image
+                              source={icons.phone}
+                              className="w-3 h-3 mr-1"
+                              style={{ tintColor: theme.muted }}
+                            />
+                            <Text
+                              className="text-xs"
+                              style={{ color: theme.muted }}
+                              numberOfLines={1}
+                            >
+                              {tenant.phone}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     </View>
-                  </View>
 
-                  {/* Score Badge */}
-                  <View
-                    className="mt-3 pt-3 border-t flex-row items-center justify-between"
-                    style={{ borderTopColor: theme.muted + "20" }}
-                  >
-                    <View className="flex-row items-center">
-                      <Text className="text-xs" style={{ color: theme.muted }}>
-                        Tenant Score:
-                      </Text>
-                      <Text
-                        className="text-sm font-rubik-bold ml-1"
-                        style={{ color: getScoreColor(tenant.tenantScore || 0) }}
-                      >
-                        {Math.round(tenant.tenantScore || 0)}
-                      </Text>
-                      <Text className="text-xs" style={{ color: theme.muted }}>
-                        /100
-                      </Text>
-                      <Text
-                        className="text-xs ml-2 px-2 py-0.5 rounded-full"
-                        style={{
-                          backgroundColor: getScoreColor(tenant.tenantScore || 0) + "20",
-                          color: getScoreColor(tenant.tenantScore || 0),
-                        }}
-                      >
-                        {getScoreLabel(tenant.tenantScore || 0)}
-                      </Text>
+                    {/* Score Badge */}
+                    <View
+                      className="mt-3 pt-3 border-t flex-row items-center justify-between"
+                      style={{ borderTopColor: theme.muted + "20" }}
+                    >
+                      <View className="flex-row items-center">
+                        <Text
+                          className="text-xs"
+                          style={{ color: theme.muted }}
+                        >
+                          Tenant Score:
+                        </Text>
+                        <Text
+                          className="text-sm font-rubik-bold ml-1"
+                          style={{
+                            color: getScoreColor(tenant.tenantScore || 0),
+                          }}
+                        >
+                          {Math.round(tenant.tenantScore || 0)}
+                        </Text>
+                        <Text
+                          className="text-xs"
+                          style={{ color: theme.muted }}
+                        >
+                          /100
+                        </Text>
+                        <Text
+                          className="text-xs ml-2 px-2 py-0.5 rounded-full"
+                          style={{
+                            backgroundColor:
+                              getScoreColor(tenant.tenantScore || 0) + "20",
+                            color: getScoreColor(tenant.tenantScore || 0),
+                          }}
+                        >
+                          {getScoreLabel(tenant.tenantScore || 0)}
+                        </Text>
+                      </View>
+                      <View className="flex-row items-center">
+                        <Text
+                          className="text-xs font-rubik-medium mr-1"
+                          style={{ color: theme.primary[300] }}
+                        >
+                          Tap for details
+                        </Text>
+                        <Ionicons
+                          name="chevron-forward"
+                          size={14}
+                          color={theme.primary[300]}
+                        />
+                      </View>
                     </View>
-                    <View className="flex-row items-center">
-                      <Text
-                        className="text-xs font-rubik-medium mr-1"
-                        style={{ color: theme.primary[300] }}
-                      >
-                        Tap for details
-                      </Text>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={14}
-                        color={theme.primary[300]}
-                      />
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                ))}
 
-              {/* Tenant count summary */}
-              <View
-                className="p-3 rounded-xl mt-2"
-                style={{
-                  backgroundColor: theme.primary[100],
-                  borderWidth: 1,
-                  borderColor: theme.primary[300] + "30",
-                }}
-              >
-                <Text className="text-sm font-rubik-medium" style={{ color: theme.primary[300] }}>
-                  {tenantsForProperty.length} tenant{tenantsForProperty.length > 1 ? 's' : ''} currently renting this property
-                </Text>
-              </View>
-            </View>
-          ) : (
-            <View
-              className="p-6 rounded-xl items-center"
-              style={{
-                backgroundColor: theme.surface,
-                borderWidth: 1,
-                borderColor: theme.muted + "20",
-                borderStyle: "dashed",
-              }}
-            >
-              <Image
-                source={icons.person}
-                className="w-12 h-12 opacity-30 mb-2"
-                style={{ tintColor: theme.muted }}
-              />
-              <Text
-                className="text-base font-rubik-medium"
-                style={{ color: theme.muted }}
-              >
-                No tenants yet
-              </Text>
-              <Text
-                className="text-sm text-center mt-1"
-                style={{ color: theme.muted + "80" }}
-              >
-                Tenants will appear here once they are accepted and move in
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Reviews */}
-        <View className="mt-7">
-          <Text
-            className="text-black-300 text-xl font-rubik-bold mb-3"
-            style={{ color: theme.text }}
-          >
-            Reviews ({reviews.length})
-          </Text>
-
-          <View className="mt-1">
-            {reviews.length > 0 ? (
-              reviews.map((rev, index) => (
+                {/* Tenant count summary */}
                 <View
-                  key={rev.id}
-                  className={`p-4 rounded-xl mb-3`}
+                  className="p-3 rounded-xl mt-2"
                   style={{
-                    backgroundColor:
-                      index % 2 === 0 ? theme.surface : theme.surface,
+                    backgroundColor: theme.primary[100],
                     borderWidth: 1,
-                    borderColor: theme.muted + "30",
+                    borderColor: theme.primary[300] + "30",
                   }}
                 >
-                  <View className="flex-row items-center mb-2">
-                    <Image
-                      source={
-                        rev.userAvatar ? { uri: rev.userAvatar } : icons.person
-                      }
-                      className="w-8 h-8 rounded-full mr-3"
-                      style={{
-                        borderWidth: 1,
-                        borderColor: theme.muted + "30",
-                      }}
-                    />
-                    <View className="flex-1">
-                      <View className="flex-row justify-between items-center">
-                        <Text
-                          className="font-rubik-bold text-base"
-                          style={{ color: theme.title }}
-                        >
-                          {rev.userName}
-                        </Text>
-                        <View
-                          className="flex-row items-center px-2 py-1 rounded-full"
-                          style={{
-                            backgroundColor: theme.surface,
-                            borderWidth: 1,
-                            borderColor: theme.muted + "30",
-                          }}
-                        >
-                          <Text
-                            className="font-rubik-bold mr-1 text-sm"
-                            style={{ color: theme.text }}
-                          >
-                            {rev.rating}
-                          </Text>
-                          <Image source={icons.star} className="size-3.5" />
-                        </View>
-                      </View>
-                      <Text
-                        className="text-xs"
-                        style={{ color: theme.muted }}
-                      >
-                        {new Date(rev.date).toLocaleDateString()}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View className="ml-2">
-                    <Text
-                      className="text-base leading-5"
-                      style={{ color: theme.text }}
-                    >
-                      {rev.review}
-                    </Text>
-                  </View>
+                  <Text
+                    className="text-sm font-rubik-medium"
+                    style={{ color: theme.primary[300] }}
+                  >
+                    {tenantsForProperty.length} tenant
+                    {tenantsForProperty.length > 1 ? "s" : ""} currently renting
+                    this property
+                  </Text>
                 </View>
-              ))
+              </View>
             ) : (
-              <Text className="text-gray-500 text-center font-rubik-medium">
-                No reviews yet from Viewers
-              </Text>
+              <View
+                className="p-6 rounded-xl items-center"
+                style={{
+                  backgroundColor: theme.surface,
+                  borderWidth: 1,
+                  borderColor: theme.muted + "20",
+                  borderStyle: "dashed",
+                }}
+              >
+                <Image
+                  source={icons.person}
+                  className="w-12 h-12 opacity-30 mb-2"
+                  style={{ tintColor: theme.muted }}
+                />
+                <Text
+                  className="text-base font-rubik-medium"
+                  style={{ color: theme.muted }}
+                >
+                  No tenants yet
+                </Text>
+                <Text
+                  className="text-sm text-center mt-1"
+                  style={{ color: theme.muted + "80" }}
+                >
+                  Tenants will appear here once they are accepted and move in
+                </Text>
+              </View>
             )}
           </View>
-        </View>
 
-        <View className="mt-7">
-          <Text
-            className="text-black-300 text-xl font-rubik-bold"
-            style={{ color: theme.text }}
-          >
-            Facilities
-          </Text>
-
-          {facilityList.length > 0 ? (
-            <View className="mt-2">
-              <View className="flex-row flex-wrap -mx-1">
-                {facilityList.map((item, index) => {
-                  const facility = facilities.find(
-                    (f) => f.title === item,
-                  ) as
-                    | { title: string; icon: any; color?: string }
-                    | undefined;
-                  const colors = [
-                    "#3B82F6",
-                    "#10B981",
-                    "#F59E0B",
-                    "#EF4444",
-                    "#8B5CF6",
-                    "#EC4899",
-                  ];
-                  const iconColor =
-                    facility?.color || colors[index % colors.length];
-
-                  return (
-                    <View key={index} className="w-1/3 px-1 mb-3">
-                      <View
-                        className="rounded-xl p-3 items-center"
-                        style={{
-                          backgroundColor: theme.surface,
-                          borderWidth: 1,
-                          borderColor: theme.muted + "30",
-                          shadowColor: "#000",
-                          shadowOffset: { width: 0, height: 1 },
-                          shadowOpacity: 0.05,
-                          shadowRadius: 2,
-                          elevation: 1,
-                        }}
-                      >
-                        <View
-                          className="size-14 rounded-full flex items-center justify-center"
-                          style={{
-                            backgroundColor: iconColor + "20",
-                          }}
-                        >
-                          <Image
-                            source={facility ? facility.icon : icons.info}
-                            className="size-6"
-                            style={{ tintColor: iconColor }}
-                          />
-                        </View>
-                        <Text
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                          className="text-sm text-center font-rubik mt-1.5"
-                          style={{ color: theme.text }}
-                        >
-                          {item}
-                        </Text>
-                      </View>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          ) : (
-            <Text
-              className="text-base font-rubik mt-2"
-              style={{ color: theme.muted }}
-            >
-              No facilities listed
-            </Text>
-          )}
-        </View>
-
-        {propertyImages.length > 1 && (
+          {/* Reviews */}
           <View className="mt-7">
             <Text
               className="text-black-300 text-xl font-rubik-bold mb-3"
               style={{ color: theme.text }}
             >
-              All Photos
+              Reviews ({reviews.length})
             </Text>
-            <FlatList
-              data={propertyImages}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(_, index) => index.toString()}
-              renderItem={({ item, index }) => (
-                <TouchableOpacity
-                  onPress={() => {
-                    setCurrentImageIndex(index);
-                    openImageViewer(index);
-                  }}
-                  activeOpacity={0.8}
-                  className="mr-3"
-                >
-                  <Image
-                    source={{ uri: item }}
-                    className="w-24 h-24 rounded-xl"
-                  />
-                  {index === currentImageIndex && (
-                    <View className="absolute inset-0 bg-primary-300/30 rounded-xl border-2 border-primary-300" />
-                  )}
-                  <TouchableOpacity
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleDownloadImage(item, index);
+
+            <View className="mt-1">
+              {reviews.length > 0 ? (
+                reviews.map((rev, index) => (
+                  <View
+                    key={rev.id}
+                    className={`p-4 rounded-xl mb-3`}
+                    style={{
+                      backgroundColor:
+                        index % 2 === 0 ? theme.surface : theme.surface,
+                      borderWidth: 1,
+                      borderColor: theme.muted + "30",
                     }}
-                    disabled={downloadingMedia === item}
-                    className="absolute top-1 right-1 bg-black/60 rounded-full p-1"
                   >
-                    {downloadingMedia === item ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
+                    <View className="flex-row items-center mb-2">
                       <Image
-                        source={icons.download}
-                        className="w-3 h-3"
-                        style={{ tintColor: "#FFFFFF" }}
+                        source={
+                          rev.userAvatar
+                            ? { uri: rev.userAvatar }
+                            : icons.person
+                        }
+                        className="w-8 h-8 rounded-full mr-3"
+                        style={{
+                          borderWidth: 1,
+                          borderColor: theme.muted + "30",
+                        }}
                       />
-                    )}
-                  </TouchableOpacity>
-                </TouchableOpacity>
+                      <View className="flex-1">
+                        <View className="flex-row justify-between items-center">
+                          <Text
+                            className="font-rubik-bold text-base"
+                            style={{ color: theme.title }}
+                          >
+                            {rev.userName}
+                          </Text>
+                          <View
+                            className="flex-row items-center px-2 py-1 rounded-full"
+                            style={{
+                              backgroundColor: theme.surface,
+                              borderWidth: 1,
+                              borderColor: theme.muted + "30",
+                            }}
+                          >
+                            <Text
+                              className="font-rubik-bold mr-1 text-sm"
+                              style={{ color: theme.text }}
+                            >
+                              {rev.rating}
+                            </Text>
+                            <Image source={icons.star} className="size-3.5" />
+                          </View>
+                        </View>
+                        <Text
+                          className="text-xs"
+                          style={{ color: theme.muted }}
+                        >
+                          {new Date(rev.date).toLocaleDateString()}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View className="ml-2">
+                      <Text
+                        className="text-base leading-5"
+                        style={{ color: theme.text }}
+                      >
+                        {rev.review}
+                      </Text>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <Text className="text-gray-500 text-center font-rubik-medium">
+                  No reviews yet from Viewers
+                </Text>
               )}
-            />
+            </View>
           </View>
-        )}
 
-        {/* ✅ LOCATION WITH INLINE MAP */}
-<View className="mt-7">
-  <Text
-    className="text-black-300 text-xl font-rubik-bold"
-    style={{ color: theme.text }}
-  >
-    Location
-  </Text>
-  
-  {/* Address Display */}
-  <View className="flex flex-row items-center mt-4 gap-2">
-    <Image source={icons.location} className="w-7 h-7" />
-    <Text
-      className="text-black-200 text-sm font-rubik-medium flex-1"
-      style={{ color: theme.text }}
-    >
-      {property.address || "Address not available"}
-    </Text>
-  </View>
-
-  {/* ✅ Inline Map Preview */}
-  {property.latitude && property.longitude ? (
-    <View className="mt-3">
-      <PropertyMapCard
-        latitude={property.latitude}
-        longitude={property.longitude}
-        propertyName={property.propertyName}
-        address={property.address}
-        propertyImage={property.image1}
-        propertyPrice={property.price}
-        propertyType={property.type}
-        bedrooms={property.bedrooms}
-        bathrooms={property.bathrooms}
-        isInline={true}
-      />
-    </View>
-  ) : (
-    <View
-      className="mt-3 p-6 rounded-xl items-center"
-      style={{
-        backgroundColor: theme.surface,
-        borderWidth: 1,
-        borderColor: theme.muted + "20",
-        borderStyle: "dashed",
-      }}
-    >
-      <Ionicons name="map-outline" size={32} color={theme.muted} />
-      <Text
-        className="text-sm font-rubik-medium mt-2"
-        style={{ color: theme.muted }}
-      >
-        No location data available
-      </Text>
-    </View>
-  )}
-</View>
-
-        {isLandlordOwner && (
-          <View className="mt-7 mb-10">
-            <TouchableOpacity
-              onPress={handleDeleteProperty}
-              disabled={deleting}
-              className={`py-4 rounded-full border border-red-600 shadow-md ${
-                deleting ? "bg-red-300" : "bg-red-500"
-              }`}
+          <View className="mt-7">
+            <Text
+              className="text-black-300 text-xl font-rubik-bold"
+              style={{ color: theme.text }}
             >
-              <Text className="text-white text-center text-lg font-rubik-bold">
-                {deleting ? "Deleting..." : "Delete Property"}
+              Facilities
+            </Text>
+
+            {facilityList.length > 0 ? (
+              <View className="mt-2">
+                <View className="flex-row flex-wrap -mx-1">
+                  {facilityList.map((item, index) => {
+                    const facility = facilities.find(
+                      (f) => f.title === item,
+                    ) as
+                      | { title: string; icon: any; color?: string }
+                      | undefined;
+                    const colors = [
+                      "#3B82F6",
+                      "#10B981",
+                      "#F59E0B",
+                      "#EF4444",
+                      "#8B5CF6",
+                      "#EC4899",
+                    ];
+                    const iconColor =
+                      facility?.color || colors[index % colors.length];
+
+                    return (
+                      <View key={index} className="w-1/3 px-1 mb-3">
+                        <View
+                          className="rounded-xl p-3 items-center"
+                          style={{
+                            backgroundColor: theme.surface,
+                            borderWidth: 1,
+                            borderColor: theme.muted + "30",
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.05,
+                            shadowRadius: 2,
+                            elevation: 1,
+                          }}
+                        >
+                          <View
+                            className="size-14 rounded-full flex items-center justify-center"
+                            style={{
+                              backgroundColor: iconColor + "20",
+                            }}
+                          >
+                            <Image
+                              source={facility ? facility.icon : icons.info}
+                              className="size-6"
+                              style={{ tintColor: iconColor }}
+                            />
+                          </View>
+                          <Text
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                            className="text-sm text-center font-rubik mt-1.5"
+                            style={{ color: theme.text }}
+                          >
+                            {item}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            ) : (
+              <Text
+                className="text-base font-rubik mt-2"
+                style={{ color: theme.muted }}
+              >
+                No facilities listed
               </Text>
-            </TouchableOpacity>
+            )}
           </View>
-        )}
-      </View>
-    </>
-  );
-};
+
+          {propertyImages.length > 1 && (
+            <View className="mt-7">
+              <Text
+                className="text-black-300 text-xl font-rubik-bold mb-3"
+                style={{ color: theme.text }}
+              >
+                All Photos
+              </Text>
+              <FlatList
+                data={propertyImages}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(_, index) => index.toString()}
+                renderItem={({ item, index }) => (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setCurrentImageIndex(index);
+                      openImageViewer(index);
+                    }}
+                    activeOpacity={0.8}
+                    className="mr-3"
+                  >
+                    <Image
+                      source={{ uri: item }}
+                      className="w-24 h-24 rounded-xl"
+                    />
+                    {index === currentImageIndex && (
+                      <View className="absolute inset-0 bg-primary-300/30 rounded-xl border-2 border-primary-300" />
+                    )}
+                    <TouchableOpacity
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDownloadImage(item, index);
+                      }}
+                      disabled={downloadingMedia === item}
+                      className="absolute top-1 right-1 bg-black/60 rounded-full p-1"
+                    >
+                      {downloadingMedia === item ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Image
+                          source={icons.download}
+                          className="w-3 h-3"
+                          style={{ tintColor: "#FFFFFF" }}
+                        />
+                      )}
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          )}
+
+          {/* ✅ LOCATION WITH INLINE MAP */}
+          <View className="mt-7">
+            <Text
+              className="text-black-300 text-xl font-rubik-bold"
+              style={{ color: theme.text }}
+            >
+              Location
+            </Text>
+
+            {/* Address Display */}
+            <View className="flex flex-row items-center mt-4 gap-2">
+              <Image source={icons.location} className="w-7 h-7" />
+              <Text
+                className="text-black-200 text-sm font-rubik-medium flex-1"
+                style={{ color: theme.text }}
+              >
+                {property.address || "Address not available"}
+              </Text>
+            </View>
+
+            {/* ✅ Inline Map Preview */}
+            {property.latitude && property.longitude ? (
+              <View className="mt-3">
+                <PropertyMapCard
+                  latitude={property.latitude}
+                  longitude={property.longitude}
+                  propertyName={property.propertyName}
+                  address={property.address}
+                  propertyImage={property.image1}
+                  propertyPrice={property.price}
+                  propertyType={property.type}
+                  bedrooms={property.bedrooms}
+                  bathrooms={property.bathrooms}
+                  isInline={true}
+                />
+              </View>
+            ) : (
+              <View
+                className="mt-3 p-6 rounded-xl items-center"
+                style={{
+                  backgroundColor: theme.surface,
+                  borderWidth: 1,
+                  borderColor: theme.muted + "20",
+                  borderStyle: "dashed",
+                }}
+              >
+                <Ionicons name="map-outline" size={32} color={theme.muted} />
+                <Text
+                  className="text-sm font-rubik-medium mt-2"
+                  style={{ color: theme.muted }}
+                >
+                  No location data available
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {isLandlordOwner && (
+            <View className="mt-7 mb-10">
+              <TouchableOpacity
+                onPress={handleDeleteProperty}
+                disabled={deleting}
+                className={`py-4 rounded-full border border-red-600 shadow-md ${
+                  deleting ? "bg-red-300" : "bg-red-500"
+                }`}
+              >
+                <Text className="text-white text-center text-lg font-rubik-bold">
+                  {deleting ? "Deleting..." : "Delete Property"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </>
+    );
+  };
 
   // ============================================================================
   // EDIT MODAL RENDER
@@ -2777,9 +2868,7 @@ const renderLandlordView = () => {
               keyExtractor={(item) => item.title}
               numColumns={2}
               renderItem={({ item }) => {
-                const isSelected = editSelectedFacilities.includes(
-                  item.title,
-                );
+                const isSelected = editSelectedFacilities.includes(item.title);
                 return (
                   <TouchableOpacity
                     onPress={() => toggleEditFacility(item.title)}
@@ -2962,9 +3051,7 @@ const renderLandlordView = () => {
                   </Text>
                   <TextInput
                     value={editForm.bedrooms}
-                    onChangeText={(text) =>
-                      handleEditChange("bedrooms", text)
-                    }
+                    onChangeText={(text) => handleEditChange("bedrooms", text)}
                     keyboardType="numeric"
                     className="border px-4 py-3 rounded-lg"
                     style={{
@@ -2985,9 +3072,7 @@ const renderLandlordView = () => {
                   </Text>
                   <TextInput
                     value={editForm.bathrooms}
-                    onChangeText={(text) =>
-                      handleEditChange("bathrooms", text)
-                    }
+                    onChangeText={(text) => handleEditChange("bathrooms", text)}
                     keyboardType="numeric"
                     className="border px-4 py-3 rounded-lg"
                     style={{
@@ -3081,9 +3166,7 @@ const renderLandlordView = () => {
                 </Text>
                 <TextInput
                   value={editForm.description}
-                  onChangeText={(text) =>
-                    handleEditChange("description", text)
-                  }
+                  onChangeText={(text) => handleEditChange("description", text)}
                   className="border px-4 py-3 rounded-lg h-24"
                   style={{
                     backgroundColor: theme.surface,
@@ -3109,9 +3192,7 @@ const renderLandlordView = () => {
                 <TouchableOpacity
                   onPress={toggleAvailability}
                   className={`flex-row items-center justify-between p-4 rounded-xl border ${
-                    editForm.isAvailable
-                      ? "border-green-300"
-                      : "border-red-300"
+                    editForm.isAvailable ? "border-green-300" : "border-red-300"
                   }`}
                   style={{
                     backgroundColor: editForm.isAvailable
@@ -3144,10 +3225,7 @@ const renderLandlordView = () => {
                           ? "Available for Rent"
                           : "Not Available"}
                       </Text>
-                      <Text
-                        className="text-xs"
-                        style={{ color: theme.muted }}
-                      >
+                      <Text className="text-xs" style={{ color: theme.muted }}>
                         {editForm.isAvailable
                           ? "Property is visible to tenants"
                           : "Property is hidden from search"}
@@ -3232,7 +3310,11 @@ const renderLandlordView = () => {
         <TouchableOpacity
           onPress={() => {
             router.replace(
-              user?.userMode === "landlord" ? "/landHome" : "/tenantHome",
+              user?.userMode === "landlord"
+                ? "/landHome"
+                : user?.userMode === "student"
+                  ? "/s-tenantHome"
+                  : "/tenantHome",
             );
           }}
           className="bg-primary-300 px-8 py-3 rounded-full"
@@ -3243,16 +3325,14 @@ const renderLandlordView = () => {
     );
   }
 
-  const isTenant = user?.userMode === "tenant";
+  const isTenant = user?.userMode === "tenant" || user?.userMode === "student";
   const isLandlord = user?.userMode === "landlord";
 
   return (
     <View className="flex-1" style={{ backgroundColor: theme.navBackground }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={
-          Platform.OS === "ios" ? (isTenant ? 90 : 0) : 0
-        }
+        keyboardVerticalOffset={Platform.OS === "ios" ? (isTenant ? 90 : 0) : 0}
         style={{ flex: 1 }}
       >
         <ScrollView
@@ -3375,7 +3455,6 @@ const renderLandlordView = () => {
         phone={landlordContact?.phone}
         avatar={landlordContact?.avatar}
       />
-
     </View>
   );
 };

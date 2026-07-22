@@ -28,7 +28,7 @@ export interface User {
   $id: string;
   accountId: string;
   name: string;
-  userMode: "tenant" | "landlord";
+  userMode: "tenant" | "landlord" | "student";
   email: string;
   phone: string;
   avatar?: string;
@@ -37,7 +37,7 @@ export interface User {
 
 export interface SignUpData {
   name: string;
-  userMode: "tenant" | "landlord";
+  userMode: "tenant" | "landlord" | "student";
   email: string;
   phone: string;
   password: string;

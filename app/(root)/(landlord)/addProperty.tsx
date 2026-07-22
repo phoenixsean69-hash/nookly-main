@@ -1,5 +1,7 @@
 // app/screens/AddListing.tsx
-import LocationPickerMap, { PickedLocation } from "@/components/LocationPickerMap";
+import LocationPickerMap, {
+  PickedLocation,
+} from "@/components/LocationPickerMap";
 import { Colors } from "@/constants/Colors";
 import { categories, facilities } from "@/constants/data";
 import icons from "@/constants/icons";
@@ -34,7 +36,10 @@ const AddPropertyScreen = () => {
 
   const [loadingUser, setLoadingUser] = useState(true);
   const [mapPickerVisible, setMapPickerVisible] = useState(false);
-  const [coords, setCoords] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [coords, setCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
   // Custom Facilities State
   const [customFacilities, setCustomFacilities] = useState<string[]>([]);
@@ -60,13 +65,13 @@ const AddPropertyScreen = () => {
       latitude: location.latitude,
       longitude: location.longitude,
     });
-    
+
     // ✅ Auto-fill address fields from the map data
     if (location.houseNumber) setHouseNumber(location.houseNumber);
     if (location.streetName) setStreetName(location.streetName);
     if (location.neighbourhood) setNeighbourhood(location.neighbourhood);
     if (location.cityTown) setCityTown(location.cityTown);
-    
+
     setMapPickerVisible(false);
   };
 
@@ -123,7 +128,10 @@ const AddPropertyScreen = () => {
 
   // Get all facilities (predefined + custom)
   const getAllFacilities = () => {
-    return [...facilities, ...customFacilities.map(f => ({ title: f, icon: icons.star }))];
+    return [
+      ...facilities,
+      ...customFacilities.map((f) => ({ title: f, icon: icons.star })),
+    ];
   };
 
   // Add custom facility
@@ -135,9 +143,10 @@ const AddPropertyScreen = () => {
     }
 
     // Check if facility already exists in predefined or custom list
-    const exists = facilities.some(f => f.title.toLowerCase() === trimmed.toLowerCase()) ||
-                   customFacilities.some(f => f.toLowerCase() === trimmed.toLowerCase());
-    
+    const exists =
+      facilities.some((f) => f.title.toLowerCase() === trimmed.toLowerCase()) ||
+      customFacilities.some((f) => f.toLowerCase() === trimmed.toLowerCase());
+
     if (exists) {
       Alert.alert("Error", "This facility already exists");
       return;
@@ -151,8 +160,10 @@ const AddPropertyScreen = () => {
 
   // Remove custom facility
   const removeCustomFacility = (facilityToRemove: string) => {
-    setCustomFacilities(customFacilities.filter(f => f !== facilityToRemove));
-    setSelectedFacilities(selectedFacilities.filter(f => f !== facilityToRemove));
+    setCustomFacilities(customFacilities.filter((f) => f !== facilityToRemove));
+    setSelectedFacilities(
+      selectedFacilities.filter((f) => f !== facilityToRemove),
+    );
   };
 
   // Image picker
@@ -211,17 +222,24 @@ const AddPropertyScreen = () => {
         "This device could not verify the selected video's duration. Please record a new video or choose another file.",
       );
     }
-    if (accepted.length > 0) setVideos((prev) => [...prev, ...accepted].slice(0, 3));
+    if (accepted.length > 0)
+      setVideos((prev) => [...prev, ...accepted].slice(0, 3));
   };
 
   const pickVideo = async () => {
     if (videos.length >= 3) {
-      Alert.alert("Limit reached", "You can only add up to 3 verification videos.");
+      Alert.alert(
+        "Limit reached",
+        "You can only add up to 3 verification videos.",
+      );
       return;
     }
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("Permission required", "Allow photo library access to choose a verification video.");
+      Alert.alert(
+        "Permission required",
+        "Allow photo library access to choose a verification video.",
+      );
       return;
     }
     try {
@@ -233,18 +251,27 @@ const AddPropertyScreen = () => {
       if (!result.canceled) addPickedVideos(result.assets);
     } catch (error) {
       console.error("Failed to choose verification video:", error);
-      Alert.alert("Unable to choose video", "Please try another video or record one with the camera.");
+      Alert.alert(
+        "Unable to choose video",
+        "Please try another video or record one with the camera.",
+      );
     }
   };
 
   const recordVideo = async () => {
     if (videos.length >= 3) {
-      Alert.alert("Limit reached", "You can only add up to 3 verification videos.");
+      Alert.alert(
+        "Limit reached",
+        "You can only add up to 3 verification videos.",
+      );
       return;
     }
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert("Permission required", "Allow camera and microphone access to record a verification video.");
+      Alert.alert(
+        "Permission required",
+        "Allow camera and microphone access to record a verification video.",
+      );
       return;
     }
     try {
@@ -256,7 +283,10 @@ const AddPropertyScreen = () => {
       if (!result.canceled) addPickedVideos(result.assets);
     } catch (error) {
       console.error("Failed to record verification video:", error);
-      Alert.alert("Unable to record video", "Check camera permissions and try again.");
+      Alert.alert(
+        "Unable to record video",
+        "Check camera permissions and try again.",
+      );
     }
   };
 
@@ -829,9 +859,13 @@ const AddPropertyScreen = () => {
                     onPress={() => toggleFacility(item.title)}
                     className="m-1 px-3 py-2 rounded-full flex-row items-center gap-1"
                     style={{
-                      backgroundColor: isSelected ? theme.primary[300] : theme.surface,
+                      backgroundColor: isSelected
+                        ? theme.primary[300]
+                        : theme.surface,
                       borderWidth: 1,
-                      borderColor: isSelected ? theme.primary[300] : theme.muted + "40",
+                      borderColor: isSelected
+                        ? theme.primary[300]
+                        : theme.muted + "40",
                     }}
                   >
                     <Image
@@ -866,7 +900,9 @@ const AddPropertyScreen = () => {
                   Custom Facilities
                 </Text>
                 <TouchableOpacity
-                  onPress={() => setShowCustomFacilityInput(!showCustomFacilityInput)}
+                  onPress={() =>
+                    setShowCustomFacilityInput(!showCustomFacilityInput)
+                  }
                   className="flex-row items-center"
                 >
                   <Ionicons
@@ -906,7 +942,9 @@ const AddPropertyScreen = () => {
                     className="px-4 py-2 rounded-lg"
                     style={{ backgroundColor: theme.primary[300] }}
                   >
-                    <Text className="text-white font-rubik-bold text-sm">Add</Text>
+                    <Text className="text-white font-rubik-bold text-sm">
+                      Add
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -931,14 +969,18 @@ const AddPropertyScreen = () => {
                                 style: "destructive",
                                 onPress: () => removeCustomFacility(facility),
                               },
-                            ]
+                            ],
                           );
                         }}
                         className="m-1 px-3 py-2 rounded-full flex-row items-center gap-1"
                         style={{
-                          backgroundColor: isSelected ? theme.primary[300] : theme.surface,
+                          backgroundColor: isSelected
+                            ? theme.primary[300]
+                            : theme.surface,
                           borderWidth: 1,
-                          borderColor: isSelected ? theme.primary[300] : theme.muted + "40",
+                          borderColor: isSelected
+                            ? theme.primary[300]
+                            : theme.muted + "40",
                         }}
                       >
                         <Ionicons
@@ -1274,32 +1316,36 @@ const AddPropertyScreen = () => {
               <TouchableOpacity
                 onPress={() => setMapPickerVisible(true)}
                 className="p-4 rounded-xl border flex-row items-center justify-center relative"
-                style={{ 
-                  borderColor: coords ? theme.primary[300] : theme.muted + '40',
+                style={{
+                  borderColor: coords ? theme.primary[300] : theme.muted + "40",
                   backgroundColor: coords ? theme.primary[100] : theme.surface,
                 }}
               >
-                <Ionicons 
-                  name={coords ? "location" : "map-outline"} 
-                  size={20} 
-                  color={coords ? theme.primary[300] : theme.muted} 
+                <Ionicons
+                  name={coords ? "location" : "map-outline"}
+                  size={20}
+                  color={coords ? theme.primary[300] : theme.muted}
                 />
-                <Text 
+                <Text
                   className="font-rubik-medium ml-2"
                   style={{ color: coords ? theme.primary[300] : theme.text }}
                 >
-                  {coords 
-                    ? `📍 Location pinned (${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)})` 
+                  {coords
+                    ? `📍 Location pinned (${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)})`
                     : "Pick location on map"}
                 </Text>
-                
+
                 {/* ✅ Clear Location Button */}
                 {coords && (
                   <TouchableOpacity
                     onPress={clearLocation}
                     className="absolute right-3 p-1"
                   >
-                    <Ionicons name="close-circle" size={22} color={theme.danger} />
+                    <Ionicons
+                      name="close-circle"
+                      size={22}
+                      color={theme.danger}
+                    />
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
@@ -1800,7 +1846,9 @@ const AddPropertyScreen = () => {
                                 className="font-rubik-bold text-base"
                                 style={{
                                   color:
-                                    curfewAmPm === "AM" ? "#FFFFFF" : theme.text,
+                                    curfewAmPm === "AM"
+                                      ? "#FFFFFF"
+                                      : theme.text,
                                 }}
                               >
                                 AM
@@ -1826,7 +1874,9 @@ const AddPropertyScreen = () => {
                                 className="font-rubik-bold text-base"
                                 style={{
                                   color:
-                                    curfewAmPm === "PM" ? "#FFFFFF" : theme.text,
+                                    curfewAmPm === "PM"
+                                      ? "#FFFFFF"
+                                      : theme.text,
                                 }}
                               >
                                 PM
@@ -2062,17 +2112,30 @@ const AddPropertyScreen = () => {
               }}
             >
               <View className="flex-row items-center justify-between mb-1">
-                <Text className="text-base font-rubik-bold flex-1" style={{ color: theme.text }}>
+                <Text
+                  className="text-base font-rubik-bold flex-1"
+                  style={{ color: theme.text }}
+                >
                   Add videos for property verification
                 </Text>
-                <View className="px-2 py-1 rounded-full" style={{ backgroundColor: theme.primary[100] }}>
-                  <Text className="text-xs font-rubik-bold" style={{ color: theme.primary[300] }}>
+                <View
+                  className="px-2 py-1 rounded-full"
+                  style={{ backgroundColor: theme.primary[100] }}
+                >
+                  <Text
+                    className="text-xs font-rubik-bold"
+                    style={{ color: theme.primary[300] }}
+                  >
                     {videos.length}/3
                   </Text>
                 </View>
               </View>
-              <Text className="text-sm font-rubik mb-4" style={{ color: theme.muted }}>
-                Add videos that verify the pictures you uploaded. Exactly 2 or 3 videos are required, and each must be 90 seconds or shorter.
+              <Text
+                className="text-sm font-rubik mb-4"
+                style={{ color: theme.muted }}
+              >
+                Add videos that verify the pictures you uploaded. Exactly 2 or 3
+                videos are required, and each must be 90 seconds or shorter.
               </Text>
 
               {videos.length < 3 && (
@@ -2083,17 +2146,36 @@ const AddPropertyScreen = () => {
                     className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
                     style={{ backgroundColor: theme.primary[300] }}
                   >
-                    <Ionicons name="videocam-outline" size={20} color="#FFFFFF" />
-                    <Text className="text-white font-rubik-bold ml-2">Record video</Text>
+                    <Ionicons
+                      name="videocam-outline"
+                      size={20}
+                      color="#FFFFFF"
+                    />
+                    <Text className="text-white font-rubik-bold ml-2">
+                      Record video
+                    </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={pickVideo}
                     disabled={loading}
                     className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
-                    style={{ backgroundColor: theme.navBackground, borderWidth: 1, borderColor: theme.primary[300] }}
+                    style={{
+                      backgroundColor: theme.navBackground,
+                      borderWidth: 1,
+                      borderColor: theme.primary[300],
+                    }}
                   >
-                    <Ionicons name="folder-open-outline" size={20} color={theme.primary[300]} />
-                    <Text className="font-rubik-bold ml-2" style={{ color: theme.primary[300] }}>Choose video</Text>
+                    <Ionicons
+                      name="folder-open-outline"
+                      size={20}
+                      color={theme.primary[300]}
+                    />
+                    <Text
+                      className="font-rubik-bold ml-2"
+                      style={{ color: theme.primary[300] }}
+                    >
+                      Choose video
+                    </Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -2104,14 +2186,28 @@ const AddPropertyScreen = () => {
                   className="flex-row items-center p-3 rounded-xl mb-2"
                   style={{ backgroundColor: theme.navBackground }}
                 >
-                  <View className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: theme.primary[100] }}>
-                    <Ionicons name="play" size={18} color={theme.primary[300]} />
+                  <View
+                    className="w-10 h-10 rounded-full items-center justify-center"
+                    style={{ backgroundColor: theme.primary[100] }}
+                  >
+                    <Ionicons
+                      name="play"
+                      size={18}
+                      color={theme.primary[300]}
+                    />
                   </View>
                   <View className="flex-1 ml-3">
-                    <Text numberOfLines={1} className="font-rubik-medium" style={{ color: theme.text }}>
+                    <Text
+                      numberOfLines={1}
+                      className="font-rubik-medium"
+                      style={{ color: theme.text }}
+                    >
                       {video.fileName || `Verification video ${index + 1}`}
                     </Text>
-                    <Text className="text-xs mt-1" style={{ color: theme.muted }}>
+                    <Text
+                      className="text-xs mt-1"
+                      style={{ color: theme.muted }}
+                    >
                       {formatVideoDuration(video.duration)} · Video {index + 1}
                     </Text>
                   </View>
@@ -2121,14 +2217,22 @@ const AddPropertyScreen = () => {
                     accessibilityLabel={`Remove verification video ${index + 1}`}
                     className="p-2"
                   >
-                    <Ionicons name="trash-outline" size={20} color={theme.danger} />
+                    <Ionicons
+                      name="trash-outline"
+                      size={20}
+                      color={theme.danger}
+                    />
                   </TouchableOpacity>
                 </View>
               ))}
 
               {videos.length < 2 && (
-                <Text className="text-xs font-rubik-medium mt-1" style={{ color: theme.danger }}>
-                  Add {2 - videos.length} more video{2 - videos.length === 1 ? "" : "s"} to continue.
+                <Text
+                  className="text-xs font-rubik-medium mt-1"
+                  style={{ color: theme.danger }}
+                >
+                  Add {2 - videos.length} more video
+                  {2 - videos.length === 1 ? "" : "s"} to continue.
                 </Text>
               )}
             </View>
@@ -2175,7 +2279,7 @@ const AddPropertyScreen = () => {
       {renderCurfewModal()}
       {renderSuccessModal()}
       {renderErrorModal()}
-      
+
       {/* Location Picker Map Modal */}
       <LocationPickerMap
         visible={mapPickerVisible}

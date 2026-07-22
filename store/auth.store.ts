@@ -1,9 +1,9 @@
 // store/auth.store.ts
 import {
-    account,
-    config,
-    databases,
-    getDefaultAvatarUrl,
+  account,
+  config,
+  databases,
+  getDefaultAvatarUrl,
 } from "@/lib/appwrite";
 import { getData, removeData, storeData } from "@/lib/cache";
 import notificationService from "@/services/notification.service";
@@ -34,7 +34,7 @@ interface User {
   $id: string;
   accountId: string;
   name: string;
-  userMode: "tenant" | "landlord";
+  userMode: "tenant" | "landlord" | "student";
   email: string;
   phone: string;
   avatar?: string;
@@ -94,7 +94,7 @@ interface AuthState {
 
 interface SignUpData {
   name: string;
-  userMode: "tenant" | "landlord";
+  userMode: "tenant" | "landlord" | "student";
   email: string;
   phone: string;
   password: string;
@@ -175,7 +175,9 @@ const useAuthStore = create<AuthState>((set, get) => ({
    */
   loadOrganizationFromStorage: async (): Promise<Organization | null> => {
     try {
-      const orgData = await AsyncStorage.getItem(STORAGE_KEYS.ORGANIZATION_DATA);
+      const orgData = await AsyncStorage.getItem(
+        STORAGE_KEYS.ORGANIZATION_DATA,
+      );
       if (orgData) {
         const organization = JSON.parse(orgData) as Organization;
         console.log("✅ Organization data loaded from AsyncStorage");
@@ -197,7 +199,10 @@ const useAuthStore = create<AuthState>((set, get) => ({
       await AsyncStorage.removeItem(STORAGE_KEYS.ORGANIZATION_DATA);
       console.log("✅ Organization data removed from AsyncStorage");
     } catch (error) {
-      console.error("❌ Failed to remove organization from AsyncStorage:", error);
+      console.error(
+        "❌ Failed to remove organization from AsyncStorage:",
+        error,
+      );
     }
   },
 
@@ -313,7 +318,10 @@ const useAuthStore = create<AuthState>((set, get) => ({
       );
 
       // Create updated organization object
-      const updatedOrganization = { ...organization, ...updates } as Organization;
+      const updatedOrganization = {
+        ...organization,
+        ...updates,
+      } as Organization;
 
       // Update state and persist
       await get().setOrganization(updatedOrganization);
@@ -346,7 +354,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       if (!storedUser) {
         const cachedUser = await getData("user");
         const cachedOrg = await getData("organization");
-        
+
         if (cachedUser) {
           console.log("📦 Using cached user as fallback");
           // Migrate cache to AsyncStorage
@@ -481,12 +489,22 @@ const useAuthStore = create<AuthState>((set, get) => ({
       } catch {
         // No session, clear everything
         await get().clearCache();
-        set({ user: null, organization: null, isAuthenticated: false, isLoading: false });
+        set({
+          user: null,
+          organization: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
         return;
       }
 
       if (!session) {
-        set({ user: null, organization: null, isAuthenticated: false, isLoading: false });
+        set({
+          user: null,
+          organization: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
         return;
       }
 
@@ -513,7 +531,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
               [Query.equal("userId", userDoc.accountId)],
             );
             if (orgDocs.documents.length > 0) {
-              organization = orgDocs.documents[0] as  unknown as Organization;
+              organization = orgDocs.documents[0] as unknown as Organization;
               // Save organization to cache
               await get().saveOrganizationToStorage(organization);
               await storeData("organization", organization);
@@ -543,12 +561,20 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
         console.log("✅ Fresh user data fetched and stored");
         if (organization) {
-          console.log("✅ Organization data fetched and stored:", organization.name);
+          console.log(
+            "✅ Organization data fetched and stored:",
+            organization.name,
+          );
         }
       } else {
         // No user document found
         await get().clearCache();
-        set({ user: null, organization: null, isAuthenticated: false, isLoading: false });
+        set({
+          user: null,
+          organization: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
       }
     } catch (error) {
       console.log("⚠️ Failed to fetch user (offline?)");
@@ -608,12 +634,15 @@ const useAuthStore = create<AuthState>((set, get) => ({
               [Query.equal("userId", user.accountId)],
             );
             if (orgDocs.documents.length > 0) {
-              organization = orgDocs.documents[0] as  unknown as Organization;
+              organization = orgDocs.documents[0] as unknown as Organization;
               await get().saveOrganizationToStorage(organization);
               await storeData("organization", organization);
             }
           } catch (orgError) {
-            console.error("Error fetching organization during sign in:", orgError);
+            console.error(
+              "Error fetching organization during sign in:",
+              orgError,
+            );
           }
         }
 

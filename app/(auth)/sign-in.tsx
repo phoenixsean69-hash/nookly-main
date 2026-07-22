@@ -93,6 +93,8 @@ const SignIn = () => {
         router.replace("/tenantHome");
       } else if (user.userMode === "landlord") {
         router.replace("/landHome");
+      } else if (user.userMode === "student") {
+        router.replace("/s-tenantHome");
       }
     }
   }, [user]);

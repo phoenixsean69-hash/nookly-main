@@ -26,7 +26,7 @@ import {
 
 interface FormData {
   name: string;
-  userMode: "tenant" | "landlord" | "";
+  userMode: "tenant" | "landlord" | "student" | "";
   email: string;
   phone: string;
   password: string;
@@ -137,6 +137,8 @@ const SignUp = () => {
         router.replace("/tenantHome");
       } else if (user.userMode === "landlord") {
         router.replace("/landHome");
+      } else if (user.userMode === "student") {
+        router.replace("/s-tenantHome");
       }
     }
   }, [user, isAuthenticated, router]);
@@ -193,7 +195,7 @@ const SignUp = () => {
     if (!formData.userMode) {
       errors.push({
         field: "userMode",
-        message: "Please select whether you're a tenant or landlord",
+        message: "Please select whether you're a tenant, student, or landlord",
       });
     }
 
@@ -290,7 +292,7 @@ const SignUp = () => {
         email: formData.email,
         password: formData.password,
         phone: formData.phone,
-        userMode: formData.userMode as "tenant" | "landlord",
+        userMode: formData.userMode as "tenant" | "landlord" | "student",
         avatar: uploadedAvatarUrl,
       });
 
@@ -569,6 +571,7 @@ const SignUp = () => {
                   >
                     Select Your User Mode
                   </Text>
+
                   <View
                     className="flex-row justify-between rounded-2xl p-1.5"
                     style={{
@@ -577,46 +580,35 @@ const SignUp = () => {
                       borderColor: "#EF4444",
                     }}
                   >
-                    <TouchableOpacity
-                      onPress={() => {
-                        setFormData({ ...formData, userMode: "tenant" });
-                        if (getFieldError("userMode")) clearError("userMode");
-                      }}
-                      className={`flex-1 py-3 rounded-xl items-center ${
-                        formData.userMode === "tenant" ? "bg-blue-600" : ""
-                      }`}
-                    >
-                      <Text
-                        className={`font-semibold ${
-                          formData.userMode === "tenant"
-                            ? "text-white"
-                            : "text-gray-700"
-                        }`}
-                      >
-                        Tenant
-                      </Text>
-                    </TouchableOpacity>
+                    {(["tenant", "student", "landlord"] as const).map(
+                      (mode) => {
+                        const isSelected = formData.userMode === mode;
 
-                    <TouchableOpacity
-                      onPress={() => {
-                        setFormData({ ...formData, userMode: "landlord" });
-                        if (getFieldError("userMode")) clearError("userMode");
-                      }}
-                      className={`flex-1 py-3 rounded-xl items-center ${
-                        formData.userMode === "landlord" ? "bg-blue-600" : ""
-                      }`}
-                    >
-                      <Text
-                        className={`font-semibold ${
-                          formData.userMode === "landlord"
-                            ? "text-white"
-                            : "text-gray-700"
-                        }`}
-                      >
-                        Landlord
-                      </Text>
-                    </TouchableOpacity>
+                        return (
+                          <TouchableOpacity
+                            key={mode}
+                            onPress={() => {
+                              setFormData({ ...formData, userMode: mode });
+                              if (getFieldError("userMode"))
+                                clearError("userMode");
+                            }}
+                            className={`flex-1 py-3 px-1 rounded-xl items-center ${
+                              isSelected ? "bg-blue-600" : ""
+                            }`}
+                          >
+                            <Text
+                              className={`font-semibold text-xs ${
+                                isSelected ? "text-white" : "text-gray-700"
+                              }`}
+                            >
+                              {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      },
+                    )}
                   </View>
+
                   {getFieldError("userMode") && (
                     <Text className="text-red-500 text-xs mt-1 font-rubik">
                       {getFieldError("userMode")}

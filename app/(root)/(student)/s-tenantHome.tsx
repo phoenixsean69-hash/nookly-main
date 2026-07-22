@@ -345,7 +345,7 @@ const Home = () => {
         <View className="absolute inset-0 flex-row items-center justify-between px-6 pt-2">
           <View className="flex-row items-center">
             {!loadingAvatar ? (
-              <TouchableOpacity onPress={() => router.push("/profile")}>
+              <TouchableOpacity onPress={() => router.push("/s-profile")}>
                 <Image
                   source={user?.avatar ? { uri: user.avatar } : icons.person}
                   className="w-14 h-14 rounded-full border-2 border-white"
@@ -366,7 +366,7 @@ const Home = () => {
             </View>
           </View>
           <TouchableOpacity
-            onPress={() => router.push("/notifications")}
+            onPress={() => router.push("/s-notifications")}
             className="bg-white/20 p-2.5 rounded-full"
           >
             <Image

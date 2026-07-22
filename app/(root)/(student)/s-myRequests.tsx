@@ -1541,7 +1541,7 @@ export default function TenantRequests() {
             When you request to rent a property, it&apos;ll appear here
           </Text>
           <TouchableOpacity
-            onPress={() => router.push("/explore")}
+            onPress={() => router.push("/s-explore")}
             className="mt-6 px-8 py-3 rounded-full"
             style={{ backgroundColor: theme.primary[300] }}
           >

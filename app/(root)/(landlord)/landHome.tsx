@@ -61,7 +61,7 @@ export default function LandLordHome() {
 
   const params = useLocalSearchParams<{ filter?: string; refresh?: string }>();
   const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme?? "light"];
+  const theme = Colors[colorScheme ?? "light"];
 
   const { loadNotifications, fetchAppwriteUnreadCount, totalUnreadCount } =
     useNotificationStore();
@@ -110,10 +110,10 @@ export default function LandLordHome() {
             creatorId: user.accountId,
           }),
         ])
-         .then(() => {
+          .then(() => {
             console.log("✅ Properties refreshed successfully");
           })
-         .catch((error) => {
+          .catch((error) => {
             console.error("❌ Error refreshing properties:", error);
           });
 
@@ -166,14 +166,14 @@ export default function LandLordHome() {
       limit: 20,
       creatorId: user?.accountId,
     },
-    skip:!user?.accountId,
+    skip: !user?.accountId,
   });
 
   // Refetch when filter changes
   const filterRef = useRef(params.filter);
 
   useEffect(() => {
-    if (filterRef.current!== params.filter && user?.accountId) {
+    if (filterRef.current !== params.filter && user?.accountId) {
       filterRef.current = params.filter;
       refetchMyProperties({
         filter: params.filter || "",
@@ -225,7 +225,7 @@ export default function LandLordHome() {
   const totalViews =
     myProperties?.reduce((sum, p) => sum + (p.views || 0), 0) || 0;
 
-  const isLoading = loadingMyProperties &&!myProperties;
+  const isLoading = loadingMyProperties && !myProperties;
 
   // Fetch best properties with stale check
   const fetchBestProperties = async (force = false) => {
@@ -282,13 +282,13 @@ export default function LandLordHome() {
         {/* User info overlay */}
         <View className="absolute inset-0 flex-row items-center justify-between px-6 pt-2">
           <View className="flex-row items-center flex-1 mr-2">
-            {!loadingAvatar? (
+            {!loadingAvatar ? (
               <TouchableOpacity
                 onPress={() => router.push("/landProfile")}
                 className="shadow-lg"
               >
                 <Image
-                  source={user?.avatar? { uri: user.avatar } : icons.person}
+                  source={user?.avatar ? { uri: user.avatar } : icons.person}
                   className="w-14 h-14 rounded-full border-2 border-white"
                 />
               </TouchableOpacity>
@@ -311,7 +311,7 @@ export default function LandLordHome() {
                 ellipsizeMode="tail"
               >
                 {user?.name?.length > 20
-                 ? `${user.name.substring(0, 18)}...`
+                  ? `${user.name.substring(0, 18)}...`
                   : user?.name || "Landlord"}
               </Text>
             </View>
@@ -329,7 +329,7 @@ export default function LandLordHome() {
             {totalUnreadCount > 0 && (
               <View className="absolute -top-1 -right-1 bg-red-500 rounded-full min-w-[18px] h-[18px] px-1 items-center justify-center">
                 <Text className="text-white text-xs font-bold">
-                  {totalUnreadCount > 99? "99+" : totalUnreadCount}
+                  {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
                 </Text>
               </View>
             )}
@@ -487,12 +487,9 @@ export default function LandLordHome() {
 
               {loadingFeatured && featuredProperties.length === 0 ? (
                 <View className="h-48 items-center justify-center">
-                  <ActivityIndicator
-                    size="large"
-                    color={theme.primary[300]}
-                  />
+                  <ActivityIndicator size="large" color={theme.primary[300]} />
                 </View>
-              ) : featuredProperties.length === 0? (
+              ) : featuredProperties.length === 0 ? (
                 <View
                   className="h-48 items-center justify-center rounded-2xl"
                   style={{ backgroundColor: theme.surface }}
@@ -552,11 +549,11 @@ export default function LandLordHome() {
           </View>
         )}
         ListEmptyComponent={
-          isLoading? (
+          isLoading ? (
             <View className="items-center justify-center py-10">
               <ActivityIndicator size="large" color={theme.title} />
             </View>
-          ) : myProperties?.length === 0? (
+          ) : myProperties?.length === 0 ? (
             <View className="items-center justify-center py-16 px-5">
               <Image
                 source={icons.house}

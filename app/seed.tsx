@@ -9,7 +9,7 @@ export default function Index() {
   useEffect(() => {
     if (!user) return;
 
-    if (user.userMode === "tenant") {
+    if (user.userMode === "tenant" || user.userMode === "student") {
       router.replace("/tenantHome");
     } else if (user.userMode === "landlord") {
       router.replace("/landHome");

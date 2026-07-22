@@ -19,7 +19,7 @@ import {
   TextInput,
   TouchableOpacity,
   useColorScheme,
-  View
+  View,
 } from "react-native";
 import { Query } from "react-native-appwrite";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -340,8 +340,8 @@ export default function LandlordDashboard() {
 
       setOperationSuccessConfig({
         title: "Success",
-        message: hasPriceChanged 
-          ? `Price updated from $${oldPrice} to $${newPrice}!` 
+        message: hasPriceChanged
+          ? `Price updated from $${oldPrice} to $${newPrice}!`
           : "Property updated successfully!",
       });
       setOperationSuccessVisible(true);
@@ -770,7 +770,7 @@ export default function LandlordDashboard() {
         <View className="mx-6 mt-4 mb-2">
           <View
             className="p-5 rounded-2xl"
-            style={{ backgroundColor: theme.surface}}
+            style={{ backgroundColor: theme.surface }}
           >
             <Text
               className="text-lg font-rubik-bold"
@@ -1155,7 +1155,7 @@ export default function LandlordDashboard() {
 
       {/* Edit Modal */}
       {renderEditModal()}
-      
+
       {/* Operation Success Modal */}
       <OperationSuccesfull
         visible={operationSuccessVisible}
@@ -1165,7 +1165,7 @@ export default function LandlordDashboard() {
         title={operationSuccessConfig.title}
         message={operationSuccessConfig.message}
       />
-      
+
       {/* Error Modal */}
       <ErrorModal
         visible={errorModalVisible}

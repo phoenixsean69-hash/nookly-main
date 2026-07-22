@@ -1,8 +1,10 @@
 // app/(root)/settings.tsx
 import { Colors } from "@/constants/Colors";
 import icons from "@/constants/icons";
+import { logout } from "@/lib/appwrite";
+
 import useAuthStore from "@/store/auth.store";
-import { useNotificationStore } from "@/store/notification.store";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -11,7 +13,6 @@ import {
   Alert,
   Image,
   ScrollView,
-  Switch,
   Text,
   TouchableOpacity,
   useColorScheme,
@@ -30,12 +31,9 @@ interface SettingItem {
 
 export default function SettingsScreen() {
   const { user } = useAuthStore();
-  const { notifications, unreadCount, loadNotifications, clearAll } =
-    useNotificationStore();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
   const [loading, setLoading] = useState(false);
-  const [pushEnabled, setPushEnabled] = useState(true);
   const [emailEnabled, setEmailEnabled] = useState(true);
 
   const [clearDataLoading, setClearDataLoading] = useState(false);
@@ -47,10 +45,7 @@ export default function SettingsScreen() {
 
   const loadSettings = async () => {
     try {
-      const push = await AsyncStorage.getItem("push_notifications");
       const email = await AsyncStorage.getItem("email_notifications");
-
-      if (push !== null) setPushEnabled(push === "true");
       if (email !== null) setEmailEnabled(email === "true");
     } catch (error) {
       console.error("Error loading settings:", error);
@@ -63,16 +58,6 @@ export default function SettingsScreen() {
     } catch (error) {
       console.error(`Error saving ${key}:`, error);
     }
-  };
-
-  const handlePushToggle = async (value: boolean) => {
-    setPushEnabled(value);
-    await saveSetting("push_notifications", value);
-    // Here you would also update your push notification service
-    Alert.alert(
-      "Notifications",
-      value ? "Push notifications enabled" : "Push notifications disabled",
-    );
   };
 
   const handleEmailToggle = async (value: boolean) => {
@@ -92,11 +77,6 @@ export default function SettingsScreen() {
           onPress: async () => {
             setClearDataLoading(true);
             try {
-              // Clear notifications
-              if (user?.accountId) {
-                await clearAll(user.accountId);
-              }
-
               // Clear cached properties
               await AsyncStorage.multiRemove([
                 "cached_latest_properties",
@@ -126,6 +106,28 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleLogout = async () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          setLoading(true);
+          try {
+            await logout();
+            router.replace("/(auth)/sign-in");
+          } catch (error) {
+            console.error("Logout error:", error);
+            Alert.alert("Error", "Failed to logout. Please try again.");
+          } finally {
+            setLoading(false);
+          }
+        },
+      },
+    ]);
+  };
+
   const handleExportData = async () => {
     Alert.alert(
       "Export Data",
@@ -139,10 +141,8 @@ export default function SettingsScreen() {
               const userData = {
                 user: user,
                 preferences: {
-                  pushNotifications: pushEnabled,
                   emailNotifications: emailEnabled,
                 },
-                notificationsCount: notifications.length,
                 exportDate: new Date().toISOString(),
               };
 
@@ -178,64 +178,15 @@ export default function SettingsScreen() {
             if (user?.userMode === "landlord") {
               router.push("/landProfile");
             } else {
-              router.push("/profile");
+              router.push("/s-profile");
             }
           },
         },
         {
           icon: icons.mail,
-          title: "Edit my info.",
+          title: "Email Address",
           subtitle: user?.email || "Not set",
-          onPress: () => router.push("/myDetailsEdit"),
-        },
-      ] as SettingItem[],
-    },
-    {
-      title: "Notifications",
-      items: [
-        {
-          icon: icons.bell,
-          title: "Push Notifications",
-          subtitle: "Receive real-time updates",
-          onPress: () => {},
-          rightElement: (
-            <Switch
-              value={pushEnabled}
-              onValueChange={handlePushToggle}
-              trackColor={{ false: "#767577", true: theme.primary[300] }}
-            />
-          ),
-        },
-        {
-          icon: icons.mail,
-          title: "Email Notifications",
-          subtitle: "Get email updates",
-          onPress: () => {},
-          rightElement: (
-            <Switch
-              value={emailEnabled}
-              onValueChange={handleEmailToggle}
-              trackColor={{ false: "#767577", true: theme.primary[300] }}
-            />
-          ),
-        },
-        {
-          icon: icons.eye,
-          title: "View All Notifications",
-          subtitle: `${unreadCount} unread`,
-          onPress: () => router.push("/landNotifications"),
-        },
-      ] as SettingItem[],
-    },
-
-    {
-      title: "Privacy & Security",
-      items: [
-        {
-          icon: icons.eye,
-          title: "Privacy Policy",
-          subtitle: "Read our privacy policy",
-          onPress: () => router.push("/landAbout"),
+          onPress: () => router.push("/s-detailsEdit"),
         },
       ] as SettingItem[],
     },
@@ -264,13 +215,13 @@ export default function SettingsScreen() {
           icon: icons.chat,
           title: "Help & Support",
           subtitle: "Get help with the app",
-          onPress: () => router.push("/landHelp"),
+          onPress: () => router.push("/s-help"),
         },
         {
           icon: icons.info,
           title: "About",
           subtitle: "App information and credits",
-          onPress: () => router.push("/landAbout"),
+          onPress: () => router.push("/s-about"),
         },
         {
           icon: icons.star,
@@ -315,7 +266,9 @@ export default function SettingsScreen() {
       >
         <TouchableOpacity
           onPress={() => {
-            router.back();
+            router.replace(
+              user?.userMode === "landlord" ? "/landHome" : "/s-tenantHome",
+            );
           }}
           className="mr-4 p-2"
         >
@@ -463,7 +416,15 @@ export default function SettingsScreen() {
           </View>
         ))}
 
+        {/* Logout Button */}
         <View className="px-5 mt-4 mb-8">
+          <TouchableOpacity
+            onPress={handleLogout}
+            className="py-4 rounded-2xl items-center"
+            style={{ backgroundColor: theme.danger + "15" }}
+          >
+            <Text className="text-red-500 font-rubik-bold text-lg">Logout</Text>
+          </TouchableOpacity>
           <Text
             className="text-center text-xs mt-4"
             style={{ color: theme.muted }}

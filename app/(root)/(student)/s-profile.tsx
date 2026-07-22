@@ -272,31 +272,31 @@ const Profile = () => {
     {
       icon: icons.heart,
       label: "My Favorites",
-      route: "/my-favorites",
+      route: "/s-my-favorites",
       color: "#EF4444",
     },
     {
       icon: icons.chat,
       label: "Nookly Assistant",
-      route: "/message",
+      route: "/s-message",
       color: "#10B981",
     },
     {
       icon: icons.calendar,
       label: "Calendar",
-      route: "/calendar",
+      route: "/s-calendar",
       color: "#F59E0B",
     },
     {
       icon: icons.settings,
       label: "Settings",
-      route: "/settings",
+      route: "/s-settings",
       color: "#6B7280",
     },
     {
       icon: icons.info,
       label: "Help Center",
-      route: "/help",
+      route: "/s-help",
       color: "#6B7280",
     },
   ];
@@ -332,7 +332,7 @@ const Profile = () => {
             My Profile
           </Text>
           <TouchableOpacity
-            onPress={() => router.push("/notifications")}
+            onPress={() => router.push("/s-notifications")}
             className="p-2 rounded-full"
             style={{ backgroundColor: theme.surface }}
           >

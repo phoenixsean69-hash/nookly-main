@@ -61,7 +61,7 @@ interface RentalRequest {
   leaseDuration?: string;
   questions?: string[];
   property?: any;
-  rejectionReason?: string; 
+  rejectionReason?: string;
   // Lease document fields
   leaseDocumentId?: string;
   leaseDocumentUrl?: string;
@@ -70,7 +70,7 @@ interface RentalRequest {
 }
 
 export default function LandlordRequests() {
-  const { user} = useAuthStore();
+  const { user } = useAuthStore();
   const [requests, setRequests] = useState<RentalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -164,13 +164,14 @@ export default function LandlordRequests() {
               const profile = tenantProfileDocs.documents[0];
               tenantScore = profile.tenantScore || 0;
               tenantIsIdVerified = profile.isIdVerified || false;
-              
+
               // ✅ Parse score breakdown if available
               if (profile.scoreBreakdown) {
                 try {
-                  tenantScoreBreakdown = typeof profile.scoreBreakdown === 'string'
-                    ? JSON.parse(profile.scoreBreakdown)
-                    : profile.scoreBreakdown;
+                  tenantScoreBreakdown =
+                    typeof profile.scoreBreakdown === "string"
+                      ? JSON.parse(profile.scoreBreakdown)
+                      : profile.scoreBreakdown;
                 } catch (e) {
                   tenantScoreBreakdown = null;
                 }
@@ -290,352 +291,384 @@ export default function LandlordRequests() {
     setRejectModalVisible(true);
   };
 
-// Helper function to safely parse JSON arrays
-const parseArrayField = (value: any): any[] => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return [];
-  }
-};
+  // Helper function to safely parse JSON arrays
+  const parseArrayField = (value: any): any[] => {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  };
 
-// Helper to get score color
-const getScoreColor = (score: number) => {
-  if (score >= 90) return "#10B981";
-  if (score >= 75) return "#3B82F6";
-  if (score >= 60) return "#F59E0B";
-  return "#EF4444";
-};
+  // Helper to get score color
+  const getScoreColor = (score: number) => {
+    if (score >= 90) return "#10B981";
+    if (score >= 75) return "#3B82F6";
+    if (score >= 60) return "#F59E0B";
+    return "#EF4444";
+  };
 
-// Helper to get score label
-const getScoreLabel = (score: number) => {
-  if (score >= 90) return "Excellent";
-  if (score >= 75) return "Good";
-  if (score >= 60) return "Average";
-  return "Needs Work";
-};
-
-// Handle acceptance
-const handleRequestAction = async (
-  requestId: string,
-  action: "accepted" | "rejected",
-) => {
-  if (action === "rejected") {
-    openRejectModal(requestId);
-    return;
-  }
+  // Helper to get score label
+  const getScoreLabel = (score: number) => {
+    if (score >= 90) return "Excellent";
+    if (score >= 75) return "Good";
+    if (score >= 60) return "Average";
+    return "Needs Work";
+  };
 
   // Handle acceptance
-  setProcessingId(requestId);
+  const handleRequestAction = async (
+    requestId: string,
+    action: "accepted" | "rejected",
+  ) => {
+    if (action === "rejected") {
+      openRejectModal(requestId);
+      return;
+    }
 
-  try {
-    // Update request status
-    await databases.updateDocument(
-      config.databaseId!,
-      config.requestsCollectionId!,
-      requestId,
-      { status: "accepted" },
-    );
+    // Handle acceptance
+    setProcessingId(requestId);
 
-    const request = requests.find((r) => r.$id === requestId);
+    try {
+      // Update request status
+      await databases.updateDocument(
+        config.databaseId!,
+        config.requestsCollectionId!,
+        requestId,
+        { status: "accepted" },
+      );
 
-    if (request) {
-      // ✅ UPDATE TENANT PROFILE FOR ACCEPTANCE
-      let idVerified = false;
-      
-      try {
-        const tenantProfileDocs = await databases.listDocuments(
-          config.databaseId!,
-          config.tenantProfilesCollectionId!,
-          [Query.equal("userId", request.tenantId)],
-        );
+      const request = requests.find((r) => r.$id === requestId);
 
-        if (tenantProfileDocs.documents.length > 0) {
-          const profile = tenantProfileDocs.documents[0];
-          
-          const currentAccepts = profile.accepts || 0;
-          
-          // ✅ Parse array fields from JSON strings
-          const currentPropertiesRented = parseArrayField(profile.propertiesRented);
-          const currentPreviousLandlords = parseArrayField(profile.previousLandlords);
-          
-          const currentTenantScore = profile.tenantScore || 0;
-          const currentTotalPayments = profile.totalPayments || 0;
-          const currentOnTimePayments = profile.onTimePayments || 0;
-          const currentIsIdVerified = profile.isIdVerified || false;
-          
-          // ✅ Get landlord's name from the authenticated user
-          const landlordName = user?.name || "Landlord";
-          
-          // ✅ Calculate new score
-          const newScore = Math.min(currentTenantScore + 5, 100);
-          
-          // ✅ Check if score > 80 to auto-verify ID
-          const shouldVerifyId = newScore > 80 && !currentIsIdVerified;
-          
-          // ✅ Prepare update data
-          const updateData: any = {
-            accepts: currentAccepts + 1,
-            propertiesRented: JSON.stringify([...currentPropertiesRented, request.propertyName]),
-            previousLandlords: JSON.stringify([...currentPreviousLandlords, landlordName]),
-            tenantScore: newScore,
-            totalPayments: currentTotalPayments + 1,
-            onTimePayments: currentOnTimePayments + 1,
-            paymentReliability: ((currentOnTimePayments + 1) / (currentTotalPayments + 1)) * 100,
-            // ✅ SET CURRENT PROPERTY TO THE PROPERTY ID
-            currentProperty: request.propertyId, // This is the property ID
-          };
-          
-          // ✅ Auto-verify ID if score > 80
-          if (shouldVerifyId) {
-            updateData.isIdVerified = true;
-            idVerified = true;
-          }
-          
-          await databases.updateDocument(
+      if (request) {
+        // ✅ UPDATE TENANT PROFILE FOR ACCEPTANCE
+        let idVerified = false;
+
+        try {
+          const tenantProfileDocs = await databases.listDocuments(
             config.databaseId!,
             config.tenantProfilesCollectionId!,
-            profile.$id,
-            updateData,
+            [Query.equal("userId", request.tenantId)],
           );
-          
-          console.log("✅ Tenant profile updated for acceptance");
-          console.log(`✅ Landlord "${landlordName}" added to previousLandlords`);
-          console.log(`✅ Property "${request.propertyName}" added to propertiesRented`);
-          console.log(`✅ Current property set to: "${request.propertyName}"`);
-          console.log(`✅ New tenant score: ${newScore}`);
-          
-          if (idVerified) {
-            console.log("✅ ID VERIFIED! Tenant score exceeded 80, auto-verified!");
+
+          if (tenantProfileDocs.documents.length > 0) {
+            const profile = tenantProfileDocs.documents[0];
+
+            const currentAccepts = profile.accepts || 0;
+
+            // ✅ Parse array fields from JSON strings
+            const currentPropertiesRented = parseArrayField(
+              profile.propertiesRented,
+            );
+            const currentPreviousLandlords = parseArrayField(
+              profile.previousLandlords,
+            );
+
+            const currentTenantScore = profile.tenantScore || 0;
+            const currentTotalPayments = profile.totalPayments || 0;
+            const currentOnTimePayments = profile.onTimePayments || 0;
+            const currentIsIdVerified = profile.isIdVerified || false;
+
+            // ✅ Get landlord's name from the authenticated user
+            const landlordName = user?.name || "Landlord";
+
+            // ✅ Calculate new score
+            const newScore = Math.min(currentTenantScore + 5, 100);
+
+            // ✅ Check if score > 80 to auto-verify ID
+            const shouldVerifyId = newScore > 80 && !currentIsIdVerified;
+
+            // ✅ Prepare update data
+            const updateData: any = {
+              accepts: currentAccepts + 1,
+              propertiesRented: JSON.stringify([
+                ...currentPropertiesRented,
+                request.propertyName,
+              ]),
+              previousLandlords: JSON.stringify([
+                ...currentPreviousLandlords,
+                landlordName,
+              ]),
+              tenantScore: newScore,
+              totalPayments: currentTotalPayments + 1,
+              onTimePayments: currentOnTimePayments + 1,
+              paymentReliability:
+                ((currentOnTimePayments + 1) / (currentTotalPayments + 1)) *
+                100,
+              // ✅ SET CURRENT PROPERTY TO THE PROPERTY ID
+              currentProperty: request.propertyId, // This is the property ID
+            };
+
+            // ✅ Auto-verify ID if score > 80
+            if (shouldVerifyId) {
+              updateData.isIdVerified = true;
+              idVerified = true;
+            }
+
+            await databases.updateDocument(
+              config.databaseId!,
+              config.tenantProfilesCollectionId!,
+              profile.$id,
+              updateData,
+            );
+
+            console.log("✅ Tenant profile updated for acceptance");
+            console.log(
+              `✅ Landlord "${landlordName}" added to previousLandlords`,
+            );
+            console.log(
+              `✅ Property "${request.propertyName}" added to propertiesRented`,
+            );
+            console.log(
+              `✅ Current property set to: "${request.propertyName}"`,
+            );
+            console.log(`✅ New tenant score: ${newScore}`);
+
+            if (idVerified) {
+              console.log(
+                "✅ ID VERIFIED! Tenant score exceeded 80, auto-verified!",
+              );
+            }
+          }
+        } catch (profileError) {
+          console.error("Error updating tenant profile:", profileError);
+        }
+
+        // ✅ Send ID verification notification if ID was just verified
+        if (idVerified) {
+          await createNotification(
+            request.tenantId,
+            "🎉 ID Verified!",
+            "Congratulations! Your tenant score has exceeded 80, and your ID has been automatically verified. This will help you get approved faster for future rentals!",
+            "system",
+            {
+              type: "id_verification",
+              score: 80,
+            },
+          );
+
+          try {
+            await notificationService.sendIdVerificationNotification(
+              request.tenantId,
+              "ID Verified!",
+              "Your ID has been automatically verified!",
+            );
+          } catch (pushError) {
+            console.error("Failed to send push notification:", pushError);
           }
         }
-      } catch (profileError) {
-        console.error("Error updating tenant profile:", profileError);
-      }
 
-      // ✅ Send ID verification notification if ID was just verified
-      if (idVerified) {
+        // Create notification for accepted request
+        const notificationMessage = `Your request for "${request.propertyName}" has been accepted! ${request.proposedPrice && request.proposedPrice !== request.originalPrice ? `Your negotiated price of $${request.proposedPrice}/month has been approved. ` : ""}The landlord will contact you soon.`;
+
         await createNotification(
           request.tenantId,
-          "🎉 ID Verified!",
-          "Congratulations! Your tenant score has exceeded 80, and your ID has been automatically verified. This will help you get approved faster for future rentals!",
-          "system",
+          "Rental Request Accepted!",
+          notificationMessage,
+          "request",
           {
-            type: "id_verification",
-            score: 80,
+            propertyId: request.propertyId,
+            propertyName: request.propertyName,
+            status: "accepted",
+            proposedPrice: request.proposedPrice,
           },
         );
-        
+
         try {
-          await notificationService.sendIdVerificationNotification(
+          await notificationService.sendRequestResponseNotification(
             request.tenantId,
-            "ID Verified!",
-            "Your ID has been automatically verified!",
+            request.propertyName,
+            "accepted",
           );
         } catch (pushError) {
           console.error("Failed to send push notification:", pushError);
         }
+
+        setRequests((prev) => prev.filter((r) => r.$id !== requestId));
+        Alert.alert("Success", "Request accepted successfully!");
       }
-
-      // Create notification for accepted request
-      const notificationMessage = `Your request for "${request.propertyName}" has been accepted! ${request.proposedPrice && request.proposedPrice !== request.originalPrice ? `Your negotiated price of $${request.proposedPrice}/month has been approved. ` : ""}The landlord will contact you soon.`;
-
-      await createNotification(
-        request.tenantId,
-        "Rental Request Accepted!",
-        notificationMessage,
-        "request",
-        {
-          propertyId: request.propertyId,
-          propertyName: request.propertyName,
-          status: "accepted",
-          proposedPrice: request.proposedPrice,
-        },
-      );
-
-      try {
-        await notificationService.sendRequestResponseNotification(
-          request.tenantId,
-          request.propertyName,
-          "accepted",
-        );
-      } catch (pushError) {
-        console.error("Failed to send push notification:", pushError);
-      }
-
-      setRequests((prev) => prev.filter((r) => r.$id !== requestId));
-      Alert.alert("Success", "Request accepted successfully!");
+    } catch (error) {
+      console.error("Error updating request:", error);
+      Alert.alert("Error", "Failed to update request status");
+    } finally {
+      setProcessingId(null);
     }
-  } catch (error) {
-    console.error("Error updating request:", error);
-    Alert.alert("Error", "Failed to update request status");
-  } finally {
-    setProcessingId(null);
-  }
-};
+  };
 
-// Handle rejection with reason
-const handleRejectWithReason = async () => {
-  if (!rejectRequestId) return;
+  // Handle rejection with reason
+  const handleRejectWithReason = async () => {
+    if (!rejectRequestId) return;
 
-  if (!rejectionReason.trim()) {
-    Alert.alert("Error", "Please provide a reason for rejection");
-    return;
-  }
+    if (!rejectionReason.trim()) {
+      Alert.alert("Error", "Please provide a reason for rejection");
+      return;
+    }
 
-  setProcessingId(rejectRequestId);
-  setRejectModalVisible(false);
+    setProcessingId(rejectRequestId);
+    setRejectModalVisible(false);
 
-  try {
-    // Update request status with rejection reason
-    await databases.updateDocument(
-      config.databaseId!,
-      config.requestsCollectionId!,
-      rejectRequestId,
-      {
-        status: "rejected",
-        rejectionReason: rejectionReason.trim(),
-      },
-    );
-
-    const request = requests.find((r) => r.$id === rejectRequestId);
-
-    if (request) {
-      // ✅ UPDATE TENANT PROFILE FOR REJECTION
-      try {
-        const tenantProfileDocs = await databases.listDocuments(
-          config.databaseId!,
-          config.tenantProfilesCollectionId!,
-          [Query.equal("userId", request.tenantId)],
-        );
-
-        if (tenantProfileDocs.documents.length > 0) {
-          const profile = tenantProfileDocs.documents[0];
-          
-          const currentDeclines = profile.declines || 0;
-          
-          // ✅ Parse array fields from JSON strings
-          const currentPropertiesDenied = parseArrayField(profile.propertiesDenied);
-          
-          await databases.updateDocument(
-            config.databaseId!,
-            config.tenantProfilesCollectionId!,
-            profile.$id,
-            {
-              declines: currentDeclines + 1,
-              propertiesDenied: JSON.stringify([...currentPropertiesDenied, request.propertyName]),
-            }
-          );
-          console.log("✅ Tenant profile updated for rejection");
-          console.log(`✅ +1 to declines, property "${request.propertyName}" added to propertiesDenied`);
-        }
-      } catch (profileError) {
-        console.error("Error updating tenant profile for rejection:", profileError);
-      }
-
-      // Create in-app notification for tenant with rejection reason
-      await createNotification(
-        request.tenantId,
-        "Rental Request Declined",
-        `Your request for "${request.propertyName}" was declined.\n\nReason: ${rejectionReason.trim()}\n\nKeep looking for other great properties!`,
-        "request",
+    try {
+      // Update request status with rejection reason
+      await databases.updateDocument(
+        config.databaseId!,
+        config.requestsCollectionId!,
+        rejectRequestId,
         {
-          propertyId: request.propertyId,
-          propertyName: request.propertyName,
           status: "rejected",
           rejectionReason: rejectionReason.trim(),
         },
       );
 
-      // 🚀 SEND PUSH NOTIFICATION TO TENANT
-      try {
-        await notificationService.sendRequestResponseNotification(
+      const request = requests.find((r) => r.$id === rejectRequestId);
+
+      if (request) {
+        // ✅ UPDATE TENANT PROFILE FOR REJECTION
+        try {
+          const tenantProfileDocs = await databases.listDocuments(
+            config.databaseId!,
+            config.tenantProfilesCollectionId!,
+            [Query.equal("userId", request.tenantId)],
+          );
+
+          if (tenantProfileDocs.documents.length > 0) {
+            const profile = tenantProfileDocs.documents[0];
+
+            const currentDeclines = profile.declines || 0;
+
+            // ✅ Parse array fields from JSON strings
+            const currentPropertiesDenied = parseArrayField(
+              profile.propertiesDenied,
+            );
+
+            await databases.updateDocument(
+              config.databaseId!,
+              config.tenantProfilesCollectionId!,
+              profile.$id,
+              {
+                declines: currentDeclines + 1,
+                propertiesDenied: JSON.stringify([
+                  ...currentPropertiesDenied,
+                  request.propertyName,
+                ]),
+              },
+            );
+            console.log("✅ Tenant profile updated for rejection");
+            console.log(
+              `✅ +1 to declines, property "${request.propertyName}" added to propertiesDenied`,
+            );
+          }
+        } catch (profileError) {
+          console.error(
+            "Error updating tenant profile for rejection:",
+            profileError,
+          );
+        }
+
+        // Create in-app notification for tenant with rejection reason
+        await createNotification(
           request.tenantId,
-          request.propertyName,
-          "rejected",
-          rejectionReason.trim(),
+          "Rental Request Declined",
+          `Your request for "${request.propertyName}" was declined.\n\nReason: ${rejectionReason.trim()}\n\nKeep looking for other great properties!`,
+          "request",
+          {
+            propertyId: request.propertyId,
+            propertyName: request.propertyName,
+            status: "rejected",
+            rejectionReason: rejectionReason.trim(),
+          },
         );
-        console.log("✅ Push notification sent to tenant for rejected request");
+
+        // 🚀 SEND PUSH NOTIFICATION TO TENANT
+        try {
+          await notificationService.sendRequestResponseNotification(
+            request.tenantId,
+            request.propertyName,
+            "rejected",
+            rejectionReason.trim(),
+          );
+          console.log(
+            "✅ Push notification sent to tenant for rejected request",
+          );
+        } catch (pushError) {
+          console.error("Failed to send push notification:", pushError);
+        }
+
+        // Update local state - remove the request from list
+        setRequests((prev) => prev.filter((r) => r.$id !== rejectRequestId));
+
+        Alert.alert("Success", "Request rejected successfully");
+      }
+    } catch (error) {
+      console.error("Error rejecting request:", error);
+      Alert.alert("Error", "Failed to reject request");
+    } finally {
+      setProcessingId(null);
+      setRejectRequestId(null);
+      setRejectionReason("");
+    }
+  };
+
+  const handleSendLeaseDocument = async (file: any) => {
+    if (!selectedRequestForLease) return;
+
+    setSendingLease(true);
+    try {
+      // Upload the document
+      const result = await uploadLeaseDocument(file);
+
+      // ✅ Update ONLY the fields we want - NO leaseDocumentUrl
+      await databases.updateDocument(
+        config.databaseId!,
+        config.requestsCollectionId!,
+        selectedRequestForLease.$id,
+        {
+          leaseDocumentId: result.fileId, // ✅ Store the file ID
+          leaseDocumentName: result.name,
+          leaseSentAt: new Date().toISOString(),
+          // ❌ DO NOT include leaseDocumentUrl here
+        },
+      );
+
+      // Create notification for tenant
+      await createNotification(
+        selectedRequestForLease.tenantId,
+        "📄 Lease Document Sent",
+        `The landlord has sent you a lease document for "${selectedRequestForLease.propertyName}". Please check your requests.`,
+        "system",
+        {
+          requestId: selectedRequestForLease.$id,
+          propertyId: selectedRequestForLease.propertyId,
+          propertyName: selectedRequestForLease.propertyName,
+          documentId: result.fileId,
+        },
+      );
+
+      // Send push notification
+      try {
+        await notificationService.sendNotificationToUser(
+          selectedRequestForLease.tenantId,
+          "📄 Lease Document Ready",
+          `A lease document for "${selectedRequestForLease.propertyName}" has been sent to you.`,
+          { type: "lease", requestId: selectedRequestForLease.$id },
+        );
       } catch (pushError) {
         console.error("Failed to send push notification:", pushError);
       }
 
-      // Update local state - remove the request from list
-      setRequests((prev) => prev.filter((r) => r.$id !== rejectRequestId));
-
-      Alert.alert("Success", "Request rejected successfully");
+      Alert.alert("Success", "Lease document sent successfully!");
+      setLeaseModalVisible(false);
+      setSelectedRequestForLease(null);
+      fetchRequests(); // Refresh the list
+    } catch (error) {
+      console.error("Error sending lease document:", error);
+      Alert.alert("Error", "Failed to send lease document");
+    } finally {
+      setSendingLease(false);
     }
-  } catch (error) {
-    console.error("Error rejecting request:", error);
-    Alert.alert("Error", "Failed to reject request");
-  } finally {
-    setProcessingId(null);
-    setRejectRequestId(null);
-    setRejectionReason("");
-  }
-};
-
-const handleSendLeaseDocument = async (file: any) => {
-  if (!selectedRequestForLease) return;
-
-  setSendingLease(true);
-  try {
-    // Upload the document
-    const result = await uploadLeaseDocument(file);
-
-    // ✅ Update ONLY the fields we want - NO leaseDocumentUrl
-    await databases.updateDocument(
-      config.databaseId!,
-      config.requestsCollectionId!,
-      selectedRequestForLease.$id,
-      {
-        leaseDocumentId: result.fileId,  // ✅ Store the file ID
-        leaseDocumentName: result.name,
-        leaseSentAt: new Date().toISOString(),
-        // ❌ DO NOT include leaseDocumentUrl here
-      },
-    );
-
-    // Create notification for tenant
-    await createNotification(
-      selectedRequestForLease.tenantId,
-      "📄 Lease Document Sent",
-      `The landlord has sent you a lease document for "${selectedRequestForLease.propertyName}". Please check your requests.`,
-      "system",
-      {
-        requestId: selectedRequestForLease.$id,
-        propertyId: selectedRequestForLease.propertyId,
-        propertyName: selectedRequestForLease.propertyName,
-        documentId: result.fileId,
-      },
-    );
-
-    // Send push notification
-    try {
-      await notificationService.sendNotificationToUser(
-        selectedRequestForLease.tenantId,
-        "📄 Lease Document Ready",
-        `A lease document for "${selectedRequestForLease.propertyName}" has been sent to you.`,
-        { type: "lease", requestId: selectedRequestForLease.$id },
-      );
-    } catch (pushError) {
-      console.error("Failed to send push notification:", pushError);
-    }
-
-    Alert.alert("Success", "Lease document sent successfully!");
-    setLeaseModalVisible(false);
-    setSelectedRequestForLease(null);
-    fetchRequests(); // Refresh the list
-  } catch (error) {
-    console.error("Error sending lease document:", error);
-    Alert.alert("Error", "Failed to send lease document");
-  } finally {
-    setSendingLease(false);
-  }
-};
+  };
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + " at " + date.toLocaleTimeString();
@@ -971,86 +1004,131 @@ const handleSendLeaseDocument = async (file: any) => {
               </View>
 
               {/* ✅ Tenant Score Display */}
-              {selectedRequest.tenantScore !== undefined && selectedRequest.tenantScore !== null && (
-                <View
-                  className="mt-3 pt-3 border-t"
-                  style={{ borderTopColor: theme.muted + "20" }}
-                >
-                  <View className="flex-row items-center justify-between">
-                    <View>
-                      <Text
-                        className="text-xs font-rubik-medium"
-                        style={{ color: theme.muted }}
-                      >
-                        Tenant Score
-                      </Text>
-                      <View className="flex-row items-center mt-1">
+              {selectedRequest.tenantScore !== undefined &&
+                selectedRequest.tenantScore !== null && (
+                  <View
+                    className="mt-3 pt-3 border-t"
+                    style={{ borderTopColor: theme.muted + "20" }}
+                  >
+                    <View className="flex-row items-center justify-between">
+                      <View>
                         <Text
-                          className="text-2xl font-rubik-bold mr-2"
-                          style={{ color: getScoreColor(selectedRequest.tenantScore) }}
+                          className="text-xs font-rubik-medium"
+                          style={{ color: theme.muted }}
                         >
-                          {Math.round(selectedRequest.tenantScore)}
+                          Tenant Score
                         </Text>
-                        <Text className="text-xs" style={{ color: theme.muted }}>
-                          / 100
-                        </Text>
-                      </View>
-                    </View>
-                    <View className="items-end">
-                      <View
-                        className="px-3 py-1 rounded-full"
-                        style={{
-                          backgroundColor: getScoreColor(selectedRequest.tenantScore) + "20",
-                        }}
-                      >
-                        <Text
-                          className="text-xs font-rubik-bold"
-                          style={{ color: getScoreColor(selectedRequest.tenantScore) }}
-                        >
-                          {getScoreLabel(selectedRequest.tenantScore)}
-                        </Text>
-                      </View>
-                      {selectedRequest.tenantIsIdVerified && (
-                        <View className="mt-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30">
-                          <Text className="text-[10px] text-green-700 dark:text-green-400 font-rubik-bold">
-                            ✅ ID Verified
+                        <View className="flex-row items-center mt-1">
+                          <Text
+                            className="text-2xl font-rubik-bold mr-2"
+                            style={{
+                              color: getScoreColor(selectedRequest.tenantScore),
+                            }}
+                          >
+                            {Math.round(selectedRequest.tenantScore)}
+                          </Text>
+                          <Text
+                            className="text-xs"
+                            style={{ color: theme.muted }}
+                          >
+                            / 100
                           </Text>
                         </View>
-                      )}
-                    </View>
-                  </View>
-
-                  {/* Score Breakdown */}
-                  {selectedRequest.tenantScoreBreakdown && (
-                    <View className="mt-2 pt-2 border-t" style={{ borderTopColor: theme.muted + "10" }}>
-                      <Text className="text-[10px] font-rubik-medium mb-1.5" style={{ color: theme.muted }}>
-                        Score Breakdown
-                      </Text>
-                      <View className="flex-row flex-wrap gap-1.5">
-                        {[
-                          { label: "ID", value: selectedRequest.tenantScoreBreakdown.idVerification },
-                          { label: "Rental", value: selectedRequest.tenantScoreBreakdown.rentalHistory },
-                          { label: "Reviews", value: selectedRequest.tenantScoreBreakdown.landlordReviews },
-                          { label: "Payment", value: selectedRequest.tenantScoreBreakdown.paymentReliability },
-                          { label: "Tenure", value: selectedRequest.tenantScoreBreakdown.tenure },
-                        ].map((item, index) => (
-                          <View key={index} className="flex-row items-center gap-1">
-                            <Text className="text-[9px]" style={{ color: theme.muted }}>
-                              {item.label}:
-                            </Text>
-                            <Text
-                              className="text-[9px] font-rubik-bold"
-                              style={{ color: getScoreColor(item.value) }}
-                            >
-                              {Math.round(item.value)}%
+                      </View>
+                      <View className="items-end">
+                        <View
+                          className="px-3 py-1 rounded-full"
+                          style={{
+                            backgroundColor:
+                              getScoreColor(selectedRequest.tenantScore) + "20",
+                          }}
+                        >
+                          <Text
+                            className="text-xs font-rubik-bold"
+                            style={{
+                              color: getScoreColor(selectedRequest.tenantScore),
+                            }}
+                          >
+                            {getScoreLabel(selectedRequest.tenantScore)}
+                          </Text>
+                        </View>
+                        {selectedRequest.tenantIsIdVerified && (
+                          <View className="mt-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30">
+                            <Text className="text-[10px] text-green-700 dark:text-green-400 font-rubik-bold">
+                              ✅ ID Verified
                             </Text>
                           </View>
-                        ))}
+                        )}
                       </View>
                     </View>
-                  )}
-                </View>
-              )}
+
+                    {/* Score Breakdown */}
+                    {selectedRequest.tenantScoreBreakdown && (
+                      <View
+                        className="mt-2 pt-2 border-t"
+                        style={{ borderTopColor: theme.muted + "10" }}
+                      >
+                        <Text
+                          className="text-[10px] font-rubik-medium mb-1.5"
+                          style={{ color: theme.muted }}
+                        >
+                          Score Breakdown
+                        </Text>
+                        <View className="flex-row flex-wrap gap-1.5">
+                          {[
+                            {
+                              label: "ID",
+                              value:
+                                selectedRequest.tenantScoreBreakdown
+                                  .idVerification,
+                            },
+                            {
+                              label: "Rental",
+                              value:
+                                selectedRequest.tenantScoreBreakdown
+                                  .rentalHistory,
+                            },
+                            {
+                              label: "Reviews",
+                              value:
+                                selectedRequest.tenantScoreBreakdown
+                                  .landlordReviews,
+                            },
+                            {
+                              label: "Payment",
+                              value:
+                                selectedRequest.tenantScoreBreakdown
+                                  .paymentReliability,
+                            },
+                            {
+                              label: "Tenure",
+                              value:
+                                selectedRequest.tenantScoreBreakdown.tenure,
+                            },
+                          ].map((item, index) => (
+                            <View
+                              key={index}
+                              className="flex-row items-center gap-1"
+                            >
+                              <Text
+                                className="text-[9px]"
+                                style={{ color: theme.muted }}
+                              >
+                                {item.label}:
+                              </Text>
+                              <Text
+                                className="text-[9px] font-rubik-bold"
+                                style={{ color: getScoreColor(item.value) }}
+                              >
+                                {Math.round(item.value)}%
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                )}
             </View>
 
             {/* Property & Price Info */}
@@ -1521,28 +1599,36 @@ const handleSendLeaseDocument = async (file: any) => {
                   </View>
 
                   {/* ✅ Tenant Score Badge - Compact View */}
-                  {item.tenantScore !== undefined && item.tenantScore !== null && (
-                    <View
-                      className="flex-row items-center mb-2 px-2 py-1 rounded-lg self-start"
-                      style={{
-                        backgroundColor: getScoreColor(item.tenantScore) + "15",
-                        borderWidth: 1,
-                        borderColor: getScoreColor(item.tenantScore) + "30",
-                      }}
-                    >
-                      <Text className="text-xs font-rubik-bold mr-1" style={{ color: getScoreColor(item.tenantScore) }}>
-                        Score: {Math.round(item.tenantScore)}
-                      </Text>
-                      <Text className="text-[10px]" style={{ color: theme.muted }}>
-                        • {getScoreLabel(item.tenantScore)}
-                      </Text>
-                      {item.tenantIsIdVerified && (
-                        <Text className="text-[10px] text-green-600 ml-1">
-                          ✅
+                  {item.tenantScore !== undefined &&
+                    item.tenantScore !== null && (
+                      <View
+                        className="flex-row items-center mb-2 px-2 py-1 rounded-lg self-start"
+                        style={{
+                          backgroundColor:
+                            getScoreColor(item.tenantScore) + "15",
+                          borderWidth: 1,
+                          borderColor: getScoreColor(item.tenantScore) + "30",
+                        }}
+                      >
+                        <Text
+                          className="text-xs font-rubik-bold mr-1"
+                          style={{ color: getScoreColor(item.tenantScore) }}
+                        >
+                          Score: {Math.round(item.tenantScore)}
                         </Text>
-                      )}
-                    </View>
-                  )}
+                        <Text
+                          className="text-[10px]"
+                          style={{ color: theme.muted }}
+                        >
+                          • {getScoreLabel(item.tenantScore)}
+                        </Text>
+                        {item.tenantIsIdVerified && (
+                          <Text className="text-[10px] text-green-600 ml-1">
+                            ✅
+                          </Text>
+                        )}
+                      </View>
+                    )}
 
                   {/* Price Info */}
                   <View

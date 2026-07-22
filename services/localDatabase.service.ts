@@ -8,7 +8,7 @@ export interface LocalUser {
   userName: string;
   userEmail: string;
   userAvatar: string;
-  userMode: "tenant" | "landlord";
+  userMode: "tenant" | "landlord" | "student";
   lastSync: string;
 }
 

@@ -42,6 +42,52 @@ Notifications.setNotificationHandler({
   }),
 });
 
+type UserMode = "tenant" | "landlord" | "student";
+
+const STUDENT_TAB_ROUTES = new Set<string>([
+  "/about",
+  "/all-locations",
+  "/calendar",
+  "/detailsEdit",
+  "/explore",
+  "/filtered-properties",
+  "/help",
+  "/landlords",
+  "/language",
+  "/match",
+  "/message",
+  "/my-favorites",
+  "/myRequests",
+  "/notifications",
+  "/profile",
+  "/properties-by-location",
+  "/settings",
+  "/tenantHome",
+  "/trending-properties",
+]);
+
+const getHomeRoute = (userMode?: UserMode) => {
+  if (userMode === "landlord") return "/landHome";
+  if (userMode === "student") return "/s-tenantHome";
+  return "/tenantHome";
+};
+
+const getModeAwareRoute = (route: string, userMode?: UserMode) => {
+  if (userMode !== "student" || route.startsWith("/s-")) {
+    return route;
+  }
+
+  const suffixIndex = route.search(/[?#]/);
+  const pathname = suffixIndex >= 0 ? route.slice(0, suffixIndex) : route;
+  const suffix = suffixIndex >= 0 ? route.slice(suffixIndex) : "";
+
+  if (!STUDENT_TAB_ROUTES.has(pathname)) {
+    return route;
+  }
+
+  return `/s-${pathname.slice(1)}${suffix}`;
+};
+
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     "Rubik-Bold": require("../assets/fonts/Rubik-Bold.ttf"),
@@ -126,29 +172,30 @@ export default function RootLayout() {
       data: Record<string, any> | undefined,
     ) => {
       const { user } = useAuthStore.getState();
-      const isLandlord = user?.userMode === "landlord";
+      const userMode = user?.userMode;
+      const homeRoute = getHomeRoute(userMode);
 
       if (!data) {
-        router.push(isLandlord ? "/landHome" : "/tenantHome");
+        router.push(homeRoute);
         return;
       }
 
       if (data.type === "match") {
-        router.push("/match");
+        router.push(getModeAwareRoute("/match", userMode) as any);
       } else if (data.type === "request") {
         router.push("/Landrequests");
       } else if (data.type === "property") {
-        router.push("/explore");
+        router.push(getModeAwareRoute("/explore", userMode) as any);
       } else if (data.type === "request_response") {
-        router.push("/tenantHome");
+        router.push(homeRoute);
       } else if (data.type === "alert") {
         //  Dynamic based on userMode
-        router.push(isLandlord ? "/landHome" : "/tenantHome");
+        router.push(homeRoute);
       } else if (data.screen && typeof data.screen === "string") {
-        router.push(data.screen as any);
+        router.push(getModeAwareRoute(data.screen, userMode) as any);
       } else {
         //  Default fallback also dynamic
-        router.push(isLandlord ? "/landHome" : "/tenantHome");
+        router.push(homeRoute);
       }
     };
 

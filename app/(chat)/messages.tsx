@@ -377,7 +377,11 @@ const Messages = () => {
         <TouchableOpacity
           onPress={() => {
             router.replace(
-              user?.userMode === "landlord" ? "/landHome" : "/tenantHome",
+              user?.userMode === "landlord"
+                ? "/landHome"
+                : user?.userMode === "student"
+                  ? "/s-tenantHome"
+                  : "/tenantHome",
             );
           }}
           className="mr-4 p-2"

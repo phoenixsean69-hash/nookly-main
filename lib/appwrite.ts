@@ -720,7 +720,7 @@ export async function AddListing(
         const tenants = await databases.listDocuments(
           config.databaseId!,
           config.usersCollectionId!,
-          [Query.equal("userMode", "tenant")],
+          [Query.equal("userMode", ["tenant", "student"])],
         );
 
         // Filter tenants who might be interested
@@ -880,7 +880,7 @@ export const getCurrentUser = async () => {
   }
 };
 
-export async function loginWithGoogle(userMode?: "tenant" | "landlord") {
+export async function loginWithGoogle(userMode?: "tenant" | "landlord" | "student") {
   try {
     const redirectUri = Linking.createURL("/");
     const response = await account.createOAuth2Token(

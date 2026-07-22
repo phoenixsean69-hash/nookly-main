@@ -70,7 +70,7 @@ const TabIcon = ({
   );
 };
 
-const TabsLayout = () => {
+const StudentTabsLayout = () => {
   const { user } = useAuthStore();
   // ✅ Removed markMatchesAsViewed since it's unused here
   const { matchCount, fetchMatchCount } = useMatchStore();
@@ -129,7 +129,7 @@ const TabsLayout = () => {
       }}
     >
       <Tabs.Screen
-        name="tenantHome"
+        name="s-tenantHome"
         options={{
           title: "Home",
           headerShown: false,
@@ -140,7 +140,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="help"
+        name="s-help"
         options={{
           href: null,
           title: "help",
@@ -150,7 +150,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="landlords"
+        name="s-landlords"
         options={{
           href: null,
           title: "landlords",
@@ -160,7 +160,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="detailsEdit"
+        name="s-detailsEdit"
         options={{
           href: null,
           title: "detailsEdit",
@@ -170,7 +170,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="calendar"
+        name="s-calendar"
         options={{
           href: null,
           title: "calendar",
@@ -180,7 +180,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="about"
+        name="s-about"
         options={{
           href: null,
           title: "about",
@@ -190,7 +190,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="language"
+        name="s-language"
         options={{
           href: null,
           title: "language",
@@ -199,7 +199,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="all-locations"
+        name="s-all-locations"
         options={{
           href: null,
           title: "all-locations",
@@ -209,7 +209,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="notifications"
+        name="s-notifications"
         options={{
           href: null,
           title: "notifications",
@@ -218,7 +218,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="properties-by-location"
+        name="s-properties-by-location"
         options={{
           href: null,
           title: "properties-by-location",
@@ -228,7 +228,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="trending-properties"
+        name="s-trending-properties"
         options={{
           href: null,
           title: "trending-properties",
@@ -238,7 +238,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="filtered-properties"
+        name="s-filtered-properties"
         options={{
           href: null,
           title: "filtered-properties",
@@ -248,7 +248,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="settings"
+        name="s-settings"
         options={{
           href: null,
           title: "settings",
@@ -257,7 +257,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="my-favorites"
+        name="s-my-favorites"
         options={{
           href: null,
           title: "my-favorites",
@@ -267,7 +267,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="message"
+        name="s-message"
         options={{
           href: null,
           title: "message",
@@ -277,7 +277,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="profile"
+        name="s-profile"
         options={{
           title: "Profile",
           headerShown: false,
@@ -288,7 +288,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="myRequests"
+        name="s-myRequests"
         options={{
           title: "Requests",
           headerShown: false,
@@ -299,7 +299,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="match"
+        name="s-match"
         options={{
           title: "Match",
           headerShown: false,
@@ -315,7 +315,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="explore"
+        name="s-explore"
         options={{
           title: "Explore",
           headerShown: false,
@@ -328,4 +328,4 @@ const TabsLayout = () => {
   );
 };
 
-export default TabsLayout;
+export default StudentTabsLayout;

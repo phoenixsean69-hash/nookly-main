@@ -35,6 +35,12 @@ const backgroundImages = [
   sunset,
 ];
 
+const getHomeRoute = (userMode: "tenant" | "landlord" | "student") => {
+  if (userMode === "landlord") return "/landHome";
+  if (userMode === "student") return "/s-tenantHome";
+  return "/tenantHome";
+};
+
 export default function Index() {
   const {
     user,
@@ -174,19 +180,10 @@ export default function Index() {
 
       if (isAuthenticated && user?.userMode) {
         console.log("✅ Online - Authenticated user, navigating...");
-        if (user.userMode === "tenant") {
-          router.replace("/tenantHome");
-        } else if (user.userMode === "landlord") {
-          router.replace("/landHome");
-        }
+        router.replace(getHomeRoute(user.userMode));
       } else if (localUser?.userMode) {
-        // Fallback to stored user if auth check fails
         console.log("📦 Using stored user data for navigation");
-        if (localUser.userMode === "tenant") {
-          router.replace("/tenantHome");
-        } else if (localUser.userMode === "landlord") {
-          router.replace("/landHome");
-        }
+        router.replace(getHomeRoute(localUser.userMode));
       } else if (!isLoading) {
         console.log("👋 No user found, redirecting to sign up");
         router.replace("/sign-up");
@@ -361,7 +358,8 @@ export default function Index() {
                 </Text>
               </TouchableOpacity>
 
-              {activeUser.userMode === "tenant" && (
+              {(activeUser.userMode === "tenant" ||
+                activeUser.userMode === "student") && (
                 <TouchableOpacity
                   onPress={handleSeeFavorites}
                   className="bg-orange-500 py-4 rounded-full flex-1"
@@ -445,8 +443,9 @@ export default function Index() {
                 Our Mission
               </Text>
               <Text className="text-sm text-center leading-6 text-white/90">
-                To connect tenants with their perfect space and empower
-                landlords with tools that make property management effortless.
+                To connect tenants and students with their perfect space and
+                empower landlords with tools that make property management
+                effortless.
               </Text>
             </View>
 

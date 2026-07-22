@@ -387,7 +387,7 @@ async sendIdVerificationNotification(
       const users = await databases.listDocuments(
         config.databaseId!,
         config.usersCollectionId!,
-        [Query.equal("userMode", "tenant")],
+        [Query.equal("userMode", ["tenant", "student"])],
       );
 
       const userIds = users.documents.map((user) => user.accountId);

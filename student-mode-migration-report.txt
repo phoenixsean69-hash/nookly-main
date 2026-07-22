@@ -1,0 +1,93 @@
+Nookly Student Mode Migration Report
+====================================
+
+Created: 2026-07-22T07:21:51.469Z
+Project: C:\Users\work2\Desktop\nookly-with-students
+Backup: C:\Users\work2\AppData\Local\Temp\nookly-student-mode-backup-2026-07-22T07-21-51-221Z
+
+Summary
+-------
+Changed files: 16
+Created files: 20
+Backed-up files: 16
+Copied tab files: 20
+
+Student route mapping
+---------------------
+/about -> /s-about
+/all-locations -> /s-all-locations
+/calendar -> /s-calendar
+/detailsEdit -> /s-detailsEdit
+/explore -> /s-explore
+/filtered-properties -> /s-filtered-properties
+/help -> /s-help
+/landlords -> /s-landlords
+/language -> /s-language
+/match -> /s-match
+/message -> /s-message
+/my-favorites -> /s-my-favorites
+/myRequests -> /s-myRequests
+/notifications -> /s-notifications
+/profile -> /s-profile
+/properties-by-location -> /s-properties-by-location
+/settings -> /s-settings
+/tenantHome -> /s-tenantHome
+/trending-properties -> /s-trending-properties
+
+Changed files
+-------------
+store/auth.store.ts
+app/(auth)/sign-in.tsx
+app/(auth)/sign-up.tsx
+app/index.tsx
+app/_layout.tsx
+app/(chat)/messages.tsx
+app/(root)/(landlord)/landHelp.tsx
+app/(root)/(tabs)/myRequests.tsx
+app/(root)/(tabs)/profile.tsx
+app/(root)/(tabs)/settings.tsx
+app/(root)/properties/[id].tsx
+app/seed.tsx
+context/AuthContext.ts
+lib/appwrite.ts
+services/localDatabase.service.ts
+services/notification.service.ts
+
+Created files
+-------------
+app/(root)/(student)/s-about.tsx
+app/(root)/(student)/s-all-locations.tsx
+app/(root)/(student)/s-calendar.tsx
+app/(root)/(student)/s-detailsEdit.tsx
+app/(root)/(student)/s-explore.tsx
+app/(root)/(student)/s-filtered-properties.tsx
+app/(root)/(student)/s-help.tsx
+app/(root)/(student)/s-landlords.tsx
+app/(root)/(student)/s-language.tsx
+app/(root)/(student)/s-match.tsx
+app/(root)/(student)/s-message.tsx
+app/(root)/(student)/s-my-favorites.tsx
+app/(root)/(student)/s-myRequests.tsx
+app/(root)/(student)/s-notifications.tsx
+app/(root)/(student)/s-profile.tsx
+app/(root)/(student)/s-properties-by-location.tsx
+app/(root)/(student)/s-settings.tsx
+app/(root)/(student)/s-tenantHome.tsx
+app/(root)/(student)/s-trending-properties.tsx
+app/(root)/(student)/_layout.tsx
+
+Warnings
+--------
+None
+
+Environment files
+-----------------
+No .env file was read, written, renamed, or deleted.
+
+Recommended checks
+------------------
+1. npx prettier --write "app/**/*.{ts,tsx}" "store/**/*.{ts,tsx}"
+2. npx tsc --noEmit
+3. npx expo start -c
+4. Test sign-up and sign-in using userMode=student.
+5. Confirm the Appwrite users.userMode attribute accepts the value student.
