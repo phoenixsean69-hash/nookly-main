@@ -2,6 +2,7 @@
 import { AuthProvider } from "@/context/AuthContext";
 import notificationService from "@/services/notification.service";
 import useAuthStore from "@/store/auth.store";
+import useOfflineStore from "@/store/offline.store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFonts } from "expo-font";
 import * as Notifications from "expo-notifications";
@@ -99,9 +100,17 @@ export default function RootLayout() {
   });
 
   const { fetchAuthenticatedUser, user, hydrate } = useAuthStore();
+  const initializeOffline = useOfflineStore((state) => state.initialize);
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
   const [appIsReady, setAppIsReady] = useState(false);
+
+  // Start the persistent SQLite cache and network-aware sync queue once.
+  useEffect(() => {
+    initializeOffline().catch((error) => {
+      console.error("Offline storage initialization failed:", error);
+    });
+  }, [initializeOffline]);
 
   // Fetch authenticated user on mount
   useEffect(() => {

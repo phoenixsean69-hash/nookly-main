@@ -1,6 +1,14 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import useAuthStore from "@/store/auth.store";
 
-const FAVORITES_KEY = "@rentify:favorites";
+import {
+  clearOfflineFavorites,
+  getOfflineFavorites,
+  hasOfflineFavorite,
+  migrateLegacyFavorites,
+  removeOfflineFavorite,
+  upsertOfflineFavorite,
+} from "./offline/favorite.repository";
+import { initializeOfflineDatabase } from "./offline/database";
 
 export interface FavoriteProperty {
   $id: string;
@@ -24,12 +32,20 @@ export interface FavoriteProperty {
   cachedAt?: string;
 }
 
+const getFavoriteOwnerId = (): string =>
+  useAuthStore.getState().user?.accountId ?? "anonymous";
+
+const prepareFavorites = async (): Promise<string> => {
+  const userId = getFavoriteOwnerId();
+  await initializeOfflineDatabase();
+  await migrateLegacyFavorites(userId);
+  return userId;
+};
+
 export const getFavorites = async (): Promise<FavoriteProperty[]> => {
   try {
-    const favoritesJson = await AsyncStorage.getItem(FAVORITES_KEY);
-    if (!favoritesJson) return [];
-    const parsed = JSON.parse(favoritesJson);
-    return Array.isArray(parsed) ? parsed : [];
+    const userId = await prepareFavorites();
+    return await getOfflineFavorites<FavoriteProperty>(userId);
   } catch (error) {
     console.error("Error getting favorites:", error);
     return [];
@@ -39,52 +55,21 @@ export const getFavorites = async (): Promise<FavoriteProperty[]> => {
 export const addToFavorites = async (
   property: FavoriteProperty,
 ): Promise<void> => {
-  try {
-    const favorites = await getFavorites();
-    const cachedProperty: FavoriteProperty = {
-      ...property,
-      cachedAt: new Date().toISOString(),
-    };
-    const existingIndex = favorites.findIndex(
-      (favorite) => favorite.$id === property.$id,
-    );
-    const updatedFavorites =
-      existingIndex >= 0
-        ? favorites.map((favorite, index) =>
-            index === existingIndex
-              ? { ...favorite, ...cachedProperty }
-              : favorite,
-          )
-        : [...favorites, cachedProperty];
-
-    await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(updatedFavorites));
-  } catch (error) {
-    console.error("Error caching favorite:", error);
-    throw error;
-  }
+  const userId = await prepareFavorites();
+  await upsertOfflineFavorite(userId, property);
 };
 
 export const removeFromFavorites = async (
   propertyId: string,
 ): Promise<void> => {
-  try {
-    const favorites = await getFavorites();
-    await AsyncStorage.setItem(
-      FAVORITES_KEY,
-      JSON.stringify(
-        favorites.filter((favorite) => favorite.$id !== propertyId),
-      ),
-    );
-  } catch (error) {
-    console.error("Error removing favorite:", error);
-    throw error;
-  }
+  const userId = await prepareFavorites();
+  await removeOfflineFavorite(userId, propertyId);
 };
 
 export const isFavorite = async (propertyId: string): Promise<boolean> => {
   try {
-    const favorites = await getFavorites();
-    return favorites.some((favorite) => favorite.$id === propertyId);
+    const userId = await prepareFavorites();
+    return await hasOfflineFavorite(userId, propertyId);
   } catch (error) {
     console.error("Error checking favorite:", error);
     return false;
@@ -92,5 +77,6 @@ export const isFavorite = async (propertyId: string): Promise<boolean> => {
 };
 
 export const clearFavorites = async (): Promise<void> => {
-  await AsyncStorage.removeItem(FAVORITES_KEY);
+  const userId = await prepareFavorites();
+  await clearOfflineFavorites(userId);
 };

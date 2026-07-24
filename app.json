@@ -57,20 +57,23 @@
         }
       ],
       [
-  "expo-image-picker",
-  {
-    "photosPermission": "Allow Nookly to choose property photos and verification videos.",
-    "cameraPermission": "Allow Nookly to record property verification videos.",
-    "microphonePermission": "Allow Nookly to record sound with property verification videos."
-  }
-],
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Nookly to choose property photos and verification videos.",
+          "cameraPermission": "Allow Nookly to record property verification videos.",
+          "microphonePermission": "Allow Nookly to record sound with property verification videos."
+        }
+      ],
       [
         "expo-media-library",
         {
           "photosPermission": "Allow Nookly to save property photos and videos to your device.",
           "savePhotosPermission": "Allow Nookly to save property photos and videos to your device.",
           "isAccessMediaLocationEnabled": true,
-          "granularPermissions": ["photo", "video"]
+          "granularPermissions": [
+            "photo",
+            "video"
+          ]
         }
       ],
       "expo-router",
@@ -101,7 +104,8 @@
       "@react-native-community/datetimepicker",
       "expo-font",
       "expo-web-browser",
-      "expo-build-properties"
+      "expo-build-properties",
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,
