@@ -1,5 +1,10 @@
 // app/_layout.tsx
 import { AuthProvider } from "@/context/AuthContext";
+import {
+  getModeAwareRoute,
+  getUserHomeRoute,
+  isLandlordUser,
+} from "@/lib/userMode";
 import notificationService from "@/services/notification.service";
 import useAuthStore from "@/store/auth.store";
 import useOfflineStore from "@/store/offline.store";
@@ -9,30 +14,24 @@ import * as Notifications from "expo-notifications";
 import { router, Slot } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
-import { LogBox, Platform } from "react-native";
+import { ActivityIndicator, LogBox, Platform, View } from "react-native";
 import "./global.css";
 
-// Ignore specific warnings that are not critical
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
 LogBox.ignoreLogs([
   "JSON Parse error",
   "Error parsing reviews",
   "Setting a timer",
-]);
-
-// Optional: Ignore all warnings in production
-if (!__DEV__) {
-  LogBox.ignoreAllLogs();
-}
-
-// Ignore specific Appwrite-related errors
-LogBox.ignoreLogs([
   "JSON Parse error: Unexpected character: G",
-  "Error parsing reviews",
   "Error fetchingagent",
   "Error checking like status",
 ]);
 
-// Configure notification handler
+if (!__DEV__) {
+  LogBox.ignoreAllLogs();
+}
+
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -42,52 +41,6 @@ Notifications.setNotificationHandler({
     shouldShowList: true,
   }),
 });
-
-type UserMode = "tenant" | "landlord" | "student";
-
-const STUDENT_TAB_ROUTES = new Set<string>([
-  "/about",
-  "/all-locations",
-  "/calendar",
-  "/detailsEdit",
-  "/explore",
-  "/filtered-properties",
-  "/help",
-  "/landlords",
-  "/language",
-  "/match",
-  "/message",
-  "/my-favorites",
-  "/myRequests",
-  "/notifications",
-  "/profile",
-  "/properties-by-location",
-  "/settings",
-  "/tenantHome",
-  "/trending-properties",
-]);
-
-const getHomeRoute = (userMode?: UserMode) => {
-  if (userMode === "landlord") return "/landHome";
-  if (userMode === "student") return "/s-tenantHome";
-  return "/tenantHome";
-};
-
-const getModeAwareRoute = (route: string, userMode?: UserMode) => {
-  if (userMode !== "student" || route.startsWith("/s-")) {
-    return route;
-  }
-
-  const suffixIndex = route.search(/[?#]/);
-  const pathname = suffixIndex >= 0 ? route.slice(0, suffixIndex) : route;
-  const suffix = suffixIndex >= 0 ? route.slice(suffixIndex) : "";
-
-  if (!STUDENT_TAB_ROUTES.has(pathname)) {
-    return route;
-  }
-
-  return `/s-${pathname.slice(1)}${suffix}`;
-};
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -101,191 +54,184 @@ export default function RootLayout() {
 
   const { fetchAuthenticatedUser, user, hydrate } = useAuthStore();
   const initializeOffline = useOfflineStore((state) => state.initialize);
+  const [appIsReady, setAppIsReady] = useState(false);
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
-  const [appIsReady, setAppIsReady] = useState(false);
 
-  // Start the persistent SQLite cache and network-aware sync queue once.
   useEffect(() => {
     initializeOffline().catch((error) => {
       console.error("Offline storage initialization failed:", error);
     });
   }, [initializeOffline]);
 
-  // Fetch authenticated user on mount
-  useEffect(() => {
-    fetchAuthenticatedUser();
-  }, [fetchAuthenticatedUser]);
-
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        console.log("🚀 Starting app initialization...");
-
-        // Step 1: Hydrate auth state from AsyncStorage
         await hydrate();
-        console.log("✅ Auth state hydrated");
-
-        // Step 2: Mark app as ready
-        setAppIsReady(true);
+        await fetchAuthenticatedUser();
       } catch (error) {
-        console.error("❌ App initialization failed:", error);
-        // Even if initialization fails, show the app
+        console.error("App initialization failed:", error);
+      } finally {
         setAppIsReady(true);
       }
     };
 
     initializeApp();
-  }, [hydrate]);
+  }, [fetchAuthenticatedUser, hydrate]);
 
-  // Hide splash screen when fonts are loaded
   useEffect(() => {
-    if (fontsLoaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded]);
+    if (!fontsLoaded || !appIsReady) return;
 
-  // Register for push notifications when user is logged in
+    SplashScreen.hideAsync().catch(() => undefined);
+  }, [appIsReady, fontsLoaded]);
+
   useEffect(() => {
     const registerPushNotifications = async () => {
       if (!user?.accountId) return;
 
       try {
-        // Check if user has enabled push notifications
         const pushEnabled = await AsyncStorage.getItem(
           "push_notifications_enabled",
         );
+
         if (pushEnabled === "false") return;
 
-        // Register for push notifications
-        const token =
-          await notificationService.registerForPushNotificationsAsync(
-            user.accountId,
-          );
-
-        if (token) {
-          console.log(" Push notification registered successfully");
-        }
+        await notificationService.registerForPushNotificationsAsync(
+          user.accountId,
+        );
       } catch (error) {
         console.error("Push registration error:", error);
       }
     };
 
     registerPushNotifications();
-  }, [user]);
+  }, [user?.accountId]);
 
-  // Handle notification listeners
   useEffect(() => {
-    // Shared navigation logic for notification taps
     const handleNotificationNavigation = (
-      data: Record<string, any> | undefined,
+      data?: Record<string, any>,
     ) => {
-      const { user } = useAuthStore.getState();
-      const userMode = user?.userMode;
-      const homeRoute = getHomeRoute(userMode);
+      const currentUser = useAuthStore.getState().user;
+      const homeRoute = getUserHomeRoute(currentUser);
 
       if (!data) {
-        router.push(homeRoute);
+        router.push(homeRoute as any);
         return;
       }
 
-      if (data.type === "match") {
-        router.push(getModeAwareRoute("/match", userMode) as any);
-      } else if (data.type === "request") {
-        router.push("/Landrequests");
-      } else if (data.type === "property") {
-        router.push(getModeAwareRoute("/explore", userMode) as any);
-      } else if (data.type === "request_response") {
-        router.push(homeRoute);
-      } else if (data.type === "alert") {
-        //  Dynamic based on userMode
-        router.push(homeRoute);
-      } else if (data.screen && typeof data.screen === "string") {
-        router.push(getModeAwareRoute(data.screen, userMode) as any);
-      } else {
-        //  Default fallback also dynamic
-        router.push(homeRoute);
+      switch (data.type) {
+        case "match":
+          router.push(getModeAwareRoute("/match", currentUser) as any);
+          return;
+
+        case "request":
+          router.push(
+            isLandlordUser(currentUser)
+              ? ("/Landrequests" as any)
+              : (getModeAwareRoute("/myRequests", currentUser) as any),
+          );
+          return;
+
+        case "property":
+          router.push(getModeAwareRoute("/explore", currentUser) as any);
+          return;
+
+        case "request_response":
+        case "alert":
+          router.push(homeRoute as any);
+          return;
+
+        default:
+          if (typeof data.screen === "string") {
+            router.push(
+              getModeAwareRoute(data.screen, currentUser) as any,
+            );
+          } else {
+            router.push(homeRoute as any);
+          }
       }
     };
 
-    // Handle notifications received while app is in foreground
     notificationListener.current =
       Notifications.addNotificationReceivedListener((notification) => {
-        console.log("📱 Notification received in foreground:", notification);
-
-        // You can update app state or show an in-app alert here
         const { title, body } = notification.request.content;
-        console.log(`Notification: ${title} - ${body}`);
+        console.log(`Notification received: ${title} - ${body}`);
       });
 
-    // Handle notification tap (when user clicks on notification)
     responseListener.current =
       Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log("🔘 Notification tapped:", response);
         handleNotificationNavigation(
           response.notification.request.content.data as Record<string, any>,
         );
       });
 
-    // Handle notification tap that launched the app from a killed state
-    Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (response) {
-        console.log("🚀 App launched from notification tap");
+    Notifications.getLastNotificationResponseAsync()
+      .then((response) => {
+        if (!response) return;
+
         handleNotificationNavigation(
           response.notification.request.content.data as Record<string, any>,
         );
-      }
-    });
+      })
+      .catch((error) => {
+        console.error("Failed to read launch notification:", error);
+      });
 
-    // Cleanup listeners on unmount
     return () => {
-      if (notificationListener.current) {
-        notificationListener.current.remove();
-      }
-      if (responseListener.current) {
-        responseListener.current.remove();
-      }
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
     };
   }, []);
 
-  // Setup Android notification channel
   useEffect(() => {
-    if (Platform.OS === "android") {
-      Notifications.setNotificationChannelAsync("default", {
-        name: "Default",
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: "#FF231F7C",
-        sound: "default",
-      }).catch((error) =>
-        console.error("Error setting notification channel:", error),
-      );
-    }
+    if (Platform.OS !== "android") return;
+
+    Notifications.setNotificationChannelAsync("default", {
+      name: "Default",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#FF231F7C",
+      sound: "default",
+    }).catch((error) => {
+      console.error("Error setting notification channel:", error);
+    });
   }, []);
 
-  // Remove push token on logout (listen for user logout)
   const previousAccountIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     const removeTokenOnLogout = async (accountId: string) => {
       const token = notificationService.getExpoPushToken();
-      if (token) {
+
+      if (!token) return;
+
+      try {
         await notificationService.deactivatePushToken(accountId, token);
-        console.log("🔴 Push token deactivated on logout");
+      } catch (error) {
+        console.error("Failed to deactivate push token:", error);
       }
     };
 
     if (user?.accountId) {
-      // Remember the logged-in account so we can clean up after logout
       previousAccountIdRef.current = user.accountId;
-    } else if (!user && previousAccountIdRef.current) {
-      // User transitioned from logged-in -> logged-out
+      return;
+    }
+
+    if (!user && previousAccountIdRef.current) {
       const accountId = previousAccountIdRef.current;
       previousAccountIdRef.current = null;
       removeTokenOnLogout(accountId);
     }
   }, [user]);
 
-  // 🚀 Render navigator
+  if (!fontsLoaded || !appIsReady) {
+    return (
+      <View className="flex-1 items-center justify-center bg-white">
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   return (
     <AuthProvider>
       <Slot />

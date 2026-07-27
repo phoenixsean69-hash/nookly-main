@@ -5,11 +5,12 @@ import OperationSuccesfull from "@/components/OperationSuccesfull";
 import { Colors } from "@/constants/Colors";
 import images from "@/constants/images";
 import { uploadImage } from "@/lib/appwrite";
+import { TenantType, getUserHomeRoute } from "@/lib/userMode";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -24,9 +25,12 @@ import {
   View,
 } from "react-native";
 
+type PrimaryUserMode = "tenant" | "landlord";
+
 interface FormData {
   name: string;
-  userMode: "tenant" | "landlord" | "student" | "";
+  userMode: PrimaryUserMode | "";
+  tenantType: TenantType | "";
   email: string;
   phone: string;
   password: string;
@@ -36,51 +40,78 @@ interface FormData {
 }
 
 interface ValidationError {
-  field: string;
+  field: keyof FormData;
   message: string;
 }
 
-// Function to get initials from name
-const getInitials = (name: string): string => {
-  return name
-    .split(" ")
-    .map((n) => n[0])
+interface TenantOption {
+  value: TenantType;
+  title: string;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}
+
+const TENANT_OPTIONS: TenantOption[] = [
+  {
+    value: "student",
+    title: "Student",
+    description: "Campus-friendly and shared accommodation",
+    icon: "school-outline",
+  },
+  {
+    value: "family",
+    title: "Family",
+    description: "Space, safety and family-friendly facilities",
+    icon: "people-outline",
+  },
+  {
+    value: "single",
+    title: "Single",
+    description: "Studios, rooms and affordable solo living",
+    icon: "person-outline",
+  },
+];
+
+const getInitials = (name: string): string =>
+  name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);
-};
 
-// Generate a consistent color based on name
 const getInitialsColor = (name: string): string => {
   const colors = [
-    "#3B82F6", // Blue
-    "#10B981", // Green
-    "#F59E0B", // Orange
-    "#EF4444", // Red
-    "#8B5CF6", // Purple
-    "#EC4899", // Pink
-    "#06B6D4", // Cyan
-    "#F97316", // Orange
+    "#3B82F6",
+    "#10B981",
+    "#F59E0B",
+    "#EF4444",
+    "#8B5CF6",
+    "#EC4899",
+    "#06B6D4",
+    "#F97316",
   ];
+
   let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  for (let index = 0; index < name.length; index += 1) {
+    hash = name.charCodeAt(index) + ((hash << 5) - hash);
   }
-  const index = Math.abs(hash) % colors.length;
-  return colors[index];
+
+  return colors[Math.abs(hash) % colors.length];
 };
 
-const SignUp = () => {
+export default function SignUp() {
   const router = useRouter();
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [errorModalVisible, setErrorModalVisible] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
-    [],
-  );
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? "light"];
+  const { signUp, updateUser } = useAuthStore();
+
   const [formData, setFormData] = useState<FormData>({
     name: "",
     userMode: "",
+    tenantType: "",
     email: "",
     phone: "",
     password: "",
@@ -88,72 +119,128 @@ const SignUp = () => {
     avatar: "",
     schoolLocation: "",
   });
+
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
+    [],
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const { signUp, user, isAuthenticated } = useAuthStore();
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Animation for error messages
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const displayInitials = useMemo(
+    () => (formData.name && !formData.avatar ? getInitials(formData.name) : ""),
+    [formData.avatar, formData.name],
+  );
 
-  // Show error with animation
-  const showValidationError = (errors: ValidationError[]) => {
-    setValidationErrors(errors);
-    Animated.sequence([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.delay(5000),
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      setValidationErrors([]);
-    });
-  };
+  const initialsColor = useMemo(
+    () => (formData.name ? getInitialsColor(formData.name) : "#3B82F6"),
+    [formData.name],
+  );
 
-  // Clear a specific error
-  const clearError = (field: string) => {
-    setValidationErrors((prev) =>
-      prev.filter((error) => error.field !== field),
+  const updateField = <K extends keyof FormData>(
+    field: K,
+    value: FormData[K],
+  ) => {
+    setFormData((current) => ({ ...current, [field]: value }));
+    setValidationErrors((current) =>
+      current.filter((error) => error.field !== field),
     );
   };
 
-  // Clear all errors
-  const clearAllErrors = () => {
-    setValidationErrors([]);
+  const getFieldError = (field: keyof FormData): string | undefined =>
+    validationErrors.find((error) => error.field === field)?.message;
+
+  const showValidationErrors = (errors: ValidationError[]) => {
+    setValidationErrors(errors);
+    fadeAnim.setValue(0);
+
     Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 300,
+      toValue: 1,
+      duration: 250,
       useNativeDriver: true,
     }).start();
   };
 
-  // Redirect when user is authenticated
-  React.useEffect(() => {
-    if (user && isAuthenticated) {
-      if (user.userMode === "tenant") {
-        router.replace("/tenantHome");
-      } else if (user.userMode === "landlord") {
-        router.replace("/landHome");
-      } else if (user.userMode === "student") {
-        router.replace("/s-tenantHome");
-      }
+  const validateForm = (): ValidationError[] => {
+    const errors: ValidationError[] = [];
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!formData.name.trim()) {
+      errors.push({ field: "name", message: "Enter your full name." });
     }
-  }, [user, isAuthenticated, router]);
+
+    if (!formData.email.trim()) {
+      errors.push({ field: "email", message: "Enter your email address." });
+    } else if (!emailRegex.test(formData.email.trim())) {
+      errors.push({ field: "email", message: "Enter a valid email address." });
+    }
+
+    if (!formData.phone.trim()) {
+      errors.push({ field: "phone", message: "Enter your phone number." });
+    }
+
+    if (!formData.userMode) {
+      errors.push({
+        field: "userMode",
+        message: "Choose whether you are a tenant or landlord.",
+      });
+    }
+
+    if (formData.userMode === "tenant" && !formData.tenantType) {
+      errors.push({
+        field: "tenantType",
+        message: "Choose your tenant type.",
+      });
+    }
+
+    if (
+      formData.userMode === "tenant" &&
+      formData.tenantType === "student" &&
+      !formData.schoolLocation.trim()
+    ) {
+      errors.push({
+        field: "schoolLocation",
+        message: "Enter your school or university location.",
+      });
+    }
+
+    if (!formData.password) {
+      errors.push({ field: "password", message: "Create a password." });
+    } else if (formData.password.length < 8) {
+      errors.push({
+        field: "password",
+        message: "Password must contain at least 8 characters.",
+      });
+    }
+
+    if (!formData.confirmPassword) {
+      errors.push({
+        field: "confirmPassword",
+        message: "Confirm your password.",
+      });
+    } else if (formData.password !== formData.confirmPassword) {
+      errors.push({
+        field: "confirmPassword",
+        message: "Passwords do not match.",
+      });
+    }
+
+    return errors;
+  };
 
   const pickImage = async () => {
     try {
-      const { status } =
+      const permission =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        showValidationError([
+
+      if (permission.status !== "granted") {
+        showValidationErrors([
           {
             field: "avatar",
-            message: "Please allow photo access to upload avatar.",
+            message: "Allow photo access to choose a profile photo.",
           },
         ]);
         return;
@@ -162,106 +249,30 @@ const SignUp = () => {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        quality: 0.7,
         aspect: [1, 1],
+        quality: 0.7,
       });
 
-      if (!result.canceled) {
-        const uri = result.assets[0]?.uri;
-        if (uri) {
-          setFormData((prev) => ({ ...prev, avatar: uri }));
-        }
+      if (!result.canceled && result.assets[0]?.uri) {
+        updateField("avatar", result.assets[0].uri);
       }
     } catch (error) {
-      console.error("ImagePicker error:", error);
-      showValidationError([
+      console.error("Image picker failed:", error);
+      showValidationErrors([
         {
           field: "avatar",
-          message: "Could not open image library.",
+          message: "Could not open your image library.",
         },
       ]);
     }
   };
 
-  const removeAvatar = () => {
-    setFormData((prev) => ({ ...prev, avatar: "" }));
-  };
-
-  const validateForm = (): ValidationError[] => {
-    const errors: ValidationError[] = [];
-
-    if (!formData.name?.trim()) {
-      errors.push({ field: "name", message: "Please enter your full name" });
-    }
-
-    if (!formData.userMode) {
-      errors.push({
-        field: "userMode",
-        message: "Please select whether you're a tenant, student, or landlord",
-      });
-    }
-
-    if (formData.userMode === "student" && !formData.schoolLocation.trim()) {
-      errors.push({
-        field: "schoolLocation",
-        message: "Please enter your school location",
-      });
-    }
-
-    if (!formData.email?.trim()) {
-      errors.push({ field: "email", message: "Please enter your email" });
-    }
-
-    if (!formData.phone?.trim()) {
-      errors.push({
-        field: "phone",
-        message: "Please enter your phone number",
-      });
-    }
-
-    if (!formData.password) {
-      errors.push({ field: "password", message: "Please create a password" });
-    }
-
-    if (formData.password.length < 8 && formData.password.length > 0) {
-      errors.push({
-        field: "password",
-        message: "Password must be at least 8 characters",
-      });
-    }
-
-    if (
-      formData.password !== formData.confirmPassword &&
-      formData.confirmPassword
-    ) {
-      errors.push({
-        field: "confirmPassword",
-        message: "Passwords do not match",
-      });
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (formData.email && !emailRegex.test(formData.email)) {
-      errors.push({
-        field: "email",
-        message: "Please enter a valid email address",
-      });
-    }
-
-    return errors;
-  };
-
-  // app/(auth)/sign-up.tsx - Update handleSignUp function
-
   const handleSignUp = async () => {
-    // Clear previous errors
-    clearAllErrors();
     setErrorMessage("");
-
-    // Validate form first - before any API calls
     const errors = validateForm();
+
     if (errors.length > 0) {
-      showValidationError(errors);
+      showValidationErrors(errors);
       return;
     }
 
@@ -269,101 +280,88 @@ const SignUp = () => {
     let uploadedAvatarUrl = "";
 
     try {
-      // Upload avatar ONLY if user selected one (optional)
       if (formData.avatar) {
         setUploadingAvatar(true);
+
         try {
-          console.log("📸 Uploading avatar...");
           uploadedAvatarUrl = await uploadImage({
             uri: formData.avatar,
             fileName: `avatar_${Date.now()}.jpg`,
             mimeType: "image/jpeg",
           });
-          console.log(" Avatar uploaded:", uploadedAvatarUrl);
-        } catch (uploadError: any) {
-          console.error("Error uploading avatar:", uploadError);
-          // Don't block signup - show warning but continue
-          showValidationError([
-            {
-              field: "avatar",
-              message:
-                "Could not upload avatar. You can add one later from profile.",
-            },
-          ]);
+        } catch (avatarError) {
+          console.error("Avatar upload failed:", avatarError);
+          // Avatar is optional, so registration continues with the default avatar.
         } finally {
           setUploadingAvatar(false);
         }
       }
 
-      console.log("Attempting signup with:", formData.email);
-      const result = await signUp({
-        name: formData.name,
-        email: formData.email,
+      const signupResult = await signUp({
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
         password: formData.password,
-        phone: formData.phone,
-        userMode: formData.userMode.toLowerCase() as
-          | "tenant"
-          | "landlord"
-          | "student",
-        schoolLocation:
-          formData.userMode === "student"
-            ? formData.schoolLocation.trim().toLowerCase()
-            : undefined,
+        phone: formData.phone.trim(),
+        // New accounts only use the two major modes.
+        userMode: formData.userMode as any,
         avatar: uploadedAvatarUrl,
       });
 
-      console.log("Signup result:", result);
-
-      if (result.success) {
-        setShowSuccess(true);
-        // Redirect will happen after modal closes
-      } else {
-        setErrorMessage(result.error || "Could not create account");
-        setErrorModalVisible(true);
+      if (!signupResult.success) {
+        throw new Error(signupResult.error || "Could not create your account.");
       }
+
+      let destinationUser: Record<string, unknown> = {
+        userMode: formData.userMode,
+      };
+
+      if (formData.userMode === "tenant") {
+        const tenantUpdates: Record<string, unknown> = {
+          tenantType: formData.tenantType,
+        };
+
+        if (formData.tenantType === "student") {
+          tenantUpdates.schoolLocation = formData.schoolLocation
+            .trim()
+            .toLowerCase();
+        }
+
+        const updateResult = await updateUser(tenantUpdates as any);
+
+        if (!updateResult.success) {
+          throw new Error(
+            `${updateResult.error || "The tenant type could not be saved."} ` +
+              "Make sure the tenantType attribute exists in the Appwrite users collection.",
+          );
+        }
+
+        destinationUser = {
+          ...destinationUser,
+          ...tenantUpdates,
+        };
+      }
+
+      setShowSuccess(true);
+
+      setTimeout(() => {
+        router.replace(getUserHomeRoute(destinationUser as any) as any);
+      }, 850);
     } catch (error: any) {
-      console.error("Sign up error details:", error);
+      console.error("Sign up failed:", error);
 
-      let errorMessage = "An unexpected error occurred";
+      let message = error?.message || "Could not create your account.";
 
-      // Handle specific error messages
-      if (error?.message?.includes("already exists")) {
-        errorMessage =
-          "This email is already registered. Please sign in instead.";
-      } else if (error?.message?.includes("weak password")) {
-        errorMessage =
-          "Password is too weak. Use at least 8 characters with a mix of letters, numbers, and symbols.";
-      } else if (error?.message?.includes("invalid email")) {
-        errorMessage = "Please enter a valid email address.";
-      } else if (error?.message?.includes("network")) {
-        errorMessage = "Network error. Please check your internet connection.";
-      } else {
-        errorMessage =
-          error?.message || "Failed to create account. Please try again.";
+      if (message.toLowerCase().includes("already exists")) {
+        message = "This email is already registered. Sign in instead.";
       }
 
-      setErrorMessage(errorMessage);
+      setErrorMessage(message);
       setErrorModalVisible(true);
     } finally {
       setIsLoading(false);
+      setUploadingAvatar(false);
     }
   };
-
-  const colorScheme = useColorScheme();
-  const theme = Colors[colorScheme ?? "light"];
-
-  // Get error for a specific field
-  const getFieldError = (field: string): string | undefined => {
-    const error = validationErrors.find((e) => e.field === field);
-    return error ? error.message : undefined;
-  };
-
-  // Get initials for display (only show when no avatar and name exists)
-  const displayInitials =
-    formData.name && !formData.avatar ? getInitials(formData.name) : "";
-  const initialsColor = formData.name
-    ? getInitialsColor(formData.name)
-    : "#3B82F6";
 
   return (
     <>
@@ -372,6 +370,7 @@ const SignUp = () => {
         backgroundColor="transparent"
         translucent
       />
+
       <View className="flex-1" style={{ backgroundColor: theme.navBackground }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -381,90 +380,60 @@ const SignUp = () => {
           <ScrollView
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{
-              flexGrow: 1,
-              paddingBottom: 40,
-            }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
           >
-            {/* House Banner */}
             <Image
               source={images.dayHouse}
-              className="w-full h-96"
+              className="w-full h-80"
               resizeMode="cover"
             />
 
-            {/* Content Container */}
             <View
               className="flex-1 px-6 pt-8 pb-8 -mt-8 rounded-t-3xl"
               style={{ backgroundColor: theme.navBackground }}
             >
               <Text
-                className="text-3xl font-semibold mb-2"
+                className="text-3xl font-rubik-bold"
                 style={{ color: theme.title }}
               >
                 Create account
               </Text>
-              <Text className="text-base mb-8" style={{ color: theme.muted }}>
-                Sign up to get started
+              <Text
+                className="text-base mt-2 mb-7"
+                style={{ color: theme.muted }}
+              >
+                Join Nookly and get a feed tailored to you.
               </Text>
 
-              {/* Global Error Container - Shows all errors at once */}
               {validationErrors.length > 0 && (
                 <Animated.View
                   className="mb-6 rounded-xl overflow-hidden"
-                  style={{
-                    opacity: fadeAnim,
-                    transform: [
-                      {
-                        translateY: fadeAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [-20, 0],
-                        }),
-                      },
-                    ],
-                  }}
+                  style={{ opacity: fadeAnim }}
                 >
                   <View className="bg-red-50 border-l-4 border-red-500 p-4">
-                    <View className="flex-row items-start">
-                      <View className="flex-1">
-                        <Text className="text-red-800 font-rubik-bold mb-2">
-                          Please fix the following:
-                        </Text>
-                        {validationErrors.map((error, index) => (
-                          <View
-                            key={index}
-                            className="flex-row items-center mb-1"
-                          >
-                            <View className="w-1.5 h-1.5 rounded-full bg-red-500 mr-2" />
-                            <Text className="text-red-700 text-sm flex-1 font-rubik">
-                              {error.message}
-                            </Text>
-                            <TouchableOpacity
-                              onPress={() => clearError(error.field)}
-                              className="ml-2"
-                            >
-                              <Ionicons
-                                name="close"
-                                size={16}
-                                color="#EF4444"
-                              />
-                            </TouchableOpacity>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
+                    <Text className="text-red-800 font-rubik-bold mb-2">
+                      Please fix the following:
+                    </Text>
+                    {validationErrors.map((error) => (
+                      <Text
+                        key={`${error.field}-${error.message}`}
+                        className="text-red-700 text-sm mb-1"
+                      >
+                        • {error.message}
+                      </Text>
+                    ))}
                   </View>
                 </Animated.View>
               )}
 
-              {/* Avatar Upload - Optional */}
               <TouchableOpacity
                 onPress={pickImage}
                 disabled={uploadingAvatar}
+                activeOpacity={0.85}
                 className="items-center mb-8"
               >
                 <View
-                  className="w-24 h-24 rounded-full items-center justify-center relative overflow-hidden"
+                  className="w-24 h-24 rounded-full items-center justify-center overflow-hidden"
                   style={{
                     backgroundColor: theme.surface,
                     borderWidth: 2,
@@ -484,7 +453,6 @@ const SignUp = () => {
                       className="w-full h-full"
                     />
                   ) : formData.name ? (
-                    // Show initials avatar when name exists but no uploaded avatar
                     <View
                       className="w-full h-full items-center justify-center"
                       style={{ backgroundColor: initialsColor }}
@@ -500,52 +468,23 @@ const SignUp = () => {
                       color={theme.muted}
                     />
                   )}
-
-                  {/* Edit Icon Overlay */}
-                  <View
-                    className="absolute bottom-0 right-0 rounded-full p-1"
-                    style={{ backgroundColor: theme.primary[300] }}
-                  >
-                    <Ionicons name="pencil" size={12} color="white" />
-                  </View>
                 </View>
 
-                <View className="flex-row items-center justify-center mt-2">
-                  <Text
-                    className="text-sm font-rubik-medium"
-                    style={{
-                      color: getFieldError("avatar") ? "#EF4444" : theme.muted,
-                    }}
-                  >
-                    {uploadingAvatar
-                      ? "Uploading..."
-                      : formData.avatar
-                        ? "Change Photo"
-                        : "Add Profile Photo (Optional)"}
-                  </Text>
-                  {formData.avatar && (
-                    <TouchableOpacity onPress={removeAvatar} className="ml-2">
-                      <Ionicons name="close-circle" size={18} color="#EF4444" />
-                    </TouchableOpacity>
-                  )}
-                </View>
                 <Text
-                  className="text-xs mt-1"
-                  style={{ color: theme.muted + "80" }}
+                  className="text-sm font-rubik-medium mt-2"
+                  style={{ color: theme.muted }}
                 >
-                  {!formData.avatar && "Your initials will be used as avatar"}
+                  {formData.avatar
+                    ? "Change profile photo"
+                    : "Add profile photo (optional)"}
                 </Text>
               </TouchableOpacity>
 
-              {/* Form Fields */}
-              <View className="space-y-4">
+              <View className="gap-4">
                 <CustomInput
                   label="Full name"
                   value={formData.name}
-                  onChangeText={(text) => {
-                    setFormData({ ...formData, name: text });
-                    if (getFieldError("name")) clearError("name");
-                  }}
+                  onChangeText={(value) => updateField("name", value)}
                   placeholder="Enter your full name"
                   error={getFieldError("name")}
                 />
@@ -553,10 +492,7 @@ const SignUp = () => {
                 <CustomInput
                   label="Email"
                   value={formData.email}
-                  onChangeText={(text) => {
-                    setFormData({ ...formData, email: text });
-                    if (getFieldError("email")) clearError("email");
-                  }}
+                  onChangeText={(value) => updateField("email", value)}
                   placeholder="Enter your email"
                   keyboardType="email-address"
                   autoCapitalize="none"
@@ -566,109 +502,206 @@ const SignUp = () => {
                 <CustomInput
                   label="Phone number"
                   value={formData.phone}
-                  onChangeText={(text) => {
-                    setFormData({ ...formData, phone: text });
-                    if (getFieldError("phone")) clearError("phone");
-                  }}
+                  onChangeText={(value) => updateField("phone", value)}
                   placeholder="Enter your phone number"
                   keyboardType="phone-pad"
                   error={getFieldError("phone")}
                 />
 
-                {/* User Mode Toggle */}
-                <View className="mb-4">
+                <View>
                   <Text
-                    className="text-sm font-medium mb-2 font-rubik-medium"
+                    className="text-sm font-rubik-medium mb-2"
                     style={{
                       color: getFieldError("userMode")
                         ? "#EF4444"
                         : theme.muted,
                     }}
                   >
-                    Select Your User Mode
+                    How will you use Nookly?
                   </Text>
 
-                  <View
-                    className="flex-row justify-between rounded-2xl p-1.5"
-                    style={{
-                      backgroundColor: theme.surface,
-                      borderWidth: getFieldError("userMode") ? 1 : 0,
-                      borderColor: "#EF4444",
-                    }}
-                  >
-                    {(["tenant", "student", "landlord"] as const).map(
-                      (mode) => {
-                        const isSelected = formData.userMode === mode;
+                  <View className="flex-row gap-3">
+                    {(["tenant", "landlord"] as const).map((mode) => {
+                      const selected = formData.userMode === mode;
 
-                        return (
-                          <TouchableOpacity
-                            key={mode}
-                            onPress={() => {
-                              setFormData({
-                                ...formData,
+                      return (
+                        <TouchableOpacity
+                          key={mode}
+                          activeOpacity={0.85}
+                          onPress={() => {
+                            updateField("userMode", mode);
+
+                            if (mode === "landlord") {
+                              setFormData((current) => ({
+                                ...current,
                                 userMode: mode,
-                                schoolLocation:
-                                  mode === "student"
-                                    ? formData.schoolLocation
-                                    : "",
-                              });
-                              if (
-                                mode !== "student" &&
-                                getFieldError("schoolLocation")
-                              ) {
-                                clearError("schoolLocation");
-                              }
-                              if (getFieldError("userMode"))
-                                clearError("userMode");
+                                tenantType: "",
+                                schoolLocation: "",
+                              }));
+                              setValidationErrors((current) =>
+                                current.filter(
+                                  (error) =>
+                                    error.field !== "tenantType" &&
+                                    error.field !== "schoolLocation" &&
+                                    error.field !== "userMode",
+                                ),
+                              );
+                            }
+                          }}
+                          className="flex-1 rounded-2xl p-4 items-center"
+                          style={{
+                            backgroundColor: selected
+                              ? theme.primary[300]
+                              : theme.surface,
+                            borderWidth: 1,
+                            borderColor: selected
+                              ? theme.primary[300]
+                              : `${theme.muted}30`,
+                          }}
+                        >
+                          <Ionicons
+                            name={
+                              mode === "tenant"
+                                ? "home-outline"
+                                : "business-outline"
+                            }
+                            size={24}
+                            color={selected ? "#FFFFFF" : theme.primary[300]}
+                          />
+                          <Text
+                            className="font-rubik-bold mt-2 capitalize"
+                            style={{
+                              color: selected ? "#FFFFFF" : theme.title,
                             }}
-                            className={`flex-1 py-3 px-1 rounded-xl items-center ${
-                              isSelected ? "bg-blue-600" : ""
-                            }`}
                           >
-                            <Text
-                              className={`font-semibold text-xs ${
-                                isSelected ? "text-white" : "text-gray-700"
-                              }`}
-                            >
-                              {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      },
-                    )}
+                            {mode}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
 
-                  {getFieldError("userMode") && (
-                    <Text className="text-red-500 text-xs mt-1 font-rubik">
+                  {!!getFieldError("userMode") && (
+                    <Text className="text-red-500 text-xs mt-2">
                       {getFieldError("userMode")}
                     </Text>
                   )}
                 </View>
 
-                {formData.userMode === "student" && (
-                  <CustomInput
-                    label="School location"
-                    value={formData.schoolLocation}
-                    onChangeText={(text) => {
-                      setFormData({ ...formData, schoolLocation: text });
+                {formData.userMode === "tenant" && (
+                  <View>
+                    <Text
+                      className="text-sm font-rubik-medium mb-2"
+                      style={{
+                        color: getFieldError("tenantType")
+                          ? "#EF4444"
+                          : theme.muted,
+                      }}
+                    >
+                      What type of tenant are you?
+                    </Text>
 
-                      if (getFieldError("schoolLocation")) {
-                        clearError("schoolLocation");
-                      }
-                    }}
-                    placeholder="Enter your school location"
-                    autoCapitalize="words"
-                    error={getFieldError("schoolLocation")}
-                  />
+                    <View className="gap-3">
+                      {TENANT_OPTIONS.map((option) => {
+                        const selected =
+                          formData.tenantType === option.value;
+
+                        return (
+                          <TouchableOpacity
+                            key={option.value}
+                            activeOpacity={0.85}
+                            onPress={() => {
+                              updateField("tenantType", option.value);
+
+                              if (option.value !== "student") {
+                                updateField("schoolLocation", "");
+                              }
+                            }}
+                            className="rounded-2xl p-4 flex-row items-center"
+                            style={{
+                              backgroundColor: selected
+                                ? `${theme.primary[300]}12`
+                                : theme.surface,
+                              borderWidth: 1.5,
+                              borderColor: selected
+                                ? theme.primary[300]
+                                : `${theme.muted}28`,
+                            }}
+                          >
+                            <View
+                              className="w-11 h-11 rounded-xl items-center justify-center mr-3"
+                              style={{
+                                backgroundColor: selected
+                                  ? theme.primary[300]
+                                  : `${theme.primary[300]}12`,
+                              }}
+                            >
+                              <Ionicons
+                                name={option.icon}
+                                size={22}
+                                color={
+                                  selected ? "#FFFFFF" : theme.primary[300]
+                                }
+                              />
+                            </View>
+
+                            <View className="flex-1">
+                              <Text
+                                className="font-rubik-bold"
+                                style={{ color: theme.title }}
+                              >
+                                {option.title}
+                              </Text>
+                              <Text
+                                className="text-xs mt-1"
+                                style={{ color: theme.muted }}
+                              >
+                                {option.description}
+                              </Text>
+                            </View>
+
+                            <Ionicons
+                              name={
+                                selected
+                                  ? "checkmark-circle"
+                                  : "ellipse-outline"
+                              }
+                              size={22}
+                              color={
+                                selected ? theme.primary[300] : theme.muted
+                              }
+                            />
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {!!getFieldError("tenantType") && (
+                      <Text className="text-red-500 text-xs mt-2">
+                        {getFieldError("tenantType")}
+                      </Text>
+                    )}
+                  </View>
                 )}
+
+                {formData.userMode === "tenant" &&
+                  formData.tenantType === "student" && (
+                    <CustomInput
+                      label="School or university location"
+                      value={formData.schoolLocation}
+                      onChangeText={(value) =>
+                        updateField("schoolLocation", value)
+                      }
+                      placeholder="e.g. Bindura University"
+                      autoCapitalize="words"
+                      error={getFieldError("schoolLocation")}
+                    />
+                  )}
 
                 <CustomInput
                   label="Password"
                   value={formData.password}
-                  onChangeText={(text) => {
-                    setFormData({ ...formData, password: text });
-                    if (getFieldError("password")) clearError("password");
-                  }}
+                  onChangeText={(value) => updateField("password", value)}
                   placeholder="Create a password"
                   secureTextEntry
                   error={getFieldError("password")}
@@ -677,55 +710,46 @@ const SignUp = () => {
                 <CustomInput
                   label="Confirm password"
                   value={formData.confirmPassword}
-                  onChangeText={(text) => {
-                    setFormData({ ...formData, confirmPassword: text });
-                    if (getFieldError("confirmPassword"))
-                      clearError("confirmPassword");
-                  }}
+                  onChangeText={(value) =>
+                    updateField("confirmPassword", value)
+                  }
                   placeholder="Confirm your password"
                   secureTextEntry
                   error={getFieldError("confirmPassword")}
                 />
 
-                {/* Password Requirements Helper */}
-                {formData.password.length > 0 &&
-                  formData.password.length < 8 && (
-                    <View className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2">
-                      <Text className="text-yellow-700 text-xs font-rubik">
-                        💡 Password must be at least 8 characters
-                      </Text>
-                    </View>
-                  )}
-
-                {/* Sign Up Button */}
                 <TouchableOpacity
                   onPress={handleSignUp}
                   disabled={isLoading || uploadingAvatar}
-                  className={`w-full py-4 rounded-2xl mt-6 ${
-                    isLoading || uploadingAvatar ? "bg-gray-400" : "bg-blue-600"
-                  }`}
+                  activeOpacity={0.85}
+                  className="w-full py-4 rounded-2xl mt-4"
+                  style={{
+                    backgroundColor:
+                      isLoading || uploadingAvatar
+                        ? theme.muted
+                        : theme.primary[300],
+                  }}
                 >
                   {isLoading ? (
                     <View className="flex-row items-center justify-center">
                       <ActivityIndicator size="small" color="#FFFFFF" />
-                      <Text className="text-white text-center font-semibold text-base ml-2">
+                      <Text className="text-white font-rubik-bold ml-2">
                         Creating account...
                       </Text>
                     </View>
                   ) : (
-                    <Text className="text-white text-center font-semibold text-base">
+                    <Text className="text-white text-center font-rubik-bold text-base">
                       Sign Up
                     </Text>
                   )}
                 </TouchableOpacity>
 
-                {/* Sign In Link */}
-                <View className="flex-row justify-center mt-6">
-                  <Text className="text-gray-600">
+                <View className="flex-row justify-center mt-3">
+                  <Text style={{ color: theme.muted }}>
                     Already have an account?{" "}
                   </Text>
                   <TouchableOpacity onPress={() => router.push("/sign-in")}>
-                    <Text className="text-orange-500 font-semibold">
+                    <Text className="text-orange-500 font-rubik-bold">
                       Sign In
                     </Text>
                   </TouchableOpacity>
@@ -735,26 +759,20 @@ const SignUp = () => {
           </ScrollView>
         </KeyboardAvoidingView>
 
-        {/* Success Modal */}
         <OperationSuccesfull
           visible={showSuccess}
-          onClose={() => {
-            setShowSuccess(false);
-          }}
-          title="Account Created!"
-          message="Your account has been created successfully. Redirecting..."
+          onClose={() => setShowSuccess(false)}
+          title="Account created"
+          message="Your personalised Nookly account is ready."
         />
 
-        {/* Error Modal */}
         <ErrorModal
           visible={errorModalVisible}
           onClose={() => setErrorModalVisible(false)}
-          title="Sign Up Failed"
+          title="Sign up failed"
           message={errorMessage}
         />
       </View>
     </>
   );
-};
-
-export default SignUp;
+}
