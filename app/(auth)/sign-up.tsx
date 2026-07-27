@@ -1,7 +1,7 @@
-// app/(auth)/sign-up.tsx
 import CustomInput from "@/components/CustomInput";
 import ErrorModal from "@/components/ErrorModal";
 import OperationSuccesfull from "@/components/OperationSuccesfull";
+import SearchableInstitutionPicker from "@/components/SearchableInstitutionPicker";
 import { Colors } from "@/constants/Colors";
 import images from "@/constants/images";
 import { uploadImage } from "@/lib/appwrite";
@@ -203,7 +203,7 @@ export default function SignUp() {
     ) {
       errors.push({
         field: "schoolLocation",
-        message: "Enter your school or university location.",
+        message: "Select your university, polytechnic or tertiary college.",
       });
     }
 
@@ -291,7 +291,6 @@ export default function SignUp() {
           });
         } catch (avatarError) {
           console.error("Avatar upload failed:", avatarError);
-          // Avatar is optional, so registration continues with the default avatar.
         } finally {
           setUploadingAvatar(false);
         }
@@ -302,7 +301,6 @@ export default function SignUp() {
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
         phone: formData.phone.trim(),
-        // New accounts only use the two major modes.
         userMode: formData.userMode as any,
         avatar: uploadedAvatarUrl,
       });
@@ -321,17 +319,16 @@ export default function SignUp() {
         };
 
         if (formData.tenantType === "student") {
-          tenantUpdates.schoolLocation = formData.schoolLocation
-            .trim()
-            .toLowerCase();
+          // Store the selected canonical institution name as a normal string.
+          tenantUpdates.schoolLocation = formData.schoolLocation.trim();
         }
 
         const updateResult = await updateUser(tenantUpdates as any);
 
         if (!updateResult.success) {
           throw new Error(
-            `${updateResult.error || "The tenant type could not be saved."} ` +
-              "Make sure the tenantType attribute exists in the Appwrite users collection.",
+            `${updateResult.error || "The tenant details could not be saved."} ` +
+              "Confirm that tenantType and schoolLocation exist in the Appwrite users collection.",
           );
         }
 
@@ -559,9 +556,8 @@ export default function SignUp() {
                               : `${theme.muted}30`,
                           }}
                         >
-                          
                           <Text
-                            className="font-rubik-bold mt-2 capitalize"
+                            className="font-rubik-bold capitalize"
                             style={{
                               color: selected ? "#FFFFFF" : theme.title,
                             }}
@@ -678,14 +674,11 @@ export default function SignUp() {
 
                 {formData.userMode === "tenant" &&
                   formData.tenantType === "student" && (
-                    <CustomInput
-                      label="School or university location"
+                    <SearchableInstitutionPicker
                       value={formData.schoolLocation}
-                      onChangeText={(value) =>
+                      onChange={(value) =>
                         updateField("schoolLocation", value)
                       }
-                      placeholder="e.g. Bindura University"
-                      autoCapitalize="words"
                       error={getFieldError("schoolLocation")}
                     />
                   )}

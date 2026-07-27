@@ -177,7 +177,8 @@ export const recordPayment = async (
     const profile = await getOrCreateTenantProfile(userId);
     if (!profile) return false;
 
-    const onTimePayments = (profile.onTimePayments || 0) + (onTime ? 1 : 0);
+    const onTimePayments =
+      (profile.onTimePayments || 0) + (onTime ? 1 : 0);
     const totalPayments = (profile.totalPayments || 0) + 1;
 
     await databases.updateDocument(

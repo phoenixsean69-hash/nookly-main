@@ -1,25 +1,45 @@
+import {
+  getInstitutionLocationTerms,
+  normalizeInstitutionText,
+} from "@/constants/zimbabweTertiaryInstitutions";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Query } from "react-native-appwrite";
-import { config, databases } from "./appwrite";
+import { config, databases } from "../lib/appwrite";
 
 export const STUDENT_PROPERTY_FILTERS = [
   { title: "All", category: "All" },
   { title: "Boarding House", category: "Boarding" },
   { title: "House", category: "House" },
+  { title: "Apartment", category: "Apartment" },
+  { title: "Cottage", category: "Cottage" },
+  { title: "Duplex", category: "Duplex" },
   { title: "Studio", category: "Studio" },
   { title: "Luxury", category: "Luxury" },
 ] as const;
 
-const STUDENT_TYPES = new Set([
+const NON_RESIDENTIAL_TYPES = new Set([
+  "commercial",
+  "farm",
+  "industrial",
+  "land",
+  "office",
+  "shop",
+  "warehouse",
+  "workplace",
+]);
+
+const BOARDING_TYPES = new Set([
   "boarding",
   "boarding house",
   "boardinghouse",
-  "house",
-  "studio",
-  "luxury",
+  "hostel",
+  "student hostel",
 ]);
 
 const CACHE_TTL = 15 * 60 * 1000;
+const CACHE_VERSION = "v4";
+const PAGE_SIZE = 100;
+const MAX_PROPERTY_PAGES = 20;
 
 type CacheEnvelope<T> = {
   savedAt: number;
@@ -51,10 +71,7 @@ export type ApprovedOrganization = {
 };
 
 export const normalizeStudentText = (value?: unknown): string =>
-  String(value ?? "")
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/\s+/g, " ");
+  normalizeInstitutionText(value);
 
 export const titleCaseStudentText = (value?: string): string =>
   String(value ?? "")
@@ -65,27 +82,53 @@ export const titleCaseStudentText = (value?: string): string =>
     )
     .join(" ");
 
-export const isStudentPropertyType = (type?: string): boolean =>
-  STUDENT_TYPES.has(normalizeStudentText(type));
+export const isStudentPropertyType = (type?: string): boolean => {
+  const normalizedType = normalizeStudentText(type);
+  if (!normalizedType) return true;
+  return !NON_RESIDENTIAL_TYPES.has(normalizedType);
+};
 
-export const isBoardingHouseType = (type?: string): boolean => {
-  const normalized = normalizeStudentText(type);
+export const isBoardingHouseType = (type?: string): boolean =>
+  BOARDING_TYPES.has(normalizeStudentText(type));
+
+const containsLocationTerm = (address: string, term: string): boolean => {
+  if (!address || !term) return false;
+
+  const paddedAddress = ` ${address} `;
+  const paddedTerm = ` ${term} `;
+
   return (
-    normalized === "boarding" ||
-    normalized === "boarding house" ||
-    normalized === "boardinghouse"
+    address === term ||
+    paddedAddress.includes(paddedTerm) ||
+    address.startsWith(`${term} `) ||
+    address.endsWith(` ${term}`)
   );
 };
 
+/**
+ * Matches a property address against the selected institution's actual city,
+ * town and known location aliases.
+ *
+ * Example:
+ * "Bindura University" resolves to BUSE, whose location terms include
+ * "Bindura". Therefore an address such as "Chipadze, Bindura" matches.
+ */
 export const propertyMatchesSchoolLocation = (
   address?: string,
   schoolLocation?: string,
 ): boolean => {
   const normalizedAddress = normalizeStudentText(address);
-  const normalizedLocation = normalizeStudentText(schoolLocation);
+  if (!normalizedAddress) return false;
 
-  if (!normalizedLocation) return false;
-  return normalizedAddress.includes(normalizedLocation);
+  const locationTerms = getInstitutionLocationTerms(schoolLocation)
+    .map(normalizeStudentText)
+    .filter((term) => term.length >= 3);
+
+  if (locationTerms.length === 0) return false;
+
+  return locationTerms.some((term) =>
+    containsLocationTerm(normalizedAddress, term),
+  );
 };
 
 const parseFacilities = (value: unknown): string => {
@@ -146,37 +189,44 @@ const getPropertyPerformanceScore = (property: StudentProperty): number => {
   );
 };
 
-const hydrateStudentProperty = (document: Record<string, any>): StudentProperty => {
+const hydrateStudentProperty = (
+  document: Record<string, any>,
+): StudentProperty => {
   const reviewStats = parseReviewStats(document.reviews);
+  const property = document as StudentProperty;
 
   return {
-    ...document,
+    ...property,
     rating: reviewStats.rating || Number(document.rating ?? 0),
     reviewCount: reviewStats.reviewCount,
-    studentPerformanceScore: getPropertyPerformanceScore(document),
+    studentPerformanceScore: getPropertyPerformanceScore(property),
   };
 };
 
 const sortByStudentPerformance = (
   properties: StudentProperty[],
 ): StudentProperty[] =>
-  [...properties].sort((a, b) => {
+  [...properties].sort((left, right) => {
     const scoreDifference =
-      Number(b.studentPerformanceScore ?? 0) -
-      Number(a.studentPerformanceScore ?? 0);
+      Number(right.studentPerformanceScore ?? 0) -
+      Number(left.studentPerformanceScore ?? 0);
 
     if (scoreDifference !== 0) return scoreDifference;
 
-    const bCreated = new Date(b.$createdAt ?? 0).getTime();
-    const aCreated = new Date(a.$createdAt ?? 0).getTime();
-    return bCreated - aCreated;
+    const rightCreated = new Date(right.$createdAt ?? 0).getTime();
+    const leftCreated = new Date(left.$createdAt ?? 0).getTime();
+    return rightCreated - leftCreated;
   });
 
 const studentCacheKey = (schoolLocation: string) =>
-  `@nookly:student-housing:${normalizeStudentText(schoolLocation)}`;
+  `@nookly:student-housing:${CACHE_VERSION}:${normalizeStudentText(
+    schoolLocation,
+  )}`;
 
 const approvedCacheKey = (schoolLocation: string) =>
-  `@nookly:approved-student-housing:${normalizeStudentText(schoolLocation)}`;
+  `@nookly:approved-student-housing:${CACHE_VERSION}:${normalizeStudentText(
+    schoolLocation,
+  )}`;
 
 const readCache = async <T>(key: string): Promise<T | null> => {
   try {
@@ -184,7 +234,9 @@ const readCache = async <T>(key: string): Promise<T | null> => {
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as CacheEnvelope<T>;
-    if (!parsed?.savedAt || Date.now() - parsed.savedAt > CACHE_TTL) return null;
+    if (!parsed?.savedAt || Date.now() - parsed.savedAt > CACHE_TTL) {
+      return null;
+    }
 
     return parsed.data;
   } catch {
@@ -204,6 +256,35 @@ const writeCache = async <T>(key: string, data: T): Promise<void> => {
   }
 };
 
+const fetchAllAvailablePropertyDocuments = async (): Promise<
+  Record<string, any>[]
+> => {
+  const documents: Record<string, any>[] = [];
+
+  for (let page = 0; page < MAX_PROPERTY_PAGES; page += 1) {
+    const response = await databases.listDocuments(
+      config.databaseId!,
+      config.propertiesCollectionId!,
+      [
+        Query.limit(PAGE_SIZE),
+        Query.offset(page * PAGE_SIZE),
+        Query.orderDesc("$createdAt"),
+      ],
+    );
+
+    documents.push(...response.documents);
+
+    if (
+      response.documents.length < PAGE_SIZE ||
+      documents.length >= response.total
+    ) {
+      break;
+    }
+  }
+
+  return documents;
+};
+
 export const fetchStudentHousing = async (
   schoolLocation: string,
   options: { force?: boolean; limit?: number } = {},
@@ -211,7 +292,7 @@ export const fetchStudentHousing = async (
   const normalizedLocation = normalizeStudentText(schoolLocation);
   if (!normalizedLocation) return [];
 
-  const key = studentCacheKey(normalizedLocation);
+  const key = studentCacheKey(schoolLocation);
 
   if (!options.force) {
     const cached = await readCache<StudentProperty[]>(key);
@@ -219,23 +300,25 @@ export const fetchStudentHousing = async (
   }
 
   try {
-    const response = await databases.listDocuments(
-      config.databaseId!,
-      config.propertiesCollectionId!,
-      [Query.limit(Math.min(options.limit ?? 100, 100))],
+    const allDocuments = await fetchAllAvailablePropertyDocuments();
+
+    const ranked = sortByStudentPerformance(
+      allDocuments
+        .map((document) => hydrateStudentProperty(document))
+        .filter((property) => property.isAvailable !== false)
+        .filter((property) => isStudentPropertyType(property.type))
+        .filter((property) =>
+          propertyMatchesSchoolLocation(property.address, schoolLocation),
+        ),
     );
 
-    const filtered = response.documents
-      .map((document) => hydrateStudentProperty(document))
-      .filter((property) => property.isAvailable !== false)
-      .filter((property) => isStudentPropertyType(property.type))
-      .filter((property) =>
-        propertyMatchesSchoolLocation(property.address, normalizedLocation),
-      );
+    const result =
+      options.limit && options.limit > 0
+        ? ranked.slice(0, options.limit)
+        : ranked;
 
-    const ranked = sortByStudentPerformance(filtered);
-    await writeCache(key, ranked);
-    return ranked;
+    await writeCache(key, result);
+    return result;
   } catch (error) {
     console.error("Error loading student housing:", error);
     return (await readCache<StudentProperty[]>(key)) ?? [];
@@ -254,7 +337,9 @@ export const filterStudentHousing = (
 ): StudentProperty[] => {
   const normalizedType = normalizeStudentText(options.type);
   const normalizedQuery = normalizeStudentText(options.query);
-  const selectedFacilities = (options.facilities ?? []).map(normalizeStudentText);
+  const selectedFacilities = (options.facilities ?? []).map(
+    normalizeStudentText,
+  );
 
   const filtered = properties.filter((property) => {
     if (
@@ -262,7 +347,12 @@ export const filterStudentHousing = (
       normalizedType !== "all" &&
       normalizeStudentText(property.type) !== normalizedType
     ) {
-      if (!(normalizedType === "boarding" && isBoardingHouseType(property.type))) {
+      if (
+        !(
+          normalizedType === "boarding" &&
+          isBoardingHouseType(property.type)
+        )
+      ) {
         return false;
       }
     }
@@ -281,7 +371,10 @@ export const filterStudentHousing = (
       if (!haystack.includes(normalizedQuery)) return false;
     }
 
-    if (options.bedrooms && Number(property.bedrooms ?? 0) < options.bedrooms) {
+    if (
+      options.bedrooms &&
+      Number(property.bedrooms ?? 0) < options.bedrooms
+    ) {
       return false;
     }
 
@@ -289,6 +382,7 @@ export const filterStudentHousing = (
       const propertyFacilities = normalizeStudentText(
         parseFacilities(property.facilities),
       );
+
       if (
         !selectedFacilities.every((facility) =>
           propertyFacilities.includes(facility),
@@ -301,6 +395,7 @@ export const filterStudentHousing = (
     if (options.hotDealsOnly) {
       const originalPrice = Number(property.price ?? 0);
       const newPrice = Number(property.new_price ?? originalPrice);
+
       if (!(newPrice > 0 && originalPrice > 0 && newPrice < originalPrice)) {
         return false;
       }
@@ -351,12 +446,14 @@ export const getUniversityApprovedBoardingProperties = async (
   const normalizedLocation = normalizeStudentText(schoolLocation);
   if (!normalizedLocation) return { properties: [], organizations: [] };
 
-  const key = approvedCacheKey(normalizedLocation);
+  const key = approvedCacheKey(schoolLocation);
+
   if (!force) {
     const cached = await readCache<{
       properties: StudentProperty[];
       organizations: ApprovedOrganization[];
     }>(key);
+
     if (cached) return cached;
   }
 
@@ -368,9 +465,8 @@ export const getUniversityApprovedBoardingProperties = async (
     );
 
     const organizations = organizationResponse.documents
-      .filter(
-        (organization) =>
-          normalizeStudentText(organization.city) === normalizedLocation,
+      .filter((organization) =>
+        propertyMatchesSchoolLocation(organization.city, schoolLocation),
       )
       .map(
         (organization): ApprovedOrganization => ({
@@ -385,8 +481,10 @@ export const getUniversityApprovedBoardingProperties = async (
       );
 
     const organizationByCreator = new Map<string, ApprovedOrganization>();
+
     organizations.forEach((organization) => {
       organizationByCreator.set(organization.$id, organization);
+
       if (organization.userId) {
         organizationByCreator.set(organization.userId, organization);
       }
@@ -401,9 +499,10 @@ export const getUniversityApprovedBoardingProperties = async (
         const organization = organizationByCreator.get(
           String(property.creatorId ?? ""),
         );
+
         if (!organization) return null;
 
-        const approvedProperty: StudentProperty = {
+        return {
           ...property,
           organizationId: organization.$id,
           organizationName: organization.name,
@@ -419,9 +518,7 @@ export const getUniversityApprovedBoardingProperties = async (
               avatar: organization.avatar,
               isOrganization: true,
             },
-        };
-
-        return approvedProperty;
+        } as StudentProperty;
       })
       .filter((property): property is StudentProperty => property !== null);
 
@@ -433,7 +530,11 @@ export const getUniversityApprovedBoardingProperties = async (
     await writeCache(key, result);
     return result;
   } catch (error) {
-    console.error("Error loading university-approved boarding houses:", error);
+    console.error(
+      "Error loading university-approved boarding houses:",
+      error,
+    );
+
     return (
       (await readCache<{
         properties: StudentProperty[];

@@ -1,4 +1,6 @@
-// app/_layout.tsx
+import "expo-sqlite/localStorage/install";
+import "react-native-url-polyfill/auto";
+
 import { AuthProvider } from "@/context/AuthContext";
 import {
   getModeAwareRoute,
