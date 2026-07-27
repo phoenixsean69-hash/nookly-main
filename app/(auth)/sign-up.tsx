@@ -5,7 +5,7 @@ import OperationSuccesfull from "@/components/OperationSuccesfull";
 import { Colors } from "@/constants/Colors";
 import images from "@/constants/images";
 import { uploadImage } from "@/lib/appwrite";
-import { TenantType, getUserHomeRoute } from "@/lib/userMode";
+import { getUserHomeRoute, TenantType } from "@/lib/userMode";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -559,15 +559,7 @@ export default function SignUp() {
                               : `${theme.muted}30`,
                           }}
                         >
-                          <Ionicons
-                            name={
-                              mode === "tenant"
-                                ? "home-outline"
-                                : "business-outline"
-                            }
-                            size={24}
-                            color={selected ? "#FFFFFF" : theme.primary[300]}
-                          />
+                          
                           <Text
                             className="font-rubik-bold mt-2 capitalize"
                             style={{
