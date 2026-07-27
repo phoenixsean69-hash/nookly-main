@@ -132,6 +132,8 @@ export const config = {
   organizationTenantsCollectionId:
     process.env.EXPO_PUBLIC_APPWRITE_ORGANIZATION_TENANTS_COLLECTION_ID,
   queriesCollectionId: process.env.EXPO_PUBLIC_APPWRITE_QUERIES_COLLECTION_ID,
+  boardingPlacesCollectionId :process.env.EXPO_PUBLIC_APPWRITE_BOARDING_PLACES_COLLECTION_ID
+   
 };
 
 interface CreateUserParams {
@@ -477,6 +479,8 @@ export async function uploadImage(image: any) {
   }
 }
 
+// lib/appwrite.ts or wherever your AddListing function is
+
 export async function AddListing(
   listing: {
     propertyName?: string;
@@ -494,16 +498,30 @@ export async function AddListing(
     image1?: string;
     image2?: string;
     image3?: string;
-
     agent?: string;
     creatorId?: string;
     priceThreshold?: number;
+    // Boarding specific fields
+    rooms_for_available?: string; // Comma separated: "for1,for2,for3"
+    price_per_room?: string; // Comma separated: "150,120,90"
+    hasEnsuite_bathrooms_in_rooms_for?: string; // Comma separated: "true,false,true"
+    occupiedSlots?: string; // Comma separated: "2,1,0"
+    availableSlots?: string; // Comma separated: "1,2,3"
+    rooms_for_occ?: string; // Comma separated: "for1,for2,for3"
+    capacity?: number;
+    rating?: number;
+    video1?: string;
+    video2?: string;
+    video3?: string;
+    latitude?: number;
+    longitude?: number;
   },
   onSuccess?: (newListing: any) => void,
 ) {
   try {
     console.log("Creating listing with agent (user $id):", listing.agent);
 
+    // 1. Create the property in PROPERTIES collection
     const response = await databases.createDocument(
       config.databaseId!,
       config.propertiesCollectionId!,
@@ -515,11 +533,11 @@ export async function AddListing(
         address: listing.address,
         price: listing.price,
         area: listing.area,
-        roomFor: listing.roomFor,
+        roomFor: listing.roomFor || 0,
         bedrooms: listing.bedrooms,
         bathrooms: listing.bathrooms,
         facilities: listing.facilities,
-        curfew: listing.curfew,
+        curfew: listing.curfew || "No curfew",
         isAvailable: listing.isAvailable ?? true,
         image1: listing.image1 || null,
         image2: listing.image2 || null,
@@ -527,74 +545,127 @@ export async function AddListing(
         agent: listing.agent || null,
         creatorId: listing.creatorId || null,
         priceThreshold: listing.priceThreshold || 0,
+        latitude: listing.latitude || null,
+        longitude: listing.longitude || null,
+        views: 0,
+        likes: 0,
+        requests: 0,
       },
     );
 
-    console.log("✅ Listing created:", {
+    console.log("✅ Property created:", {
       id: response.$id,
       agent: response.agent,
       priceThreshold: response.priceThreshold,
     });
 
-    // 🚀 SEND PUSH NOTIFICATIONS TO TENANTS IN THE SAME AREA
-    try {
-      // Extract city/area from address
-      const addressParts = listing.address.split(",");
-      const city =
-        addressParts.length >= 2
-          ? `${addressParts[addressParts.length - 2]?.trim()}, ${addressParts[addressParts.length - 1]?.trim()}`
-          : addressParts[addressParts.length - 1]?.trim() || "Unknown";
+    // 2. If property type is "Boarding", also create in BOARDING_PLACES collection
+    if (listing.type === "Boarding") {
+      // Calculate capacity from total slots if available, or use roomFor
+      const capacity = listing.capacity || listing.roomFor || 0;
+      
+      // Get facilities as string
+      const facilitiesStr = listing.facilities || "";
+      
+      // Calculate rating
+      const rating = listing.rating || 0;
 
-      // Get all tenants
-      const tenants = await databases.listDocuments(
+      // Prepare boarding place data
+      const boardingData: any = {
+        propertyName: listing.propertyName || "Unnamed Property",
+        description: listing.description || "",
+        rooms_for_available: listing.rooms_for_available || "",
+        price_per_room: listing.price_per_room || "",
+        address: listing.address || "",
+        capacity: capacity,
+        hasEnsuite_bathrooms_in_rooms_for: listing.hasEnsuite_bathrooms_in_rooms_for || "",
+        rating: rating,
+        facilities: facilitiesStr,
+        image1: listing.image1 || null,
+        image2: listing.image2 || null,
+        image3: listing.image3 || null,
+        creatorId: listing.creatorId || null,
+        likes: 0,
+        isAvailable: listing.isAvailable ?? true,
+        curfew: listing.curfew || "No curfew",
+        requests: 0,
+        priceThreshold: listing.priceThreshold || 0,
+        video1: listing.video1 || "",
+        video2: listing.video2 || "",
+        video3: listing.video3 || "",
+        occupiedSlots: listing.occupiedSlots || "",
+        availableSlots: listing.availableSlots || "",
+        rooms_for_occ: listing.rooms_for_occ || "",
+        latitude: listing.latitude || null,
+        longitude: listing.longitude || null,
+      };
+
+      // Create boarding place document
+      const boardingResponse = await databases.createDocument(
         config.databaseId!,
-        config.usersCollectionId!,
-        [Query.equal("userMode", "tenant")],
+        config.boardingPlacesCollectionId!,
+        ID.unique(),
+        boardingData,
       );
 
-      // Filter tenants who might be interested (based on saved searches or preferences)
-      const interestedTenants = tenants.documents.filter((tenant) => {
-        // If priceThreshold is set, only notify tenants whose budget matches
-        if (listing.priceThreshold && listing.priceThreshold > 0) {
-          // You would need to check tenant's budget from their preferences/profile
-          // For now, we'll include all tenants and let them decide
-          return true;
-        }
-        return true; // Send to all tenants for now
+      console.log("✅ Boarding place created:", {
+        id: boardingResponse.$id,
+        rooms_for_available: boardingResponse.rooms_for_available,
+        price_per_room: boardingResponse.price_per_room,
+        capacity: boardingResponse.capacity,
       });
+    }
 
-      // Send notifications in batches to avoid overwhelming the API
-      const batchSize = 10;
-      for (let i = 0; i < interestedTenants.length; i += batchSize) {
-        const batch = interestedTenants.slice(i, i + batchSize);
-        const userIds = batch.map((tenant) => tenant.accountId);
+    // 3. Send push notifications (only if property is available)
+    if (listing.isAvailable !== false) {
+      try {
+        // Extract city/area from address
+        const addressParts = listing.address.split(",");
+        const city =
+          addressParts.length >= 2
+            ? `${addressParts[addressParts.length - 2]?.trim()}, ${addressParts[addressParts.length - 1]?.trim()}`
+            : addressParts[addressParts.length - 1]?.trim() || "Unknown";
 
-        await notificationService.sendBulkNotification(
-          userIds,
-          "New Property Listed!",
-          `${listing.propertyName} - $${listing.price}/month in ${city}`,
-          {
-            type: "property",
-            propertyId: response.$id,
-            screen: "explore",
-            priceThreshold: listing.priceThreshold, // Include in notification data
-          },
+        // Get all tenants
+        const tenants = await databases.listDocuments(
+          config.databaseId!,
+          config.usersCollectionId!,
+          [Query.equal("userMode", "tenant")],
         );
+
+        // Send notifications in batches
+        const batchSize = 10;
+        for (let i = 0; i < tenants.documents.length; i += batchSize) {
+          const batch = tenants.documents.slice(i, i + batchSize);
+          const userIds = batch.map((tenant) => tenant.accountId);
+
+          await notificationService.sendBulkNotification(
+            userIds,
+            "New Property Listed!",
+            `${listing.propertyName} - $${listing.price}/month in ${city}`,
+            {
+              type: "property",
+              propertyId: response.$id,
+              screen: "explore",
+              priceThreshold: listing.priceThreshold,
+            },
+          );
+
+          console.log(
+            `📱 Sent notifications to ${userIds.length} tenants in batch ${i / batchSize + 1}`,
+          );
+        }
 
         console.log(
-          `📱 Sent notifications to ${userIds.length} tenants in batch ${i / batchSize + 1}`,
+          `✅ Push notifications sent to ${tenants.documents.length} tenants`,
         );
+      } catch (pushError) {
+        console.error(
+          "Failed to send push notifications for new listing:",
+          pushError,
+        );
+        // Don't throw - push notification failure shouldn't break the listing creation
       }
-
-      console.log(
-        `✅ Push notifications sent to ${interestedTenants.length} tenants`,
-      );
-    } catch (pushError) {
-      console.error(
-        "Failed to send push notifications for new listing:",
-        pushError,
-      );
-      // Don't throw - push notification failure shouldn't break the listing creation
     }
 
     // Call the success callback if provided
