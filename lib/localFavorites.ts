@@ -1,5 +1,6 @@
 import useAuthStore from "@/store/auth.store";
 
+import { initializeOfflineDatabase } from "./offline/database";
 import {
   clearOfflineFavorites,
   getOfflineFavorites,
@@ -8,7 +9,6 @@ import {
   removeOfflineFavorite,
   upsertOfflineFavorite,
 } from "./offline/favorite.repository";
-import { initializeOfflineDatabase } from "./offline/database";
 
 export interface FavoriteProperty {
   $id: string;
@@ -29,6 +29,7 @@ export interface FavoriteProperty {
   creatorEmail?: string;
   creatorPhone?: string;
   creatorAvatar?: string;
+  organizationApproved?: boolean | string;
   cachedAt?: string;
 }
 

@@ -40,6 +40,7 @@ interface PropertyData {
   price: number;
   curfew: string;
   latitude?: number;
+  organizationApproved?: boolean | string;
   longitude?: number;
   roomFor: number;
   area: number;

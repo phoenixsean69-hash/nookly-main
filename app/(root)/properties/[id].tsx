@@ -1,6 +1,7 @@
 // app/properties/[id].tsx
 import ConfirmationModal from "@/components/ConfirmationModal";
 import ContactModal from "@/components/ContactModal";
+import OrganizationApprovedBadge from "@/components/OrganizationApprovedBadge";
 import ErrorModal from "@/components/ErrorModal";
 import OperationSuccesfull from "@/components/OperationSuccesfull";
 import { PriceHistory } from "@/components/PriceHistory";
@@ -30,6 +31,7 @@ import { Query } from "react-native-appwrite";
 
 import { Colors } from "@/constants/Colors";
 import { isAccredited } from "@/lib/accreditation";
+import { isOrganizationApprovedBoardingHouse } from "@/lib/propertyApproval";
 import { downloadMediaToDevice } from "@/lib/downloadMedia";
 import {
   addToFavorites,
@@ -81,6 +83,7 @@ export interface PropertyData {
   $createdAt?: string;
   createdAt?: string;
   propertyName?: string;
+  organizationApproved?: boolean | string;
   type: string;
   description: string;
   address: string;
@@ -186,6 +189,11 @@ const Property = () => {
   const isPropertyAccredited = useMemo(() => {
     return checkAccreditation(property);
   }, [property]);
+
+  const isOrganizationApprovedProperty = useMemo(
+    () => isOrganizationApprovedBoardingHouse(property),
+    [property],
+  );
 
   // ============================================================================
   // REVIEWS STATE
@@ -782,6 +790,7 @@ const Property = () => {
           $id: property.$id,
           propertyName: property.propertyName,
           type: property.type,
+          organizationApproved: property.organizationApproved,
           address: property.address,
           price: property.price,
           image1: property.image1,
@@ -1342,6 +1351,12 @@ const Property = () => {
               </View>
             )}
           </View>
+
+          {isOrganizationApprovedProperty && (
+            <View className="mt-1 mb-2">
+              <OrganizationApprovedBadge size="medium" />
+            </View>
+          )}
 
           <View className="flex flex-row items-center justify-between gap-3">
             <View className="flex flex-row items-center gap-3">
@@ -2122,6 +2137,12 @@ const Property = () => {
               {property.propertyName}
             </Text>
           </View>
+
+          {isOrganizationApprovedProperty && (
+            <View className="mb-3">
+              <OrganizationApprovedBadge size="medium" />
+            </View>
+          )}
 
           {isLandlordOwner && (
             <TouchableOpacity
