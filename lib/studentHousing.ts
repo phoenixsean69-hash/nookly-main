@@ -1,10 +1,14 @@
+import NetInfo from "@react-native-community/netinfo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Query } from "react-native-appwrite";
+
 import {
   getInstitutionLocationTerms,
   normalizeInstitutionText,
 } from "@/constants/zimbabweTertiaryInstitutions";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Query } from "react-native-appwrite";
-import { config, databases } from "../lib/appwrite";
+import { config, databases } from "@/lib/appwrite";
+import { cachePropertyEntities } from "@/lib/persistentQueryCache";
+import useAuthStore from "@/store/auth.store";
 
 export const STUDENT_PROPERTY_FILTERS = [
   { title: "All", category: "All" },
@@ -37,7 +41,7 @@ const BOARDING_TYPES = new Set([
 ]);
 
 const CACHE_TTL = 15 * 60 * 1000;
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5-offline";
 const PAGE_SIZE = 100;
 const MAX_PROPERTY_PAGES = 20;
 
@@ -58,6 +62,7 @@ export type StudentProperty = Record<string, any> & {
   organizationName?: string;
   organizationCity?: string;
   isUniversityApproved?: boolean;
+  organizationApproved?: boolean | string;
 };
 
 export type ApprovedOrganization = {
@@ -78,20 +83,29 @@ export const titleCaseStudentText = (value?: string): string =>
     .trim()
     .split(/\s+/)
     .map((part) =>
-      part ? `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}` : "",
+      part
+        ? `${part.charAt(0).toUpperCase()}${part
+            .slice(1)
+            .toLowerCase()}`
+        : "",
     )
     .join(" ");
 
 export const isStudentPropertyType = (type?: string): boolean => {
   const normalizedType = normalizeStudentText(type);
+
   if (!normalizedType) return true;
+
   return !NON_RESIDENTIAL_TYPES.has(normalizedType);
 };
 
 export const isBoardingHouseType = (type?: string): boolean =>
   BOARDING_TYPES.has(normalizeStudentText(type));
 
-const containsLocationTerm = (address: string, term: string): boolean => {
+const containsLocationTerm = (
+  address: string,
+  term: string,
+): boolean => {
   if (!address || !term) return false;
 
   const paddedAddress = ` ${address} `;
@@ -105,19 +119,12 @@ const containsLocationTerm = (address: string, term: string): boolean => {
   );
 };
 
-/**
- * Matches a property address against the selected institution's actual city,
- * town and known location aliases.
- *
- * Example:
- * "Bindura University" resolves to BUSE, whose location terms include
- * "Bindura". Therefore an address such as "Chipadze, Bindura" matches.
- */
 export const propertyMatchesSchoolLocation = (
   address?: string,
   schoolLocation?: string,
 ): boolean => {
   const normalizedAddress = normalizeStudentText(address);
+
   if (!normalizedAddress) return false;
 
   const locationTerms = getInstitutionLocationTerms(schoolLocation)
@@ -133,9 +140,11 @@ export const propertyMatchesSchoolLocation = (
 
 const parseFacilities = (value: unknown): string => {
   if (Array.isArray(value)) return value.join(" ");
+
   if (typeof value === "object" && value !== null) {
     return Object.values(value).join(" ");
   }
+
   return String(value ?? "");
 };
 
@@ -145,17 +154,24 @@ const parseReviewStats = (
   if (!reviews) return { rating: 0, reviewCount: 0 };
 
   try {
-    const parsed = typeof reviews === "string" ? JSON.parse(reviews) : reviews;
+    const parsed =
+      typeof reviews === "string" ? JSON.parse(reviews) : reviews;
+
     if (!Array.isArray(parsed) || parsed.length === 0) {
       return { rating: 0, reviewCount: 0 };
     }
 
     const validRatings = parsed
       .map((review) => Number(review?.rating ?? 0))
-      .filter((rating) => Number.isFinite(rating) && rating > 0);
+      .filter(
+        (rating) => Number.isFinite(rating) && rating > 0,
+      );
 
     if (validRatings.length === 0) {
-      return { rating: 0, reviewCount: parsed.length };
+      return {
+        rating: 0,
+        reviewCount: parsed.length,
+      };
     }
 
     const rating =
@@ -167,17 +183,27 @@ const parseReviewStats = (
       reviewCount: parsed.length,
     };
   } catch {
-    return { rating: 0, reviewCount: 0 };
+    return {
+      rating: 0,
+      reviewCount: 0,
+    };
   }
 };
 
-const getPropertyPerformanceScore = (property: StudentProperty): number => {
-  const { rating, reviewCount } = parseReviewStats(property.reviews);
-  const finalRating = rating || Number(property.rating ?? 0);
+const getPropertyPerformanceScore = (
+  property: StudentProperty,
+): number => {
+  const { rating, reviewCount } = parseReviewStats(
+    property.reviews,
+  );
+  const finalRating =
+    rating || Number(property.rating ?? 0);
   const likes = Number(property.likes ?? 0);
   const views = Number(property.views ?? 0);
   const requests = Number(property.requests ?? 0);
-  const availableSlots = Number(property.availableSlots ?? 0);
+  const availableSlots = Number(
+    property.availableSlots ?? 0,
+  );
 
   return (
     finalRating * 40 +
@@ -197,9 +223,12 @@ const hydrateStudentProperty = (
 
   return {
     ...property,
-    rating: reviewStats.rating || Number(document.rating ?? 0),
+    rating:
+      reviewStats.rating ||
+      Number(document.rating ?? 0),
     reviewCount: reviewStats.reviewCount,
-    studentPerformanceScore: getPropertyPerformanceScore(property),
+    studentPerformanceScore:
+      getPropertyPerformanceScore(property),
   };
 };
 
@@ -211,10 +240,17 @@ const sortByStudentPerformance = (
       Number(right.studentPerformanceScore ?? 0) -
       Number(left.studentPerformanceScore ?? 0);
 
-    if (scoreDifference !== 0) return scoreDifference;
+    if (scoreDifference !== 0) {
+      return scoreDifference;
+    }
 
-    const rightCreated = new Date(right.$createdAt ?? 0).getTime();
-    const leftCreated = new Date(left.$createdAt ?? 0).getTime();
+    const rightCreated = new Date(
+      right.$createdAt ?? 0,
+    ).getTime();
+    const leftCreated = new Date(
+      left.$createdAt ?? 0,
+    ).getTime();
+
     return rightCreated - leftCreated;
   });
 
@@ -228,13 +264,29 @@ const approvedCacheKey = (schoolLocation: string) =>
     schoolLocation,
   )}`;
 
-const readCache = async <T>(key: string): Promise<T | null> => {
+const readCache = async <T>(
+  key: string,
+  allowExpired = false,
+): Promise<T | null> => {
   try {
     const raw = await AsyncStorage.getItem(key);
+
     if (!raw) return null;
 
     const parsed = JSON.parse(raw) as CacheEnvelope<T>;
-    if (!parsed?.savedAt || Date.now() - parsed.savedAt > CACHE_TTL) {
+
+    if (
+      !parsed ||
+      typeof parsed.savedAt !== "number" ||
+      !Object.prototype.hasOwnProperty.call(parsed, "data")
+    ) {
+      return null;
+    }
+
+    if (
+      !allowExpired &&
+      Date.now() - parsed.savedAt > CACHE_TTL
+    ) {
       return null;
     }
 
@@ -244,71 +296,129 @@ const readCache = async <T>(key: string): Promise<T | null> => {
   }
 };
 
-const writeCache = async <T>(key: string, data: T): Promise<void> => {
+const writeCache = async <T>(
+  key: string,
+  data: T,
+): Promise<void> => {
   try {
     const envelope: CacheEnvelope<T> = {
       savedAt: Date.now(),
       data,
     };
-    await AsyncStorage.setItem(key, JSON.stringify(envelope));
-  } catch (error) {
-    console.warn("Could not cache student housing:", error);
-  }
-};
 
-const fetchAllAvailablePropertyDocuments = async (): Promise<
-  Record<string, any>[]
-> => {
-  const documents: Record<string, any>[] = [];
-
-  for (let page = 0; page < MAX_PROPERTY_PAGES; page += 1) {
-    const response = await databases.listDocuments(
-      config.databaseId!,
-      config.propertiesCollectionId!,
-      [
-        Query.limit(PAGE_SIZE),
-        Query.offset(page * PAGE_SIZE),
-        Query.orderDesc("$createdAt"),
-      ],
+    await AsyncStorage.setItem(
+      key,
+      JSON.stringify(envelope),
     );
-
-    documents.push(...response.documents);
-
-    if (
-      response.documents.length < PAGE_SIZE ||
-      documents.length >= response.total
-    ) {
-      break;
-    }
+  } catch (error) {
+    console.warn(
+      "Could not cache student housing:",
+      error,
+    );
   }
-
-  return documents;
 };
+
+const hasInternetConnection = async (): Promise<boolean> => {
+  try {
+    const state = await NetInfo.fetch();
+
+    return (
+      state.isConnected === true &&
+      state.isInternetReachable !== false
+    );
+  } catch {
+    return false;
+  }
+};
+
+const getCurrentCacheNamespace = (): string =>
+  useAuthStore.getState().user?.accountId ?? "anonymous";
+
+const fetchAllAvailablePropertyDocuments =
+  async (): Promise<Record<string, any>[]> => {
+    const documents: Record<string, any>[] = [];
+
+    for (
+      let page = 0;
+      page < MAX_PROPERTY_PAGES;
+      page += 1
+    ) {
+      const response = await databases.listDocuments(
+        config.databaseId!,
+        config.propertiesCollectionId!,
+        [
+          Query.limit(PAGE_SIZE),
+          Query.offset(page * PAGE_SIZE),
+          Query.orderDesc("$createdAt"),
+        ],
+      );
+
+      documents.push(...response.documents);
+
+      if (
+        response.documents.length < PAGE_SIZE ||
+        documents.length >= response.total
+      ) {
+        break;
+      }
+    }
+
+    return documents;
+  };
 
 export const fetchStudentHousing = async (
   schoolLocation: string,
-  options: { force?: boolean; limit?: number } = {},
+  options: {
+    force?: boolean;
+    limit?: number;
+  } = {},
 ): Promise<StudentProperty[]> => {
-  const normalizedLocation = normalizeStudentText(schoolLocation);
+  const normalizedLocation =
+    normalizeStudentText(schoolLocation);
+
   if (!normalizedLocation) return [];
 
   const key = studentCacheKey(schoolLocation);
 
   if (!options.force) {
-    const cached = await readCache<StudentProperty[]>(key);
-    if (cached) return cached;
+    const freshCache =
+      await readCache<StudentProperty[]>(key);
+
+    if (freshCache) return freshCache;
+  }
+
+  const online = await hasInternetConnection();
+
+  if (!online) {
+    return (
+      (await readCache<StudentProperty[]>(
+        key,
+        true,
+      )) ?? []
+    );
   }
 
   try {
-    const allDocuments = await fetchAllAvailablePropertyDocuments();
+    const allDocuments =
+      await fetchAllAvailablePropertyDocuments();
 
     const ranked = sortByStudentPerformance(
       allDocuments
-        .map((document) => hydrateStudentProperty(document))
-        .filter((property) => property.isAvailable !== false)
-        .filter((property) => isStudentPropertyType(property.type))
+        .map((document) =>
+          hydrateStudentProperty(document),
+        )
+        .filter(
+          (property) =>
+            property.isAvailable !== false,
+        )
         .filter((property) =>
-          propertyMatchesSchoolLocation(property.address, schoolLocation),
+          isStudentPropertyType(property.type),
+        )
+        .filter((property) =>
+          propertyMatchesSchoolLocation(
+            property.address,
+            schoolLocation,
+          ),
         ),
     );
 
@@ -317,11 +427,27 @@ export const fetchStudentHousing = async (
         ? ranked.slice(0, options.limit)
         : ranked;
 
-    await writeCache(key, result);
+    await Promise.all([
+      writeCache(key, result),
+      cachePropertyEntities(
+        result,
+        getCurrentCacheNamespace(),
+      ),
+    ]);
+
     return result;
   } catch (error) {
-    console.error("Error loading student housing:", error);
-    return (await readCache<StudentProperty[]>(key)) ?? [];
+    console.error(
+      "Error loading student housing:",
+      error,
+    );
+
+    return (
+      (await readCache<StudentProperty[]>(
+        key,
+        true,
+      )) ?? []
+    );
   }
 };
 
@@ -335,17 +461,22 @@ export const filterStudentHousing = (
     hotDealsOnly?: boolean;
   },
 ): StudentProperty[] => {
-  const normalizedType = normalizeStudentText(options.type);
-  const normalizedQuery = normalizeStudentText(options.query);
-  const selectedFacilities = (options.facilities ?? []).map(
-    normalizeStudentText,
+  const normalizedType = normalizeStudentText(
+    options.type,
   );
+  const normalizedQuery = normalizeStudentText(
+    options.query,
+  );
+  const selectedFacilities = (
+    options.facilities ?? []
+  ).map(normalizeStudentText);
 
   const filtered = properties.filter((property) => {
     if (
       normalizedType &&
       normalizedType !== "all" &&
-      normalizeStudentText(property.type) !== normalizedType
+      normalizeStudentText(property.type) !==
+        normalizedType
     ) {
       if (
         !(
@@ -368,20 +499,24 @@ export const filterStudentHousing = (
         ].join(" "),
       );
 
-      if (!haystack.includes(normalizedQuery)) return false;
+      if (!haystack.includes(normalizedQuery)) {
+        return false;
+      }
     }
 
     if (
       options.bedrooms &&
-      Number(property.bedrooms ?? 0) < options.bedrooms
+      Number(property.bedrooms ?? 0) <
+        options.bedrooms
     ) {
       return false;
     }
 
     if (selectedFacilities.length > 0) {
-      const propertyFacilities = normalizeStudentText(
-        parseFacilities(property.facilities),
-      );
+      const propertyFacilities =
+        normalizeStudentText(
+          parseFacilities(property.facilities),
+        );
 
       if (
         !selectedFacilities.every((facility) =>
@@ -393,10 +528,20 @@ export const filterStudentHousing = (
     }
 
     if (options.hotDealsOnly) {
-      const originalPrice = Number(property.price ?? 0);
-      const newPrice = Number(property.new_price ?? originalPrice);
+      const originalPrice = Number(
+        property.price ?? 0,
+      );
+      const newPrice = Number(
+        property.new_price ?? originalPrice,
+      );
 
-      if (!(newPrice > 0 && originalPrice > 0 && newPrice < originalPrice)) {
+      if (
+        !(
+          newPrice > 0 &&
+          originalPrice > 0 &&
+          newPrice < originalPrice
+        )
+      ) {
         return false;
       }
     }
@@ -412,7 +557,11 @@ export const getStudentFeaturedProperties = async (
   limit = 6,
   force = false,
 ): Promise<StudentProperty[]> => {
-  const properties = await fetchStudentHousing(schoolLocation, { force });
+  const properties = await fetchStudentHousing(
+    schoolLocation,
+    { force },
+  );
+
   return properties.slice(0, limit);
 };
 
@@ -425,9 +574,12 @@ export const getStudentRecommendedProperties = async (
     force?: boolean;
   } = {},
 ): Promise<StudentProperty[]> => {
-  const properties = await fetchStudentHousing(schoolLocation, {
-    force: options.force,
-  });
+  const properties = await fetchStudentHousing(
+    schoolLocation,
+    {
+      force: options.force,
+    },
+  );
 
   return filterStudentHousing(properties, {
     type: options.type,
@@ -435,111 +587,179 @@ export const getStudentRecommendedProperties = async (
   }).slice(0, options.limit ?? 20);
 };
 
-export const getUniversityApprovedBoardingProperties = async (
-  schoolLocation: string,
-  properties?: StudentProperty[],
-  force = false,
-): Promise<{
-  properties: StudentProperty[];
-  organizations: ApprovedOrganization[];
-}> => {
-  const normalizedLocation = normalizeStudentText(schoolLocation);
-  if (!normalizedLocation) return { properties: [], organizations: [] };
+export const getUniversityApprovedBoardingProperties =
+  async (
+    schoolLocation: string,
+    properties?: StudentProperty[],
+    force = false,
+  ): Promise<{
+    properties: StudentProperty[];
+    organizations: ApprovedOrganization[];
+  }> => {
+    const normalizedLocation =
+      normalizeStudentText(schoolLocation);
 
-  const key = approvedCacheKey(schoolLocation);
+    if (!normalizedLocation) {
+      return {
+        properties: [],
+        organizations: [],
+      };
+    }
 
-  if (!force) {
-    const cached = await readCache<{
-      properties: StudentProperty[];
-      organizations: ApprovedOrganization[];
-    }>(key);
+    const key = approvedCacheKey(schoolLocation);
 
-    if (cached) return cached;
-  }
+    if (!force) {
+      const freshCache = await readCache<{
+        properties: StudentProperty[];
+        organizations: ApprovedOrganization[];
+      }>(key);
 
-  try {
-    const organizationResponse = await databases.listDocuments(
-      config.databaseId!,
-      config.organizationsCollectionId!,
-      [Query.limit(100)],
-    );
+      if (freshCache) return freshCache;
+    }
 
-    const organizations = organizationResponse.documents
-      .filter((organization) =>
-        propertyMatchesSchoolLocation(organization.city, schoolLocation),
-      )
-      .map(
-        (organization): ApprovedOrganization => ({
-          $id: organization.$id,
-          userId: organization.userId,
-          name: organization.name || "University",
-          city: organization.city || schoolLocation,
-          email: organization.email,
-          phone: organization.phone,
-          avatar: organization.avatar,
-        }),
+    const online = await hasInternetConnection();
+
+    if (!online) {
+      return (
+        (await readCache<{
+          properties: StudentProperty[];
+          organizations: ApprovedOrganization[];
+        }>(key, true)) ?? {
+          properties: [],
+          organizations: [],
+        }
       );
+    }
 
-    const organizationByCreator = new Map<string, ApprovedOrganization>();
-
-    organizations.forEach((organization) => {
-      organizationByCreator.set(organization.$id, organization);
-
-      if (organization.userId) {
-        organizationByCreator.set(organization.userId, organization);
-      }
-    });
-
-    const studentProperties =
-      properties ?? (await fetchStudentHousing(schoolLocation, { force }));
-
-    const approvedProperties = studentProperties
-      .filter((property) => isBoardingHouseType(property.type))
-      .map((property) => {
-        const organization = organizationByCreator.get(
-          String(property.creatorId ?? ""),
+    try {
+      const organizationResponse =
+        await databases.listDocuments(
+          config.databaseId!,
+          config.organizationsCollectionId!,
+          [Query.limit(100)],
         );
 
-        if (!organization) return null;
-
-        return {
-          ...property,
-          organizationId: organization.$id,
-          organizationName: organization.name,
-          organizationCity: organization.city,
-          isUniversityApproved: true,
-          agent:
-            property.agent ??
-            {
+      const organizations =
+        organizationResponse.documents
+          .filter((organization) =>
+            propertyMatchesSchoolLocation(
+              organization.city,
+              schoolLocation,
+            ),
+          )
+          .map(
+            (
+              organization,
+            ): ApprovedOrganization => ({
               $id: organization.$id,
-              name: organization.name,
+              userId: organization.userId,
+              name:
+                organization.name || "University",
+              city:
+                organization.city ||
+                schoolLocation,
               email: organization.email,
               phone: organization.phone,
               avatar: organization.avatar,
-              isOrganization: true,
-            },
-        } as StudentProperty;
-      })
-      .filter((property): property is StudentProperty => property !== null);
+            }),
+          );
 
-    const result = {
-      properties: sortByStudentPerformance(approvedProperties),
-      organizations,
-    };
+      const organizationByCreator =
+        new Map<string, ApprovedOrganization>();
 
-    await writeCache(key, result);
-    return result;
-  } catch (error) {
-    console.error(
-      "Error loading university-approved boarding houses:",
-      error,
-    );
+      organizations.forEach((organization) => {
+        organizationByCreator.set(
+          organization.$id,
+          organization,
+        );
 
-    return (
-      (await readCache<{
-        properties: StudentProperty[];
-        organizations: ApprovedOrganization[];
-      }>(key)) ?? { properties: [], organizations: [] }
-    );
-  }
-};
+        if (organization.userId) {
+          organizationByCreator.set(
+            organization.userId,
+            organization,
+          );
+        }
+      });
+
+      const studentProperties =
+        properties ??
+        (await fetchStudentHousing(
+          schoolLocation,
+          { force },
+        ));
+
+      const approvedProperties =
+        studentProperties
+          .filter((property) =>
+            isBoardingHouseType(property.type),
+          )
+          .map((property) => {
+            const organization =
+              organizationByCreator.get(
+                String(
+                  property.creatorId ?? "",
+                ),
+              );
+
+            if (!organization) return null;
+
+            return {
+              ...property,
+              organizationId: organization.$id,
+              organizationName:
+                organization.name,
+              organizationCity:
+                organization.city,
+              isUniversityApproved: true,
+              agent:
+                property.agent ?? {
+                  $id: organization.$id,
+                  name: organization.name,
+                  email: organization.email,
+                  phone: organization.phone,
+                  avatar: organization.avatar,
+                  isOrganization: true,
+                },
+            } as StudentProperty;
+          })
+          .filter(
+            (
+              property,
+            ): property is StudentProperty =>
+              property !== null,
+          );
+
+      const result = {
+        properties:
+          sortByStudentPerformance(
+            approvedProperties,
+          ),
+        organizations,
+      };
+
+      await Promise.all([
+        writeCache(key, result),
+        cachePropertyEntities(
+          result.properties,
+          getCurrentCacheNamespace(),
+        ),
+      ]);
+
+      return result;
+    } catch (error) {
+      console.error(
+        "Error loading university-approved boarding houses:",
+        error,
+      );
+
+      return (
+        (await readCache<{
+          properties: StudentProperty[];
+          organizations: ApprovedOrganization[];
+        }>(key, true)) ?? {
+          properties: [],
+          organizations: [],
+        }
+      );
+    }
+  };

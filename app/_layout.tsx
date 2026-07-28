@@ -1,6 +1,7 @@
 import "expo-sqlite/localStorage/install";
 import "react-native-url-polyfill/auto";
 
+import OfflineStatusBanner from "@/components/OfflineStatusBanner";
 import { AuthProvider } from "@/context/AuthContext";
 import {
   getModeAwareRoute,
@@ -54,32 +55,73 @@ export default function RootLayout() {
     "Rubik-SemiBold": require("../assets/fonts/Rubik-SemiBold.ttf"),
   });
 
-  const { fetchAuthenticatedUser, user, hydrate } = useAuthStore();
+  const fetchAuthenticatedUser = useAuthStore(
+    (state) => state.fetchAuthenticatedUser,
+  );
+  const user = useAuthStore((state) => state.user);
+  const hydrate = useAuthStore((state) => state.hydrate);
+
   const initializeOffline = useOfflineStore((state) => state.initialize);
+  const offlineInitialized = useOfflineStore((state) => state.isInitialized);
+  const isOnline = useOfflineStore((state) => state.isOnline);
+
   const [appIsReady, setAppIsReady] = useState(false);
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
+  const previousOnlineRef = useRef(false);
 
   useEffect(() => {
-    initializeOffline().catch((error) => {
-      console.error("Offline storage initialization failed:", error);
-    });
-  }, [initializeOffline]);
+    let active = true;
 
-  useEffect(() => {
     const initializeApp = async () => {
       try {
-        await hydrate();
-        await fetchAuthenticatedUser();
+        await Promise.all([
+          hydrate(),
+          initializeOffline().catch((error) => {
+            console.error("Offline storage initialization failed:", error);
+          }),
+        ]);
+
+        const online = useOfflineStore.getState().isOnline;
+        const cachedUser = useAuthStore.getState().user;
+
+        previousOnlineRef.current = online;
+
+        if (online && !cachedUser) {
+          await fetchAuthenticatedUser();
+        } else if (online) {
+          void fetchAuthenticatedUser();
+        }
       } catch (error) {
         console.error("App initialization failed:", error);
       } finally {
-        setAppIsReady(true);
+        if (active) {
+          setAppIsReady(true);
+        }
       }
     };
 
-    initializeApp();
-  }, [fetchAuthenticatedUser, hydrate]);
+    void initializeApp();
+
+    return () => {
+      active = false;
+    };
+  }, [fetchAuthenticatedUser, hydrate, initializeOffline]);
+
+  useEffect(() => {
+    if (!appIsReady || !offlineInitialized) return;
+
+    if (isOnline && !previousOnlineRef.current) {
+      void fetchAuthenticatedUser();
+    }
+
+    previousOnlineRef.current = isOnline;
+  }, [
+    appIsReady,
+    fetchAuthenticatedUser,
+    isOnline,
+    offlineInitialized,
+  ]);
 
   useEffect(() => {
     if (!fontsLoaded || !appIsReady) return;
@@ -89,7 +131,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     const registerPushNotifications = async () => {
-      if (!user?.accountId) return;
+      if (!isOnline || !user?.accountId) return;
 
       try {
         const pushEnabled = await AsyncStorage.getItem(
@@ -106,8 +148,8 @@ export default function RootLayout() {
       }
     };
 
-    registerPushNotifications();
-  }, [user?.accountId]);
+    void registerPushNotifications();
+  }, [isOnline, user?.accountId]);
 
   useEffect(() => {
     const handleNotificationNavigation = (
@@ -203,6 +245,8 @@ export default function RootLayout() {
 
   useEffect(() => {
     const removeTokenOnLogout = async (accountId: string) => {
+      if (!isOnline) return;
+
       const token = notificationService.getExpoPushToken();
 
       if (!token) return;
@@ -222,9 +266,9 @@ export default function RootLayout() {
     if (!user && previousAccountIdRef.current) {
       const accountId = previousAccountIdRef.current;
       previousAccountIdRef.current = null;
-      removeTokenOnLogout(accountId);
+      void removeTokenOnLogout(accountId);
     }
-  }, [user]);
+  }, [isOnline, user]);
 
   if (!fontsLoaded || !appIsReady) {
     return (
@@ -236,7 +280,12 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <Slot />
+      <View className="flex-1">
+        <OfflineStatusBanner />
+        <View className="flex-1">
+          <Slot />
+        </View>
+      </View>
     </AuthProvider>
   );
 }
