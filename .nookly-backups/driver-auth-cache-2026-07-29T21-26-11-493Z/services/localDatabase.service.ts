@@ -8,9 +8,7 @@ export interface LocalUser {
   userName: string;
   userEmail: string;
   userAvatar: string;
-  userMode: "tenant" | "landlord" | "driver" | "student";
-  tenantType?: "student" | "family" | "single";
-  schoolLocation?: string;
+  userMode: "tenant" | "landlord" | "student";
   lastSync: string;
 }
 
@@ -81,31 +79,7 @@ class LocalDatabase {
     try {
       const userStr = await AsyncStorage.getItem(STORAGE_KEYS.USER);
       if (userStr) {
-        const parsed = JSON.parse(userStr) as LocalUser;
-        const rawMode = String(parsed.userMode || "tenant")
-          .trim()
-          .toLowerCase();
-
-        const userMode: LocalUser["userMode"] =
-          rawMode === "landlord"
-            ? "landlord"
-            : rawMode === "driver"
-              ? "driver"
-              : rawMode === "student"
-                ? "student"
-                : "tenant";
-
-        const normalizedUser: LocalUser = {
-          ...parsed,
-          userMode,
-        };
-
-        if (userMode === "driver" || userMode === "landlord") {
-          delete normalizedUser.tenantType;
-          delete normalizedUser.schoolLocation;
-        }
-
-        return normalizedUser;
+        return JSON.parse(userStr);
       }
       return null;
     } catch (error) {

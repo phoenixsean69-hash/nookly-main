@@ -5,11 +5,7 @@ import SearchableInstitutionPicker from "@/components/SearchableInstitutionPicke
 import { Colors } from "@/constants/Colors";
 import images from "@/constants/images";
 import { uploadImage } from "@/lib/appwrite";
-import {
-  getUserHomeRoute,
-  PrimaryUserMode,
-  TenantType,
-} from "@/lib/userMode";
+import { getUserHomeRoute, TenantType } from "@/lib/userMode";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -29,6 +25,7 @@ import {
   View,
 } from "react-native";
 
+type PrimaryUserMode = "tenant" | "landlord";
 
 interface FormData {
   name: string;
@@ -54,13 +51,6 @@ interface TenantOption {
   icon: keyof typeof Ionicons.glyphMap;
 }
 
-interface ModeOption {
-  value: PrimaryUserMode;
-  title: string;
-  description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-}
-
 const TENANT_OPTIONS: TenantOption[] = [
   {
     value: "student",
@@ -79,28 +69,6 @@ const TENANT_OPTIONS: TenantOption[] = [
     title: "Single",
     description: "Studios, rooms and affordable solo living",
     icon: "person-outline",
-  },
-];
-
-const MODE_OPTIONS: ModeOption[] = [
-  {
-    value: "tenant",
-    title: "Tenant",
-    description: "Find and manage a place to live.",
-    icon: "home-outline",
-  },
-  {
-    value: "landlord",
-    title: "Landlord",
-    description: "List properties and manage tenants.",
-    icon: "business-outline",
-  },
-  {
-    value: "driver",
-    title: "Driver",
-    description:
-      "Manage assigned rides after your driver profile is verified.",
-    icon: "car-sport-outline",
   },
 ];
 
@@ -138,7 +106,7 @@ export default function SignUp() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
-  const signUp = useAuthStore((state) => state.signUp);
+  const { signUp, updateUser } = useAuthStore();
 
   const [formData, setFormData] = useState<FormData>({
     name: "",
@@ -217,7 +185,7 @@ export default function SignUp() {
     if (!formData.userMode) {
       errors.push({
         field: "userMode",
-        message: "Choose whether you are a tenant, landlord or driver.",
+        message: "Choose whether you are a tenant or landlord.",
       });
     }
 
@@ -333,16 +301,7 @@ export default function SignUp() {
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
         phone: formData.phone.trim(),
-        userMode: formData.userMode as PrimaryUserMode,
-        tenantType:
-          formData.userMode === "tenant" && formData.tenantType
-            ? formData.tenantType
-            : undefined,
-        schoolLocation:
-          formData.userMode === "tenant" &&
-          formData.tenantType === "student"
-            ? formData.schoolLocation.trim()
-            : undefined,
+        userMode: formData.userMode as any,
         avatar: uploadedAvatarUrl,
       });
 
@@ -350,16 +309,34 @@ export default function SignUp() {
         throw new Error(signupResult.error || "Could not create your account.");
       }
 
-      const destinationUser: Record<string, unknown> = {
+      let destinationUser: Record<string, unknown> = {
         userMode: formData.userMode,
-        ...(formData.userMode === "tenant" && formData.tenantType
-          ? { tenantType: formData.tenantType }
-          : {}),
-        ...(formData.userMode === "tenant" &&
-        formData.tenantType === "student"
-          ? { schoolLocation: formData.schoolLocation.trim() }
-          : {}),
       };
+
+      if (formData.userMode === "tenant") {
+        const tenantUpdates: Record<string, unknown> = {
+          tenantType: formData.tenantType,
+        };
+
+        if (formData.tenantType === "student") {
+          // Store the selected canonical institution name as a normal string.
+          tenantUpdates.schoolLocation = formData.schoolLocation.trim();
+        }
+
+        const updateResult = await updateUser(tenantUpdates as any);
+
+        if (!updateResult.success) {
+          throw new Error(
+            `${updateResult.error || "The tenant details could not be saved."} ` +
+              "Confirm that tenantType and schoolLocation exist in the Appwrite users collection.",
+          );
+        }
+
+        destinationUser = {
+          ...destinationUser,
+          ...tenantUpdates,
+        };
+      }
 
       setShowSuccess(true);
 
@@ -540,89 +517,53 @@ export default function SignUp() {
                     How will you use Nookly?
                   </Text>
 
-                  <View className="gap-3">
-                    {MODE_OPTIONS.map((option) => {
-                      const selected = formData.userMode === option.value;
+                  <View className="flex-row gap-3">
+                    {(["tenant", "landlord"] as const).map((mode) => {
+                      const selected = formData.userMode === mode;
 
                       return (
                         <TouchableOpacity
-                          key={option.value}
+                          key={mode}
                           activeOpacity={0.85}
                           onPress={() => {
-                            setFormData((current) => ({
-                              ...current,
-                              userMode: option.value,
-                              ...(option.value === "tenant"
-                                ? {}
-                                : {
-                                    tenantType: "",
-                                    schoolLocation: "",
-                                  }),
-                            }));
+                            updateField("userMode", mode);
 
-                            setValidationErrors((current) =>
-                              current.filter(
-                                (error) =>
-                                  error.field !== "tenantType" &&
-                                  error.field !== "schoolLocation" &&
-                                  error.field !== "userMode",
-                              ),
-                            );
+                            if (mode === "landlord") {
+                              setFormData((current) => ({
+                                ...current,
+                                userMode: mode,
+                                tenantType: "",
+                                schoolLocation: "",
+                              }));
+                              setValidationErrors((current) =>
+                                current.filter(
+                                  (error) =>
+                                    error.field !== "tenantType" &&
+                                    error.field !== "schoolLocation" &&
+                                    error.field !== "userMode",
+                                ),
+                              );
+                            }
                           }}
-                          className="rounded-2xl p-4 flex-row items-center"
+                          className="flex-1 rounded-2xl p-4 items-center"
                           style={{
                             backgroundColor: selected
-                              ? `${theme.primary[300]}12`
+                              ? theme.primary[300]
                               : theme.surface,
-                            borderWidth: 1.5,
+                            borderWidth: 1,
                             borderColor: selected
                               ? theme.primary[300]
-                              : `${theme.muted}28`,
+                              : `${theme.muted}30`,
                           }}
                         >
-                          <View
-                            className="w-11 h-11 rounded-xl items-center justify-center mr-3"
+                          <Text
+                            className="font-rubik-bold capitalize"
                             style={{
-                              backgroundColor: selected
-                                ? theme.primary[300]
-                                : `${theme.primary[300]}12`,
+                              color: selected ? "#FFFFFF" : theme.title,
                             }}
                           >
-                            <Ionicons
-                              name={option.icon}
-                              size={22}
-                              color={
-                                selected ? "#FFFFFF" : theme.primary[300]
-                              }
-                            />
-                          </View>
-
-                          <View className="flex-1">
-                            <Text
-                              className="font-rubik-bold"
-                              style={{ color: theme.title }}
-                            >
-                              {option.title}
-                            </Text>
-                            <Text
-                              className="text-xs mt-1"
-                              style={{ color: theme.muted }}
-                            >
-                              {option.description}
-                            </Text>
-                          </View>
-
-                          <Ionicons
-                            name={
-                              selected
-                                ? "checkmark-circle"
-                                : "ellipse-outline"
-                            }
-                            size={22}
-                            color={
-                              selected ? theme.primary[300] : theme.muted
-                            }
-                          />
+                            {mode}
+                          </Text>
                         </TouchableOpacity>
                       );
                     })}
@@ -807,11 +748,7 @@ export default function SignUp() {
           visible={showSuccess}
           onClose={() => setShowSuccess(false)}
           title="Account created"
-          message={
-            formData.userMode === "driver"
-              ? "Your driver account is ready. Ride access starts after your driver profile is verified and assigned."
-              : "Your personalised Nookly account is ready."
-          }
+          message="Your personalised Nookly account is ready."
         />
 
         <ErrorModal

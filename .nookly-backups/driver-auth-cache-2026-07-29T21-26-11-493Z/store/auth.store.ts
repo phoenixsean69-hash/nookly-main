@@ -32,7 +32,7 @@ const STORAGE_KEYS = {
   APP_SETTINGS: "app_settings",
 } as const;
 
-export interface User {
+interface User {
   $id: string;
   accountId: string;
   name: string;
@@ -46,7 +46,7 @@ export interface User {
   expoPushToken?: string;
 }
 
-export interface Organization {
+interface Organization {
   $id: string;
   userId: string;
   name: string;
@@ -55,7 +55,7 @@ export interface Organization {
   avatar?: string;
 }
 
-export interface SignUpData {
+interface SignUpData {
   name: string;
   userMode: "tenant" | "landlord" | "driver" | "student";
   tenantType?: "student" | "family" | "single";
@@ -66,7 +66,7 @@ export interface SignUpData {
   avatar?: string;
 }
 
-export interface AuthState {
+interface AuthState {
   user: User | null;
   organization: Organization | null;
   isAuthenticated: boolean;
@@ -162,18 +162,14 @@ const normalizeUserRecord = (candidate: User, fallback?: User | null): User => {
       : undefined;
   };
 
-  const isTenantLike = userMode === "tenant" || userMode === "student";
-
-  let tenantType = isTenantLike
-    ? normalizeTenantType(candidate.tenantType) ||
-      normalizeTenantType(sameAccountFallback?.tenantType)
-    : undefined;
+  let tenantType =
+    normalizeTenantType(candidate.tenantType) ||
+    normalizeTenantType(sameAccountFallback?.tenantType);
 
   if (userMode === "student") tenantType = "student";
 
-  const schoolLocation = isTenantLike
-    ? candidate.schoolLocation || sameAccountFallback?.schoolLocation
-    : undefined;
+  const schoolLocation =
+    candidate.schoolLocation || sameAccountFallback?.schoolLocation;
 
   // Old student accounts may already have been changed to userMode="tenant"
   // while an older cache/server document still lacks tenantType.
@@ -181,21 +177,13 @@ const normalizeUserRecord = (candidate: User, fallback?: User | null): User => {
     tenantType = "student";
   }
 
-  const normalizedUser = {
+  return {
     ...(sameAccountFallback || {}),
     ...candidate,
     userMode,
-  } as User;
-
-  if (isTenantLike) {
-    if (tenantType) normalizedUser.tenantType = tenantType;
-    if (schoolLocation) normalizedUser.schoolLocation = schoolLocation;
-  } else {
-    delete normalizedUser.tenantType;
-    delete normalizedUser.schoolLocation;
-  }
-
-  return normalizedUser;
+    ...(tenantType ? { tenantType } : {}),
+    ...(schoolLocation ? { schoolLocation } : {}),
+  };
 };
 
 const useAuthStore = create<AuthState>((set, get) => ({
@@ -774,43 +762,16 @@ const useAuthStore = create<AuthState>((set, get) => ({
     try {
       set({ isLoading: true });
 
-      const rawUserMode = userData.userMode.trim().toLowerCase();
+      const normalizedUserMode =
+        userData.userMode.trim().toLowerCase() as
+          | "tenant"
+          | "landlord"
+          | "driver"
+          | "student";
+      const schoolLocation =
+        userData.schoolLocation?.trim() ?? "";
 
-      if (
-        rawUserMode !== "tenant" &&
-        rawUserMode !== "landlord" &&
-        rawUserMode !== "driver" &&
-        rawUserMode !== "student"
-      ) {
-        set({ isLoading: false });
-
-        return {
-          success: false,
-          error: "Choose a valid Nookly account mode.",
-        };
-      }
-
-      const normalizedUserMode = rawUserMode as User["userMode"];
-      const rawTenantType = userData.tenantType?.trim().toLowerCase();
-      const tenantType: User["tenantType"] =
-        normalizedUserMode === "student"
-          ? "student"
-          : normalizedUserMode === "tenant" &&
-              VALID_TENANT_TYPES.has(rawTenantType as any)
-            ? (rawTenantType as User["tenantType"])
-            : undefined;
-      const schoolLocation = userData.schoolLocation?.trim() ?? "";
-
-      if (normalizedUserMode === "tenant" && !tenantType) {
-        set({ isLoading: false });
-
-        return {
-          success: false,
-          error: "Choose a tenant type before creating the account.",
-        };
-      }
-
-      if (tenantType === "student" && !schoolLocation) {
+      if (normalizedUserMode === "student" && !schoolLocation) {
         set({ isLoading: false });
 
         return {
@@ -843,8 +804,9 @@ const useAuthStore = create<AuthState>((set, get) => ({
           accountId: newAccount.$id,
           name: userData.name,
           userMode: normalizedUserMode,
-          ...(tenantType ? { tenantType } : {}),
-          ...(tenantType === "student" ? { schoolLocation } : {}),
+          ...(normalizedUserMode === "student"
+            ? { schoolLocation }
+            : {}),
           email: userData.email,
           avatar: avatarUrl,
           phone: userData.phone,

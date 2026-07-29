@@ -1,8 +1,4 @@
-export type NooklyUserMode =
-  | "tenant"
-  | "student"
-  | "landlord"
-  | "driver";
+export type NooklyUserMode = "tenant" | "student" | "landlord";
 
 export type OfflineActionStatus =
   | "pending"

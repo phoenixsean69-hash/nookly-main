@@ -3,10 +3,6 @@ import {
   normalizeLifestyle,
   rankMatches,
 } from "@/lib/matching";
-import type {
-  LegacyUserMode,
-  TenantType,
-} from "@/lib/userMode";
 import notificationService from "@/services/notification.service";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -165,8 +161,7 @@ interface CreateUserParams {
   password: string;
   phone: string;
   name: string;
-  userMode: LegacyUserMode;
-  tenantType?: TenantType;
+  userMode: string;
   schoolLocation?: string;
   avatar?: string;
   pushToken?: string | null;
@@ -317,7 +312,6 @@ export const createUser = async ({
   name,
   phone,
   userMode,
-  tenantType,
   schoolLocation,
   avatar,
 }: CreateUserParams) => {
@@ -341,39 +335,10 @@ export const createUser = async ({
       throw new Error("Please enter a valid email address");
     }
 
-    const rawUserMode = userMode.trim().toLowerCase();
+    const normalizedUserMode = userMode.trim().toLowerCase();
+    const normalizedSchoolLocation = schoolLocation?.trim().toLowerCase() ?? "";
 
-    if (
-      rawUserMode !== "tenant" &&
-      rawUserMode !== "landlord" &&
-      rawUserMode !== "driver" &&
-      rawUserMode !== "student"
-    ) {
-      throw new Error("Choose a valid Nookly account mode");
-    }
-
-    const normalizedUserMode = rawUserMode as LegacyUserMode;
-    const rawTenantType = tenantType?.trim().toLowerCase();
-    const normalizedTenantType: TenantType | undefined =
-      normalizedUserMode === "student"
-        ? "student"
-        : normalizedUserMode === "tenant" &&
-            ["student", "family", "single"].includes(rawTenantType || "")
-          ? (rawTenantType as TenantType)
-          : undefined;
-    const normalizedSchoolLocation =
-      schoolLocation?.trim().toLowerCase() ?? "";
-    const isTenantAccount =
-      normalizedUserMode === "tenant" || normalizedUserMode === "student";
-
-    if (normalizedUserMode === "tenant" && !normalizedTenantType) {
-      throw new Error("Choose a tenant type before creating the account");
-    }
-
-    if (
-      normalizedTenantType === "student" &&
-      !normalizedSchoolLocation
-    ) {
+    if (normalizedUserMode === "student" && !normalizedSchoolLocation) {
       throw new Error("School location is required for student accounts");
     }
 
@@ -402,17 +367,14 @@ export const createUser = async ({
         phone,
         avatar: avatarUrl,
         userMode: normalizedUserMode,
-        ...(normalizedTenantType
-          ? { tenantType: normalizedTenantType }
-          : {}),
-        ...(normalizedTenantType === "student"
+        ...(normalizedUserMode === "student"
           ? { schoolLocation: normalizedSchoolLocation }
           : {}),
       },
     );
 
     // ✅ If user is a tenant, create their tenant profile
-    if (isTenantAccount) {
+    if (normalizedUserMode === "tenant") {
       try {
         const tenantProfileId = createValidAppwriteId();
         createdTenantProfileId = tenantProfileId;
@@ -444,7 +406,7 @@ export const createUser = async ({
     }
 
     // If user is a tenant, add them to the organization_tenants collection
-    if (isTenantAccount) {
+    if (normalizedUserMode === "tenant") {
       try {
         const tenantId = createValidAppwriteId();
         await databases.createDocument(
