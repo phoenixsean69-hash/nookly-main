@@ -36,7 +36,7 @@ interface User {
   $id: string;
   accountId: string;
   name: string;
-  userMode: "tenant" | "landlord" | "driver" | "student";
+  userMode: "tenant" | "landlord" | "student";
   tenantType?: "student" | "family" | "single";
   schoolLocation?: string;
   email: string;
@@ -57,7 +57,7 @@ interface Organization {
 
 interface SignUpData {
   name: string;
-  userMode: "tenant" | "landlord" | "driver" | "student";
+  userMode: "tenant" | "landlord" | "student";
   tenantType?: "student" | "family" | "single";
   schoolLocation?: string;
   email: string;
@@ -149,11 +149,9 @@ const normalizeUserRecord = (candidate: User, fallback?: User | null): User => {
   const userMode: User["userMode"] =
     rawMode === "landlord"
       ? "landlord"
-      : rawMode === "driver"
-        ? "driver"
-        : rawMode === "student"
-          ? "student"
-          : "tenant";
+      : rawMode === "student"
+        ? "student"
+        : "tenant";
 
   const normalizeTenantType = (value: unknown): User["tenantType"] => {
     const normalized = String(value || "").trim().toLowerCase();
@@ -766,7 +764,6 @@ const useAuthStore = create<AuthState>((set, get) => ({
         userData.userMode.trim().toLowerCase() as
           | "tenant"
           | "landlord"
-          | "driver"
           | "student";
       const schoolLocation =
         userData.schoolLocation?.trim() ?? "";

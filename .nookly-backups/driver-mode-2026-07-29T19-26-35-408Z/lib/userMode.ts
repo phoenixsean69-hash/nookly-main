@@ -2,17 +2,15 @@
 //
 // Central user-mode helpers for Nookly.
 //
-// Primary modes:
-//   userMode: "landlord" | "tenant" | "driver"
-//
-// Tenant subtypes:
+// New account model:
+//   userMode: "landlord" | "tenant"
 //   tenantType: "student" | "family" | "single"
 //
 // Legacy compatibility:
 //   Existing accounts with userMode === "student" are still treated as
 //   student tenants until they are migrated in Appwrite.
 
-export type PrimaryUserMode = "tenant" | "landlord" | "driver";
+export type PrimaryUserMode = "tenant" | "landlord";
 export type TenantType = "student" | "family" | "single";
 export type LegacyUserMode = PrimaryUserMode | "student";
 
@@ -64,24 +62,17 @@ export const normalizeTenantType = (
 export const getPrimaryUserMode = (
   user?: ModeAwareUser | null,
 ): PrimaryUserMode | null => {
-  const mode = user?.userMode?.trim().toLowerCase();
+  if (!user?.userMode) return null;
 
-  if (!mode) return null;
-  if (mode === "landlord") return "landlord";
-  if (mode === "driver") return "driver";
-
-  return "tenant";
+  return user.userMode === "landlord" ? "landlord" : "tenant";
 };
 
 export const getTenantType = (
   user?: ModeAwareUser | null,
 ): TenantType | null => {
-  const primaryMode = getPrimaryUserMode(user);
+  if (!user || user.userMode === "landlord") return null;
 
-  if (!user || primaryMode === "landlord" || primaryMode === "driver") {
-    return null;
-  }
-
+  // Backward compatibility for existing student accounts.
   if (user.userMode === "student") return "student";
 
   return normalizeTenantType(user.tenantType);
@@ -89,9 +80,6 @@ export const getTenantType = (
 
 export const isLandlordUser = (user?: ModeAwareUser | null): boolean =>
   getPrimaryUserMode(user) === "landlord";
-
-export const isDriverUser = (user?: ModeAwareUser | null): boolean =>
-  getPrimaryUserMode(user) === "driver";
 
 export const isTenantUser = (user?: ModeAwareUser | null): boolean =>
   getPrimaryUserMode(user) === "tenant";
@@ -114,13 +102,11 @@ export const getUserHomeRoute = (
 ):
   | "/sign-up"
   | "/landHome"
-  | "/driver-home"
   | "/tenant-type-setup"
   | "/s-tenantHome"
   | "/tenantHome" => {
   if (!user?.userMode) return "/sign-up";
   if (isLandlordUser(user)) return "/landHome";
-  if (isDriverUser(user)) return "/driver-home";
   if (isStudentTenant(user)) return "/s-tenantHome";
   if (needsTenantTypeSetup(user)) return "/tenant-type-setup";
 
@@ -150,7 +136,6 @@ export const getUserModeLabel = (
   user?: ModeAwareUser | null,
 ): string => {
   if (isLandlordUser(user)) return "Landlord";
-  if (isDriverUser(user)) return "Driver";
 
   const tenantType = getTenantType(user);
 
@@ -168,9 +153,8 @@ export const getUserModeLabel = (
 
 export const getTenantFeedKey = (
   user?: ModeAwareUser | null,
-): "student" | "family" | "single" | "tenant" | "landlord" | "driver" => {
+): "student" | "family" | "single" | "tenant" | "landlord" => {
   if (isLandlordUser(user)) return "landlord";
-  if (isDriverUser(user)) return "driver";
 
   return getTenantType(user) ?? "tenant";
 };

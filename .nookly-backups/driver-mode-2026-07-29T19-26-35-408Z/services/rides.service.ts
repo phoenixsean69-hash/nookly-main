@@ -24,7 +24,7 @@ const CACHE_KEYS = {
   details: (rideId: string) => `@nookly:rides:details:${rideId}`,
 } as const;
 
-const ACTIVE_RIDE_STATUSES = new Set(["scheduled", "boarding", "active", "in_progress", "delayed"]);
+const ACTIVE_RIDE_STATUSES = new Set(["scheduled", "boarding", "in_progress"]);
 
 function normalizeSchoolLocation(value: string): string {
   return value.trim().toLowerCase();
@@ -68,7 +68,7 @@ function isUsableRide(ride: Ride): boolean {
 }
 
 function getRideSortRank(ride: Ride): number {
-  if (ride.status === "active" || ride.status === "in_progress") return 0;
+  if (ride.status === "in_progress") return 0;
   if (ride.status === "boarding") return 1;
   return 2;
 }
