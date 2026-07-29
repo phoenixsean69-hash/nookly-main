@@ -2,7 +2,6 @@ import CustomInput from "@/components/CustomInput";
 import ErrorModal from "@/components/ErrorModal";
 import { Colors } from "@/constants/Colors";
 import images from "@/constants/images";
-import { getUserHomeRoute } from "@/lib/userMode";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -84,12 +83,21 @@ const SignIn = () => {
     return error ? error.message : undefined;
   };
 
-  // Always route through the central mode helper so tenantType="student"
-  // cannot accidentally open the ordinary tenant tabs.
+  // Navigate based on user mode after successful sign-in
   useEffect(() => {
-    if (!user) return;
-    router.replace(getUserHomeRoute(user) as any);
-  }, [router, user]);
+    if (user) {
+      console.log("User detected in SignIn:", user.userMode);
+      console.log("User avatar:", user.avatar);
+
+      if (user.userMode === "tenant") {
+        router.replace("/tenantHome");
+      } else if (user.userMode === "landlord") {
+        router.replace("/landHome");
+      } else if (user.userMode === "student") {
+        router.replace("/s-tenantHome");
+      }
+    }
+  }, [user]);
 
   const validateForm = (): ValidationError[] => {
     const errors: ValidationError[] = [];

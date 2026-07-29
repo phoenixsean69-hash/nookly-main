@@ -1,5 +1,9 @@
 import { Colors } from "@/constants/Colors";
-import { POI_CATEGORIES, getPOIs, type POICategoryId } from "@/lib/poiService";
+import {
+  POI_CATEGORIES,
+  getPOIs,
+  type POICategoryId,
+} from "@/lib/poiService";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect, useState } from "react";
 import {
@@ -21,7 +25,10 @@ interface MapLayersProps {
   centerLongitude?: number;
 }
 
-const validCoordinates = (latitude?: number, longitude?: number): latitude is number =>
+const validCoordinates = (
+  latitude?: number,
+  longitude?: number,
+): boolean =>
   typeof latitude === "number" &&
   Number.isFinite(latitude) &&
   latitude >= -90 &&
@@ -55,13 +62,16 @@ export const MapLayers = ({
   const theme = Colors[colorScheme ?? "light"];
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [poiCounts, setPoiCounts] = useState<Record<POICategoryId, number>>(emptyCounts);
-  const [retryKey, setRetryKey] = useState(0);
+  const [poiCounts, setPoiCounts] =
+    useState<Record<POICategoryId, number>>(emptyCounts);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!visible || !validCoordinates(centerLatitude, centerLongitude)) {
+    if (
+      !visible ||
+      !validCoordinates(centerLatitude, centerLongitude)
+    ) {
       setLoading(false);
       setError(null);
       setPoiCounts(emptyCounts());
@@ -70,32 +80,27 @@ export const MapLayers = ({
       };
     }
 
+    const validLatitude = centerLatitude as number;
+    const validLongitude = centerLongitude as number;
+
     const loadCounts = async () => {
       setLoading(true);
       setError(null);
 
       try {
-        const pois = await getPOIs(
-          centerLatitude,
-          centerLongitude,
-          3,
-          undefined,
-          retryKey > 0,
-        );
+        const pois = await getPOIs(validLatitude, validLongitude, 3);
         if (cancelled) return;
 
         const counts = emptyCounts();
-        for (const poi of pois) counts[poi.categoryId] += 1;
+        for (const poi of pois) {
+          counts[poi.categoryId] += 1;
+        }
         setPoiCounts(counts);
       } catch (caughtError) {
         if (cancelled) return;
 
-        const message =
-          caughtError instanceof Error
-            ? caughtError.message
-            : "Amenity counts could not be loaded.";
-        console.warn("Map-layer POIs unavailable:", message);
-        setError(message);
+        console.error("Error fetching POI counts:", caughtError);
+        setError("Amenity counts could not be loaded. Layers can still be selected.");
         setPoiCounts(emptyCounts());
       } finally {
         if (!cancelled) setLoading(false);
@@ -103,20 +108,40 @@ export const MapLayers = ({
     };
 
     void loadCounts();
+
     return () => {
       cancelled = true;
     };
-  }, [visible, centerLatitude, centerLongitude, retryKey]);
+  }, [visible, centerLatitude, centerLongitude]);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <View className="flex-1 justify-end bg-black/50">
-        <View className="rounded-t-3xl p-4 pb-8" style={{ backgroundColor: theme.background, maxHeight: "72%" }}>
+        <View
+          className="rounded-t-3xl p-4 pb-8"
+          style={{
+            backgroundColor: theme.background,
+            maxHeight: "72%",
+          }}
+        >
           <View className="mb-4 flex-row items-center justify-between">
             <View className="flex-1 pr-3">
-              <Text className="text-xl font-rubik-bold" style={{ color: theme.title }}>Map Layers</Text>
-              <Text className="mt-1 text-sm" style={{ color: theme.muted }}>Show nearby places within 3 km</Text>
+              <Text
+                className="text-xl font-rubik-bold"
+                style={{ color: theme.title }}
+              >
+                Map Layers
+              </Text>
+              <Text className="mt-1 text-sm" style={{ color: theme.muted }}>
+                Show nearby places within 3 km
+              </Text>
             </View>
+
             <TouchableOpacity onPress={onClose} accessibilityLabel="Close layers">
               <Ionicons name="close" size={24} color={theme.text} />
             </TouchableOpacity>
@@ -125,19 +150,16 @@ export const MapLayers = ({
           {loading && (
             <View className="mb-3 flex-row items-center rounded-xl px-3 py-2" style={{ backgroundColor: theme.surface }}>
               <ActivityIndicator size="small" color={theme.primary[300]} />
-              <Text className="ml-2 text-sm" style={{ color: theme.muted }}>Checking nearby places...</Text>
+              <Text className="ml-2 text-sm" style={{ color: theme.muted }}>
+                Checking nearby places...
+              </Text>
             </View>
           )}
 
           {error && (
-            <TouchableOpacity
-              onPress={() => setRetryKey((value) => value + 1)}
-              className="mb-3 flex-row items-center rounded-xl bg-amber-50 px-3 py-3"
-            >
-              <Ionicons name="cloud-offline-outline" size={18} color="#B45309" />
-              <Text className="ml-2 flex-1 text-xs text-amber-700">Could not load counts. Tap to retry.</Text>
-              <Ionicons name="refresh" size={17} color="#B45309" />
-            </TouchableOpacity>
+            <View className="mb-3 rounded-xl bg-amber-50 px-3 py-2">
+              <Text className="text-xs text-amber-700">{error}</Text>
+            </View>
           )}
 
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -150,27 +172,52 @@ export const MapLayers = ({
                   <TouchableOpacity
                     key={category.id}
                     onPress={() => onLayerToggle(category.id, !isActive)}
-                    className={`flex-row items-center rounded-xl px-4 py-3 ${isActive ? "border-2" : "border"}`}
+                    className={`flex-row items-center rounded-xl px-4 py-3 ${
+                      isActive ? "border-2" : "border"
+                    }`}
                     style={{
-                      backgroundColor: isActive ? `${category.color}20` : theme.surface,
-                      borderColor: isActive ? category.color : `${theme.muted}30`,
+                      backgroundColor: isActive
+                        ? `${category.color}20`
+                        : theme.surface,
+                      borderColor: isActive
+                        ? category.color
+                        : `${theme.muted}30`,
                       minWidth: "47%",
                     }}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: isActive }}
                   >
-                    <View className="mr-2 h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: `${category.color}25` }}>
-                      <Ionicons name={category.icon as any} size={16} color={category.color} />
+                    <View
+                      className="mr-2 h-8 w-8 items-center justify-center rounded-full"
+                      style={{ backgroundColor: `${category.color}25` }}
+                    >
+                      <Ionicons
+                        name={category.icon as any}
+                        size={16}
+                        color={category.color}
+                      />
                     </View>
+
                     <View className="flex-1">
-                      <Text className="text-sm font-rubik-medium" style={{ color: isActive ? category.color : theme.text }} numberOfLines={1}>
+                      <Text
+                        className="text-sm font-rubik-medium"
+                        style={{ color: isActive ? category.color : theme.text }}
+                        numberOfLines={1}
+                      >
                         {category.label}
                       </Text>
                       <Text className="text-xs" style={{ color: theme.muted }}>
                         {loading ? "Checking..." : `${count} locations`}
                       </Text>
                     </View>
-                    {isActive && <Ionicons name="checkmark-circle" size={17} color={category.color} />}
+
+                    {isActive && (
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={17}
+                        color={category.color}
+                      />
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -178,12 +225,16 @@ export const MapLayers = ({
           </ScrollView>
 
           <TouchableOpacity
-            onPress={() => activeLayers.forEach((layerId) => onLayerToggle(layerId, false))}
+            onPress={() => {
+              activeLayers.forEach((layerId) => onLayerToggle(layerId, false));
+            }}
             disabled={activeLayers.length === 0}
             className="mt-4 rounded-xl border border-red-500 py-3"
             style={{ opacity: activeLayers.length === 0 ? 0.45 : 1 }}
           >
-            <Text className="text-center font-rubik-medium text-red-500">Clear All Layers</Text>
+            <Text className="text-center font-rubik-medium text-red-500">
+              Clear All Layers
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

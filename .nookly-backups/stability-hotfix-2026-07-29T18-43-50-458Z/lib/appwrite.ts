@@ -129,8 +129,7 @@ export const config = {
   propertiesCollectionId:
     process.env.EXPO_PUBLIC_APPWRITE_PROPERTIES_COLLECTION_ID,
   landlordsCollectionId:
-    process.env.EXPO_PUBLIC_APPWRITE_LANDLORDS_COLLECTION_ID ||
-    process.env.EXPO_PUBLIC_APPWRITE_AGENTS_COLLECTION_ID,
+    process.env.EXPO_PUBLIC_APPWRITE_LANDLORDS_COLLECTION_ID,
   galleriesCollectionId:
     process.env.EXPO_PUBLIC_APPWRITE_GALLERIES_COLLECTION_ID,
   reviewsCollectionId: process.env.EXPO_PUBLIC_APPWRITE_REVIEWS_COLLECTION_ID,
@@ -1463,172 +1462,60 @@ export async function getPropertyById({ id }: { id: string }) {
       id,
     );
 
-    type OwnerProfile = {
-      $id: string;
-      name: string;
-      email: string;
-      phone?: string | null;
-      avatar?: string | null;
-      isOrganization?: boolean;
-    };
-
-    const mapOwner = (document: any, isOrganization = false): OwnerProfile => ({
-      $id: document?.$id || document?.accountId || "",
-      name:
-        document?.name ||
-        document?.T_name ||
-        document?.organizationName ||
-        "Property Owner",
-      email: document?.email || "Contact details unavailable",
-      phone: document?.phone || document?.T_phone || null,
-      avatar: document?.avatar || null,
-      ...(isOrganization ? { isOrganization: true } : {}),
-    });
-
-    const safeGet = async (collectionId: string | undefined, documentId: string) => {
-      if (!collectionId || !documentId) return null;
+    // Fetch agent details with error handling
+    if (property.agent && typeof property.agent === "string") {
+      // Agent exists → individual landlord → fetch from users collection
       try {
-        return await databases.getDocument(
+        const agent = await databases.getDocument(
           config.databaseId!,
-          collectionId,
-          documentId,
+          config.usersCollectionId!,
+          property.agent,
         );
-      } catch {
-        return null;
-      }
-    };
 
-    const safeFind = async (
-      collectionId: string | undefined,
-      field: string,
-      value: string,
-    ) => {
-      if (!collectionId || !value) return null;
+        property.agent = {
+          $id: agent.$id,
+          name: agent.name || "Unknown",
+          email: agent.email || "No email",
+          phone: agent.phone,
+          avatar: agent.avatar || null,
+        };
+      } catch (agentError) {
+        console.warn(`⚠️ Agent not found for property ${id}, setting to null`);
+        property.agent = null;
+      }
+    } else if (!property.agent && property.creatorId) {
+      // No agent → could be an organization → search organizations by userId
       try {
-        const response = await databases.listDocuments(
+        const orgResult = await databases.listDocuments(
           config.databaseId!,
-          collectionId,
-          [Query.equal(field, value), Query.limit(1)],
+          config.organizationsCollectionId!,
+          [Query.equal("userId", property.creatorId)],
         );
-        return response.documents[0] ?? null;
-      } catch {
-        return null;
-      }
-    };
 
-    const findUserDocument = async (reference: string) =>
-      (await safeGet(config.usersCollectionId, reference)) ||
-      (await safeFind(config.usersCollectionId, "accountId", reference));
-
-    const findOrganization = async (references: string[]) => {
-      for (const reference of references) {
-        const organization = await safeFind(
-          config.organizationsCollectionId,
-          "userId",
-          reference,
-        );
-        if (organization) return organization;
-      }
-      return null;
-    };
-
-    const findLandlordProfile = async (reference: string) => {
-      const direct = await safeGet(config.landlordsCollectionId, reference);
-      if (direct) return direct;
-
-      for (const field of ["userDocId", "userId", "accountId"]) {
-        const profile = await safeFind(
-          config.landlordsCollectionId,
-          field,
-          reference,
-        );
-        if (profile) return profile;
-      }
-      return null;
-    };
-
-    const embeddedAgent =
-      property.agent && typeof property.agent === "object"
-        ? property.agent
-        : null;
-    const agentReference =
-      typeof property.agent === "string" ? property.agent.trim() : "";
-    const creatorReference =
-      typeof property.creatorId === "string" ? property.creatorId.trim() : "";
-
-    let owner: OwnerProfile | null = embeddedAgent
-      ? mapOwner(embeddedAgent, Boolean(embeddedAgent.isOrganization))
-      : null;
-
-    let agentUser: any = null;
-    let creatorUser: any = null;
-
-    if (!owner && agentReference) {
-      agentUser = await findUserDocument(agentReference);
-      if (agentUser) owner = mapOwner(agentUser);
-
-      if (!owner) {
-        const profile = await findLandlordProfile(agentReference);
-        if (profile) {
-          const profileUser = profile.userDocId
-            ? await findUserDocument(profile.userDocId)
-            : null;
-          owner = mapOwner(profileUser ? { ...profile, ...profileUser } : profile);
+        if (orgResult.documents.length > 0) {
+          const org = orgResult.documents[0];
+          // Map org fields to the same agent shape so the UI works without changes
+          property.agent = {
+            $id: org.$id,
+            name: org.name || "Unknown Organization",
+            email: org.email || "No email",
+            phone: org.phone || null,
+            avatar: org.avatar || null,
+            isOrganization: true, // optional flag if you want to show a badge
+          };
+          console.log("✅ Organization found for property:", org.name);
+        } else {
+          console.warn(
+            `⚠️ No organization found for creatorId: ${property.creatorId}`,
+          );
         }
+      } catch (orgError) {
+        console.warn(
+          `⚠️ Error fetching organization for property ${id}:`,
+          orgError,
+        );
       }
     }
-
-    if (!owner && creatorReference) {
-      creatorUser = await findUserDocument(creatorReference);
-
-      if (!agentReference) {
-        const organizationReferences = [
-          creatorReference,
-          creatorUser?.$id,
-          creatorUser?.accountId,
-        ].filter((value): value is string => Boolean(value));
-        const organization = await findOrganization(organizationReferences);
-        if (organization) owner = mapOwner(organization, true);
-      }
-
-      if (!owner && creatorUser) owner = mapOwner(creatorUser);
-
-      if (!owner) {
-        const profile = await findLandlordProfile(creatorReference);
-        if (profile) owner = mapOwner(profile);
-      }
-
-      if (!owner) {
-        const organization = await findOrganization([creatorReference]);
-        if (organization) owner = mapOwner(organization, true);
-      }
-    }
-
-    if (!owner && (property.creatorName || property.creatorEmail)) {
-      owner = mapOwner({
-        $id: creatorReference || agentReference,
-        name: property.creatorName,
-        email: property.creatorEmail,
-        phone: property.creatorPhone,
-        avatar: property.creatorAvatar,
-      });
-    }
-
-    if (!owner) {
-      owner = {
-        $id: creatorReference || agentReference,
-        name: "Property Owner",
-        email: "Contact details unavailable",
-        phone: null,
-        avatar: null,
-      };
-    }
-
-    property.agent = owner;
-    property.creatorName = owner.name;
-    property.creatorEmail = owner.email;
-    property.creatorPhone = owner.phone;
-    property.creatorAvatar = owner.avatar;
 
     return property;
   } catch (error) {

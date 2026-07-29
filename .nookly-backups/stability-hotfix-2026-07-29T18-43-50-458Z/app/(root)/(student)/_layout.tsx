@@ -1,9 +1,7 @@
 import { client, config } from "@/lib/appwrite";
-import { getUserHomeRoute, isStudentTenant, isTenantUser } from "@/lib/userMode";
-import { Redirect, Tabs, useFocusEffect } from "expo-router";
+import { Tabs, useFocusEffect } from "expo-router";
 import { useCallback, useEffect } from "react";
 import {
-  ActivityIndicator,
   Image,
   ImageSourcePropType,
   LogBox,
@@ -72,8 +70,8 @@ const TabIcon = ({
   );
 };
 
-const TabsLayout = () => {
-  const { user, isHydrated, isInitialized, isLoading } = useAuthStore();
+const StudentTabsLayout = () => {
+  const { user } = useAuthStore();
   // ✅ Removed markMatchesAsViewed since it's unused here
   const { matchCount, fetchMatchCount } = useMatchStore();
   const colorScheme = useColorScheme();
@@ -113,20 +111,6 @@ const TabsLayout = () => {
     }, [user?.accountId, fetchMatchCount]),
   );
 
-  if (!isHydrated || !isInitialized || isLoading) {
-    return (
-      <View className="flex-1 items-center justify-center" style={{ backgroundColor: theme.background }}>
-        <ActivityIndicator size="large" color={theme.primary[300]} />
-      </View>
-    );
-  }
-
-  if (!user) return <Redirect href="/sign-in" />;
-
-  if (!isTenantUser(user) || isStudentTenant(user)) {
-    return <Redirect href={getUserHomeRoute(user) as any} />;
-  }
-
   return (
     <Tabs
       screenOptions={{
@@ -145,7 +129,7 @@ const TabsLayout = () => {
       }}
     >
       <Tabs.Screen
-        name="tenantHome"
+        name="s-tenantHome"
         options={{
           title: "Home",
           headerShown: false,
@@ -156,7 +140,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="help"
+        name="s-help"
         options={{
           href: null,
           title: "help",
@@ -166,7 +150,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="landlords"
+        name="s-landlords"
         options={{
           href: null,
           title: "landlords",
@@ -176,7 +160,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="detailsEdit"
+        name="s-detailsEdit"
         options={{
           href: null,
           title: "detailsEdit",
@@ -186,7 +170,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="calendar"
+        name="s-calendar"
         options={{
           href: null,
           title: "calendar",
@@ -196,7 +180,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="about"
+        name="s-about"
         options={{
           href: null,
           title: "about",
@@ -206,7 +190,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="language"
+        name="s-language"
         options={{
           href: null,
           title: "language",
@@ -215,7 +199,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="all-locations"
+        name="s-all-locations"
         options={{
           href: null,
           title: "all-locations",
@@ -225,7 +209,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="notifications"
+        name="s-notifications"
         options={{
           href: null,
           title: "notifications",
@@ -234,7 +218,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="properties-by-location"
+        name="s-properties-by-location"
         options={{
           href: null,
           title: "properties-by-location",
@@ -244,7 +228,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="trending-properties"
+        name="s-trending-properties"
         options={{
           href: null,
           title: "trending-properties",
@@ -254,7 +238,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="filtered-properties"
+        name="s-filtered-properties"
         options={{
           href: null,
           title: "filtered-properties",
@@ -264,7 +248,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="settings"
+        name="s-settings"
         options={{
           href: null,
           title: "settings",
@@ -273,7 +257,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="my-favorites"
+        name="s-my-favorites"
         options={{
           href: null,
           title: "my-favorites",
@@ -283,7 +267,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="message"
+        name="s-message"
         options={{
           href: null,
           title: "message",
@@ -293,7 +277,27 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="profile"
+        name="s-rides"
+        options={{
+          href: null,
+          title: "Rides",
+          headerShown: false,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="s-ride-details"
+        options={{
+          href: null,
+          title: "Ride details",
+          headerShown: false,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
+        name="s-profile"
         options={{
           title: "Profile",
           headerShown: false,
@@ -304,7 +308,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="myRequests"
+        name="s-myRequests"
         options={{
           title: "Requests",
           headerShown: false,
@@ -315,7 +319,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="match"
+        name="s-match"
         options={{
           title: "Match",
           headerShown: false,
@@ -331,7 +335,7 @@ const TabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="explore"
+        name="s-explore"
         options={{
           title: "Explore",
           headerShown: false,
@@ -344,4 +348,4 @@ const TabsLayout = () => {
   );
 };
 
-export default TabsLayout;
+export default StudentTabsLayout;

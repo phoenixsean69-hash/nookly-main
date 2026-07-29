@@ -1,9 +1,6 @@
 import icons from "@/constants/icons";
-import { getUserHomeRoute, isLandlordUser } from "@/lib/userMode";
-import useAuthStore from "@/store/auth.store";
-import { Redirect, Tabs } from "expo-router";
+import { Tabs } from "expo-router";
 import {
-  ActivityIndicator,
   Image,
   ImageSourcePropType,
   Text,
@@ -47,21 +44,6 @@ const TabIcon = ({
 const TabsLayout = () => {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
-  const { user, isHydrated, isInitialized, isLoading } = useAuthStore();
-
-  if (!isHydrated || !isInitialized || isLoading) {
-    return (
-      <View className="flex-1 items-center justify-center" style={{ backgroundColor: theme.background }}>
-        <ActivityIndicator size="large" color="#F97316" />
-      </View>
-    );
-  }
-
-  if (!user) return <Redirect href="/sign-in" />;
-  if (!isLandlordUser(user)) {
-    return <Redirect href={getUserHomeRoute(user) as any} />;
-  }
-
   return (
     <Tabs
       screenOptions={{

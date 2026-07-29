@@ -1,7 +1,9 @@
 import { client, config } from "@/lib/appwrite";
-import { Tabs, useFocusEffect } from "expo-router";
+import { getUserHomeRoute, isStudentTenant } from "@/lib/userMode";
+import { Redirect, Tabs, useFocusEffect } from "expo-router";
 import { useCallback, useEffect } from "react";
 import {
+  ActivityIndicator,
   Image,
   ImageSourcePropType,
   LogBox,
@@ -71,7 +73,7 @@ const TabIcon = ({
 };
 
 const StudentTabsLayout = () => {
-  const { user } = useAuthStore();
+  const { user, isHydrated, isInitialized, isLoading } = useAuthStore();
   // ✅ Removed markMatchesAsViewed since it's unused here
   const { matchCount, fetchMatchCount } = useMatchStore();
   const colorScheme = useColorScheme();
@@ -110,6 +112,20 @@ const StudentTabsLayout = () => {
       }
     }, [user?.accountId, fetchMatchCount]),
   );
+
+  if (!isHydrated || !isInitialized || isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center" style={{ backgroundColor: theme.background }}>
+        <ActivityIndicator size="large" color={theme.primary[300]} />
+      </View>
+    );
+  }
+
+  if (!user) return <Redirect href="/sign-in" />;
+
+  if (!isStudentTenant(user)) {
+    return <Redirect href={getUserHomeRoute(user) as any} />;
+  }
 
   return (
     <Tabs

@@ -37,7 +37,6 @@ interface User {
   accountId: string;
   name: string;
   userMode: "tenant" | "landlord" | "student";
-  tenantType?: "student" | "family" | "single";
   schoolLocation?: string;
   email: string;
   phone: string;
@@ -58,7 +57,6 @@ interface Organization {
 interface SignUpData {
   name: string;
   userMode: "tenant" | "landlord" | "student";
-  tenantType?: "student" | "family" | "single";
   schoolLocation?: string;
   email: string;
   phone: string;
@@ -132,58 +130,6 @@ const isAuthenticationError = (error: unknown): boolean => {
   return code === 401 || code === 403;
 };
 
-const VALID_TENANT_TYPES = new Set(["student", "family", "single"] as const);
-
-const normalizeUserRecord = (candidate: User, fallback?: User | null): User => {
-  const sameAccountFallback =
-    fallback?.accountId && fallback.accountId === candidate.accountId
-      ? fallback
-      : null;
-
-  const rawMode = String(
-    candidate.userMode || sameAccountFallback?.userMode || "tenant",
-  )
-    .trim()
-    .toLowerCase();
-
-  const userMode: User["userMode"] =
-    rawMode === "landlord"
-      ? "landlord"
-      : rawMode === "student"
-        ? "student"
-        : "tenant";
-
-  const normalizeTenantType = (value: unknown): User["tenantType"] => {
-    const normalized = String(value || "").trim().toLowerCase();
-    return VALID_TENANT_TYPES.has(normalized as any)
-      ? (normalized as User["tenantType"])
-      : undefined;
-  };
-
-  let tenantType =
-    normalizeTenantType(candidate.tenantType) ||
-    normalizeTenantType(sameAccountFallback?.tenantType);
-
-  if (userMode === "student") tenantType = "student";
-
-  const schoolLocation =
-    candidate.schoolLocation || sameAccountFallback?.schoolLocation;
-
-  // Old student accounts may already have been changed to userMode="tenant"
-  // while an older cache/server document still lacks tenantType.
-  if (userMode === "tenant" && !tenantType && schoolLocation?.trim()) {
-    tenantType = "student";
-  }
-
-  return {
-    ...(sameAccountFallback || {}),
-    ...candidate,
-    userMode,
-    ...(tenantType ? { tenantType } : {}),
-    ...(schoolLocation ? { schoolLocation } : {}),
-  };
-};
-
 const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   organization: null,
@@ -210,7 +156,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       if (!userData) return null;
 
-      return normalizeUserRecord(JSON.parse(userData) as User);
+      return JSON.parse(userData) as User;
     } catch (error) {
       console.error("❌ Failed to load saved user:", error);
       return null;
@@ -264,12 +210,11 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
   setUser: async (user: User | null) => {
     if (user) {
-      const normalizedUser = normalizeUserRecord(user, get().user);
-      await get().saveUserToStorage(normalizedUser);
-      await storeData("user", normalizedUser);
+      await get().saveUserToStorage(user);
+      await storeData("user", user);
 
       set({
-        user: normalizedUser,
+        user,
         isAuthenticated: true,
         isLoading: false,
       });
@@ -394,8 +339,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
         await get().loadOrganizationFromStorage();
 
       if (!storedUser) {
-        const cachedUser = (await getData("user")) as User | null;
-        storedUser = cachedUser ? normalizeUserRecord(cachedUser) : null;
+        storedUser = (await getData("user")) as User | null;
       }
 
       if (!storedOrganization) {
@@ -559,10 +503,8 @@ const useAuthStore = create<AuthState>((set, get) => ({
         return;
       }
 
-      const userDocument = normalizeUserRecord(
-        userDocuments.documents[0] as unknown as User,
-        cachedUser,
-      );
+      const userDocument =
+        userDocuments.documents[0] as unknown as User;
 
       let organization: Organization | null = null;
 
@@ -681,10 +623,8 @@ const useAuthStore = create<AuthState>((set, get) => ({
         };
       }
 
-      const user = normalizeUserRecord(
-        userDetails.documents[0] as unknown as User,
-        get().user,
-      );
+      const user =
+        userDetails.documents[0] as unknown as User;
 
       let organization: Organization | null = null;
 
@@ -815,7 +755,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
         userData.password,
       );
 
-      const user = normalizeUserRecord(userDocument as unknown as User);
+      const user = userDocument as unknown as User;
 
       await SecureStore.setItemAsync(
         STORAGE_KEYS.AUTH_TOKEN,

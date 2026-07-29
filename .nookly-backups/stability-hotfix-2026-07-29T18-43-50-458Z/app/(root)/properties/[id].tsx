@@ -40,7 +40,6 @@ import {
   removeFromFavorites,
 } from "@/lib/localFavorites";
 import { useAppwrite } from "@/lib/useAppwrite";
-import { getModeAwareRoute, getUserHomeRoute } from "@/lib/userMode";
 import useAuthStore from "@/store/auth.store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Haptics from "expo-haptics";
@@ -105,16 +104,13 @@ export interface PropertyData {
   video1?: string;
   video2?: string;
   video3?: string;
-  agent?:
-    | string
-    | {
-        $id: string;
-        name: string;
-        email: string;
-        phone?: string | null;
-        avatar?: string | null;
-        isOrganization?: boolean;
-      };
+  agent?: {
+    $id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    avatar?: string;
+  };
   creatorName?: string;
   creatorEmail?: string;
   creatorPhone?: string;
@@ -246,6 +242,8 @@ const Property = () => {
   // ============================================================================
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [deleting, setDeleting] = useState(false);
+  const [agentData, setAgentData] = useState<any>(null);
+  const [loadingAgent, setLoadingAgent] = useState(false);
   const [confirmationModalVisible, setConfirmationModalVisible] =
     useState(false);
   const [propertyToDelete, setPropertyToDelete] = useState<string | null>(null);
@@ -329,15 +327,13 @@ const Property = () => {
   const handleContactLandlord = () => {
     if (!property) return;
 
-    const landlord =
-      property.agent && typeof property.agent === "object"
-        ? property.agent
-        : {
-            name: property.creatorName || "Property Owner",
-            email: property.creatorEmail || "Contact details unavailable",
-            phone: property.creatorPhone || null,
-            avatar: property.creatorAvatar || null,
-          };
+    // Get landlord info from property
+    const landlord = property.agent || {
+      name: property.creatorName || "Property Owner",
+      email: property.creatorEmail || "Not available",
+      phone: property.creatorPhone || null,
+      avatar: property.creatorAvatar || null,
+    };
 
     setLandlordContact({
       name: landlord.name,
@@ -892,7 +888,33 @@ const Property = () => {
     }
   }, [property, user]);
 
-  const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);  const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ============================================================================
+  // LOAD AGENT WHEN PROPERTY LOADS
+  // ============================================================================
+  useEffect(() => {
+    const fetchAgent = async () => {
+      if (property?.agent && typeof property.agent === "string") {
+        setLoadingAgent(true);
+        try {
+          const agent = await databases.getDocument(
+            config.databaseId!,
+            config.usersCollectionId!,
+            property.agent,
+          );
+          setAgentData(agent);
+        } catch (error) {
+          console.error("Error fetching agent:", error);
+          setAgentData(null);
+        } finally {
+          setLoadingAgent(false);
+        }
+      }
+    };
+
+    fetchAgent();
+  }, [property?.agent]);
+
+  const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (
@@ -1095,19 +1117,24 @@ const Property = () => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
       if (!navigation.canGoBack()) {
         e.preventDefault();
-        router.replace(getUserHomeRoute(user) as any);
+        router.replace(
+          user?.userMode === "landlord"
+            ? "/landHome"
+            : user?.userMode === "student"
+              ? "/s-tenantHome"
+              : "/tenantHome",
+        );
       }
     });
 
     return unsubscribe;
   }, [navigation, user]);
 
-  const {
-    amenities,
-    loading: amenitiesLoading,
-    error: amenitiesError,
-    refetch: refetchAmenities,
-  } = usePOIs(property?.latitude, property?.longitude, 3);
+  const { amenities, loading: amenitiesLoading } = usePOIs(
+    property?.latitude,
+    property?.longitude,
+    3,
+  );
 
   const handleImageNavigation = (direction: "prev" | "next") => {
     const images = getPropertyImages();
@@ -1299,17 +1326,12 @@ const Property = () => {
 
     const priceHistory = buildPriceHistory(property);
 
-    const creator =
-      property.agent && typeof property.agent === "object"
-        ? property.agent
-        : {
-            $id: property.creatorId || "",
-            name: property.creatorName || "Property Owner",
-            email: property.creatorEmail || "Contact details unavailable",
-            phone: property.creatorPhone || null,
-            avatar: property.creatorAvatar || null,
-            isOrganization: false,
-          };
+    const creator = property.agent || {
+      name: property.creatorName || "Property Owner",
+      email: property.creatorEmail || "Not available",
+      phone: property.creatorPhone || "Not available",
+      avatar: property.creatorAvatar || null,
+    };
 
     return (
       <>
@@ -1556,12 +1578,7 @@ const Property = () => {
                 console.log("🚀 Navigating with landlordId:", landlordId);
 
                 if (landlordId) {
-                  router.push(
-                    getModeAwareRoute(
-                      `/landlords?landlordId=${landlordId}`,
-                      user,
-                    ) as any,
-                  );
+                  router.push(`/landlords?landlordId=${landlordId}`);
                 } else {
                   Alert.alert("Error", "Landlord info not available");
                 }
@@ -1951,8 +1968,6 @@ const Property = () => {
                   <AmenitiesBadge
                     amenities={amenities}
                     loading={amenitiesLoading}
-                    error={amenitiesError}
-                    onRetry={() => void refetchAmenities()}
                   />
                 </View>
               </View>
@@ -2790,8 +2805,6 @@ const Property = () => {
                   <AmenitiesBadge
                     amenities={amenities}
                     loading={amenitiesLoading}
-                    error={amenitiesError}
-                    onRetry={() => void refetchAmenities()}
                   />
                 </View>
               </View>

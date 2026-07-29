@@ -2,6 +2,7 @@ import "expo-sqlite/localStorage/install";
 import "react-native-url-polyfill/auto";
 
 import OfflineStatusBanner from "@/components/OfflineStatusBanner";
+import { AuthProvider } from "@/context/AuthContext";
 import {
   getModeAwareRoute,
   getUserHomeRoute,
@@ -278,11 +279,13 @@ export default function RootLayout() {
   }
 
   return (
-    <View className="flex-1">
-      <OfflineStatusBanner />
+    <AuthProvider>
       <View className="flex-1">
-        <Slot />
+        <OfflineStatusBanner />
+        <View className="flex-1">
+          <Slot />
+        </View>
       </View>
-    </View>
+    </AuthProvider>
   );
 }

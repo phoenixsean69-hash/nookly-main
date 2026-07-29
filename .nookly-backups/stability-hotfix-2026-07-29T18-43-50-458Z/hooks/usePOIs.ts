@@ -19,7 +19,7 @@ interface UsePOIsResult {
 const hasValidCoordinates = (
   latitude?: number | null,
   longitude?: number | null,
-): latitude is number =>
+): boolean =>
   typeof latitude === "number" &&
   Number.isFinite(latitude) &&
   latitude >= -90 &&
@@ -55,16 +55,20 @@ export const usePOIs = (
         return;
       }
 
+      const validLatitude = latitude as number;
+      const validLongitude = longitude as number;
       const requestedRadius = radiusOverride ?? radiusKm;
-      const requestedCategories = categoryKey ? categoryKey.split("|") : undefined;
+      const requestedCategories = categoryKey
+        ? categoryKey.split("|")
+        : undefined;
 
       setLoading(true);
       setError(null);
 
       try {
         const fetchedPOIs = await getPOIs(
-          latitude,
-          longitude,
+          validLatitude,
+          validLongitude,
           requestedRadius,
           requestedCategories,
           forceRefresh,
@@ -76,24 +80,26 @@ export const usePOIs = (
         setAmenities(
           calculatePropertyAmenities(
             fetchedPOIs,
-            latitude,
-            longitude,
+            validLatitude,
+            validLongitude,
             requestedRadius,
           ),
         );
       } catch (caughtError) {
         if (requestId !== requestIdRef.current) return;
 
-        const message =
+        console.error("Error fetching nearby amenities:", caughtError);
+        setError(
           caughtError instanceof Error
             ? caughtError.message
-            : "Failed to load nearby amenities.";
-        console.warn("Nearby amenities unavailable:", message);
-        setError(message);
+            : "Failed to load nearby amenities.",
+        );
         setPois([]);
         setAmenities(null);
       } finally {
-        if (requestId === requestIdRef.current) setLoading(false);
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+        }
       }
     },
     [categoryKey, latitude, longitude, radiusKm],
@@ -101,6 +107,7 @@ export const usePOIs = (
 
   useEffect(() => {
     void fetchData();
+
     return () => {
       requestIdRef.current += 1;
     };
@@ -117,5 +124,12 @@ export const usePOIs = (
     clearPOICache();
   }, []);
 
-  return { pois, amenities, loading, error, refetch, clearCache };
+  return {
+    pois,
+    amenities,
+    loading,
+    error,
+    refetch,
+    clearCache,
+  };
 };
