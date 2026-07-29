@@ -442,7 +442,7 @@ const schema = [
       integer("availableSeats", true, { min: 0, max: 200 }),
       string("status", 32, true),
       boolean("bookingOpen", true),
-      string("driverAccessCodeHash", 255, false, { encrypt: true }),
+      string("driverAccessCodeHash", 255),
       float("currentLatitude", false, { min: -90, max: 90 }),
       float("currentLongitude", false, { min: -180, max: 180 }),
       float("currentHeading", false, { min: 0, max: 360 }),
