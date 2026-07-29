@@ -2,9 +2,9 @@
 import AmenitiesBadge from "@/components/AmenitiesBadge";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import ContactModal from "@/components/ContactModal";
-import OrganizationApprovedBadge from "@/components/OrganizationApprovedBadge";
 import ErrorModal from "@/components/ErrorModal";
 import OperationSuccesfull from "@/components/OperationSuccesfull";
+import OrganizationApprovedBadge from "@/components/OrganizationApprovedBadge";
 import { PriceHistory } from "@/components/PriceHistory";
 import PropertyMapCard from "@/components/PropertyMapCard";
 import PropertyVerificationVideo from "@/components/PropertyVerificationVideo";
@@ -32,13 +32,13 @@ import { Query } from "react-native-appwrite";
 
 import { Colors } from "@/constants/Colors";
 import { isAccredited } from "@/lib/accreditation";
-import { isOrganizationApprovedBoardingHouse } from "@/lib/propertyApproval";
 import { downloadMediaToDevice } from "@/lib/downloadMedia";
 import {
   addToFavorites,
   isFavorite,
   removeFromFavorites,
 } from "@/lib/localFavorites";
+import { isOrganizationApprovedBoardingHouse } from "@/lib/propertyApproval";
 import { useAppwrite } from "@/lib/useAppwrite";
 import { getModeAwareRoute, getUserHomeRoute } from "@/lib/userMode";
 import useAuthStore from "@/store/auth.store";
@@ -326,27 +326,33 @@ const Property = () => {
   // ============================================================================
   // CONTACT LANDLORD FUNCTION
   // ============================================================================
-  const handleContactLandlord = () => {
-    if (!property) return;
+const handleContactLandlord = () => {
+  if (!property) return;
 
-    const landlord =
-      property.agent && typeof property.agent === "object"
-        ? property.agent
-        : {
-            name: property.creatorName || "Property Owner",
-            email: property.creatorEmail || "Contact details unavailable",
-            phone: property.creatorPhone || null,
-            avatar: property.creatorAvatar || null,
-          };
+  const resolvedLandlord =
+    property.agent &&
+    typeof property.agent !== "string"
+      ? property.agent
+      : {
+          $id: property.creatorId || "",
+          name: property.creatorName || "Property Owner",
+          email:
+            property.creatorEmail ||
+            "Contact details unavailable",
+          phone: property.creatorPhone || null,
+          avatar: property.creatorAvatar || null,
+          isOrganization: false,
+        };
 
-    setLandlordContact({
-      name: landlord.name,
-      email: landlord.email,
-      phone: landlord.phone || undefined,
-      avatar: landlord.avatar || undefined,
-    });
-    setContactModalVisible(true);
-  };
+  setLandlordContact({
+    name: resolvedLandlord.name,
+    email: resolvedLandlord.email,
+    phone: resolvedLandlord.phone || undefined,
+    avatar: resolvedLandlord.avatar || undefined,
+  });
+
+  setContactModalVisible(true);
+};
 
   const handleDownloadImage = async (uri: string, index: number) => {
     if (downloadingMedia) return;
@@ -777,62 +783,98 @@ const Property = () => {
   };
 
   const handleFavoriteToggle = async () => {
-    if (!property) return;
+  if (!property) return;
 
-    try {
-      if (isFav) {
-        await removeFromFavorites(property.$id);
-        setIsFav(false);
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  try {
+    if (isFav) {
+      await removeFromFavorites(property.$id);
+      setIsFav(false);
 
-        setOperationSuccessConfig({
-          title: "Removed",
-          message: `${property.propertyName || "Property"} removed from favorites`,
-        });
-        setOperationSuccessVisible(true);
-      } else {
-        const favoriteProperty = {
-          $id: property.$id,
-          propertyName: property.propertyName,
-          type: property.type,
-          organizationApproved: property.organizationApproved,
-          address: property.address,
-          price: property.price,
-          image1: property.image1,
-          image2: property.image2,
-          image3: property.image3,
-          rating: property.rating,
-          views: property.views,
-          bedrooms: property.bedrooms,
-          bathrooms: property.bathrooms,
-          facilities: property.facilities,
-          creatorId: property.creatorId,
-          creatorName: property.agent?.name,
-          creatorEmail: property.agent?.email,
-          creatorPhone: property.agent?.phone,
-          creatorAvatar: property.agent?.avatar,
-        };
+      await Haptics.impactAsync(
+        Haptics.ImpactFeedbackStyle.Light,
+      );
 
-        await addToFavorites(favoriteProperty);
-        setIsFav(true);
-        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-        setOperationSuccessConfig({
-          title: "Added",
-          message: `${property.propertyName || "Property"} saved to favorites`,
-        });
-        setOperationSuccessVisible(true);
-      }
-    } catch (error) {
-      console.error("Error toggling favorite:", error);
-      setErrorModalConfig({
-        title: "Error",
-        message: "Failed to update favorites. Please try again.",
+      setOperationSuccessConfig({
+        title: "Removed",
+        message: `${
+          property.propertyName || "Property"
+        } removed from favorites`,
       });
-      setErrorModalVisible(true);
-    }
-  };
 
+      setOperationSuccessVisible(true);
+      return;
+    }
+
+    const favoriteOwner =
+      property.agent &&
+      typeof property.agent === "object"
+        ? property.agent
+        : null;
+
+    const favoriteProperty = {
+      $id: property.$id,
+      propertyName: property.propertyName,
+      type: property.type,
+      organizationApproved: property.organizationApproved,
+      address: property.address,
+      price: property.price,
+      image1: property.image1,
+      image2: property.image2,
+      image3: property.image3,
+      rating: property.rating,
+      views: property.views,
+      bedrooms: property.bedrooms,
+      bathrooms: property.bathrooms,
+      facilities: property.facilities,
+      creatorId: property.creatorId,
+
+      creatorName:
+        favoriteOwner?.name ||
+        property.creatorName ||
+        "Property Owner",
+
+      creatorEmail:
+        favoriteOwner?.email ||
+        property.creatorEmail ||
+        undefined,
+
+      creatorPhone:
+        favoriteOwner?.phone ||
+        property.creatorPhone ||
+        undefined,
+
+      creatorAvatar:
+        favoriteOwner?.avatar ||
+        property.creatorAvatar ||
+        undefined,
+    };
+
+    await addToFavorites(favoriteProperty);
+    setIsFav(true);
+
+    await Haptics.impactAsync(
+      Haptics.ImpactFeedbackStyle.Medium,
+    );
+
+    setOperationSuccessConfig({
+      title: "Added",
+      message: `${
+        property.propertyName || "Property"
+      } saved to favorites`,
+    });
+
+    setOperationSuccessVisible(true);
+  } catch (error) {
+    console.error("Error toggling favorite:", error);
+
+    setErrorModalConfig({
+      title: "Error",
+      message: "Failed to update favorites. Please try again.",
+    });
+
+    setErrorModalVisible(true);
+  }
+};
   // ============================================================================
   // LOAD REVIEWS WHEN PROPERTY LOADS
   // ============================================================================
@@ -892,7 +934,7 @@ const Property = () => {
     }
   }, [property, user]);
 
-  const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);  const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (
@@ -1299,17 +1341,17 @@ const Property = () => {
 
     const priceHistory = buildPriceHistory(property);
 
-    const creator =
-      property.agent && typeof property.agent === "object"
-        ? property.agent
-        : {
-            $id: property.creatorId || "",
-            name: property.creatorName || "Property Owner",
-            email: property.creatorEmail || "Contact details unavailable",
-            phone: property.creatorPhone || null,
-            avatar: property.creatorAvatar || null,
-            isOrganization: false,
-          };
+const creator =
+  property.agent && typeof property.agent === "object"
+    ? property.agent
+    : {
+        $id: property.creatorId || "",
+        name: property.creatorName || "Property Owner",
+        email: property.creatorEmail || "Contact details unavailable",
+        phone: property.creatorPhone || null,
+        avatar: property.creatorAvatar || null,
+        isOrganization: false,
+      };
 
     return (
       <>
