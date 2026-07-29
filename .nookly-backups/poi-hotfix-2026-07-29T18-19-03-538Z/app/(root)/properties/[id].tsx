@@ -1,5 +1,4 @@
 // app/properties/[id].tsx
-import AmenitiesBadge from "@/components/AmenitiesBadge";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import ContactModal from "@/components/ContactModal";
 import OrganizationApprovedBadge from "@/components/OrganizationApprovedBadge";
@@ -1964,12 +1963,6 @@ const Property = () => {
                   bathrooms={property.bathrooms}
                   isInline={true}
                 />
-                <View className="mt-3">
-                  <AmenitiesBadge
-                    amenities={amenities}
-                    loading={amenitiesLoading}
-                  />
-                </View>
               </View>
             ) : (
               <View
@@ -2801,12 +2794,6 @@ const Property = () => {
                   bathrooms={property.bathrooms}
                   isInline={true}
                 />
-                <View className="mt-3">
-                  <AmenitiesBadge
-                    amenities={amenities}
-                    loading={amenitiesLoading}
-                  />
-                </View>
               </View>
             ) : (
               <View
