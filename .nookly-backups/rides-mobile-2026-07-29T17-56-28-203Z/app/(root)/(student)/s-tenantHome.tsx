@@ -2,7 +2,6 @@ import { Card, FeaturedCard } from "@/components/Cards";
 import FeaturedModal from "@/components/FeaturedModal";
 import NoResults from "@/components/NoResults";
 import QuickActions from "@/components/QuickActions";
-import RidesHomeBanner from "@/components/rides/RidesHomeBanner";
 import StudentFilters from "@/components/StudentFilters";
 import StudentQuickTips from "@/components/StudentQuickTips";
 import icons from "@/constants/icons";
@@ -206,8 +205,6 @@ const StudentHome = () => {
             </Text>
           </View>
         </View>
-
-        <RidesHomeBanner schoolLocation={schoolLocation} />
 
         <View className="mb-5">
           <QuickActions />

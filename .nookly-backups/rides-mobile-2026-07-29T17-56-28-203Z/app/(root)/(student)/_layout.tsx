@@ -277,26 +277,6 @@ const StudentTabsLayout = () => {
       />
 
       <Tabs.Screen
-        name="s-rides"
-        options={{
-          href: null,
-          title: "Rides",
-          headerShown: false,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
-        name="s-ride-details"
-        options={{
-          href: null,
-          title: "Ride details",
-          headerShown: false,
-          tabBarStyle: { display: "none" },
-        }}
-      />
-
-      <Tabs.Screen
         name="s-profile"
         options={{
           title: "Profile",
