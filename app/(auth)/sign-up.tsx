@@ -309,25 +309,10 @@ export default function SignUp() {
     }
 
     setIsLoading(true);
-    let uploadedAvatarUrl = "";
 
     try {
-      if (formData.avatar) {
-        setUploadingAvatar(true);
-
-        try {
-          uploadedAvatarUrl = await uploadImage({
-            uri: formData.avatar,
-            fileName: `avatar_${Date.now()}.jpg`,
-            mimeType: "image/jpeg",
-          });
-        } catch (avatarError) {
-          console.error("Avatar upload failed:", avatarError);
-        } finally {
-          setUploadingAvatar(false);
-        }
-      }
-
+      // Create the account and authenticated session first. A private Appwrite
+      // bucket should never need public/guest CREATE permission for signup.
       const signupResult = await signUp({
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -343,11 +328,46 @@ export default function SignUp() {
           formData.tenantType === "student"
             ? formData.schoolLocation.trim()
             : undefined,
-        avatar: uploadedAvatarUrl,
+        avatar: undefined,
       });
 
       if (!signupResult.success) {
-        throw new Error(signupResult.error || "Could not create your account.");
+        throw new Error(
+          signupResult.error || "Could not create your account.",
+        );
+      }
+
+      // Upload the optional avatar only after Appwrite has created the session.
+      // Failure here must not roll back an otherwise valid account.
+      if (formData.avatar) {
+        setUploadingAvatar(true);
+
+        try {
+          const uploadedAvatarUrl = await uploadImage({
+            uri: formData.avatar,
+            fileName: `avatar_${Date.now()}.jpg`,
+            mimeType: "image/jpeg",
+          });
+
+          const avatarUpdateResult =
+            await useAuthStore.getState().updateUser({
+              avatar: uploadedAvatarUrl,
+            });
+
+          if (!avatarUpdateResult.success) {
+            console.warn(
+              "Account created, but avatar profile update failed:",
+              avatarUpdateResult.error,
+            );
+          }
+        } catch (avatarError) {
+          console.warn(
+            "Account created with the default avatar because upload failed:",
+            avatarError,
+          );
+        } finally {
+          setUploadingAvatar(false);
+        }
       }
 
       const destinationUser: Record<string, unknown> = {

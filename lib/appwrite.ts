@@ -125,7 +125,7 @@ const normalize = (value: number, min: number, max: number): number => {
 };
 
 export const config = {
-  platform: "com.tekto99.rentify",
+  platform: "com.shon1123.Nookly",
   endpoint: process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT,
   projectId: process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID,
   databaseId: process.env.EXPO_PUBLIC_APPWRITE_DATABASE_ID,
@@ -584,44 +584,56 @@ export const signIn = async ({ email, password }: SignInParams) => {
   }
 };
 
-export async function uploadImage(image: any) {
+export async function uploadImage(image: {
+  uri: string;
+  fileName?: string | null;
+  mimeType?: string | null;
+  fileSize?: number | null;
+}) {
+  if (!image?.uri) {
+    throw new Error("The selected image is unavailable.");
+  }
+
+  if (!config.bucketId) {
+    throw new Error("The Appwrite storage bucket is not configured.");
+  }
+
   try {
-    // Compress image first
     const compressedImage = await ImageManipulator.manipulateAsync(
       image.uri,
-      [{ resize: { width: 1200 } }], // Resize to max width 1200px
-      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
+      [{ resize: { width: 1200 } }],
+      {
+        compress: 0.7,
+        format: ImageManipulator.SaveFormat.JPEG,
+      },
     );
 
-    const fileName = image.fileName || `image-${Date.now()}.jpg`;
-    const fileType = image.mimeType || "image/jpeg";
+    const localFile = new ExpoFile(compressedImage.uri);
+    const fileSize = Number(localFile.size || image.fileSize || 0);
 
-    // Get compressed file size
-    const fileInfo = await fetch(compressedImage.uri);
-    const blob = await fileInfo.blob();
-    const fileSize = blob.size;
+    if (!Number.isFinite(fileSize) || fileSize <= 0) {
+      throw new Error("Could not determine the selected image size.");
+    }
 
-    console.log("Original size:", image.fileSize);
-    console.log("Compressed size:", fileSize);
+    const fileName =
+      image.fileName?.trim() || `avatar-${Date.now()}.jpg`;
 
-    // Upload compressed image
-    const fileToUpload = {
-      uri: compressedImage.uri,
-      name: fileName,
-      type: fileType,
-      size: fileSize,
-    };
-
-    const file = await storage.createFile(
-      config.bucketId!,
+    const uploadedFile = await storage.createFile(
+      config.bucketId,
       ID.unique(),
-      fileToUpload,
+      {
+        uri: compressedImage.uri,
+        name: fileName.toLowerCase().endsWith(".jpg")
+          ? fileName
+          : `${fileName.replace(/\.[^.]+$/, "")}.jpg`,
+        type: "image/jpeg",
+        size: fileSize,
+      },
     );
 
-    const imageUrl = `https://cloud.appwrite.io/v1/storage/buckets/${config.bucketId}/files/${file.$id}/view?project=${config.projectId}`;
-    console.log("Upload successful, URL:", imageUrl);
-
-    return imageUrl;
+    return storage
+      .getFileView(config.bucketId, uploadedFile.$id)
+      .toString();
   } catch (error) {
     console.error("Error in uploadImage:", error);
     throw error;
