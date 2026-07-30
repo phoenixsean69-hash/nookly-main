@@ -631,26 +631,9 @@ export async function uploadImage(image: {
       },
     );
 
-    const endpoint = config.endpoint?.replace(/\/+$/, "");
-    const projectId = config.projectId?.trim();
-
-    if (!endpoint || !projectId) {
-      throw new Error(
-        "The Appwrite endpoint or project ID is not configured.",
-      );
-    }
-
-    const avatarUrl =
-      `${endpoint}/storage/buckets/` +
-      `${encodeURIComponent(config.bucketId)}/files/` +
-      `${encodeURIComponent(uploadedFile.$id)}/view` +
-      `?project=${encodeURIComponent(projectId)}`;
-
-    if (!/^https?:\/\//i.test(avatarUrl)) {
-      throw new Error("The uploaded avatar URL is invalid.");
-    }
-
-    return avatarUrl;
+    return storage
+      .getFileView(config.bucketId, uploadedFile.$id)
+      .toString();
   } catch (error) {
     console.error("Error in uploadImage:", error);
     throw error;
