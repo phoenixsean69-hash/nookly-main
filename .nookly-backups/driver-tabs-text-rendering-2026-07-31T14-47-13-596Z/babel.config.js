@@ -8,7 +8,7 @@ module.exports = function (api) {
     ],
     plugins: [
       require.resolve("./plugins/fix-android-text-clipping.cjs"),
-      "react-native-reanimated/plugin",
+      "react-native-reanimated/plugin", // This plugin must remain last.
     ],
   };
 };

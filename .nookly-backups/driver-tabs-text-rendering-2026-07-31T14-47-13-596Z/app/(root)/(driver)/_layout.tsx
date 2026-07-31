@@ -114,7 +114,11 @@ export default function DriverTabsLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ focused }) => (
-            <DriverTabIcon focused={focused} icon={icons.home} title="Home" />
+            <DriverTabIcon
+              focused={focused}
+              icon={icons.home}
+              title="Home"
+            />
           ),
         }}
       />

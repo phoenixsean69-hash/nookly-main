@@ -1,12 +1,8 @@
 /**
  * Expo-compatible workaround for React Native 0.81 Android text clipping.
  *
- * React Native 0.81 can measure a Text node one pixel too narrowly on some
- * Android versions/devices. Appending a very thin trailing spacer forces the
- * native paragraph width to include the final glyph.
- *
- * Only outer React Native <Text> elements are changed. Nested Text spans are
- * deliberately skipped so punctuation and inline emphasis keep their spacing.
+ * It adds a tiny trailing Android-only spacer to outer React Native Text
+ * elements so the final glyph is not measured one pixel too narrowly.
  */
 
 module.exports = function nooklyAndroidTextClippingFix({ types: t }) {
@@ -106,22 +102,22 @@ module.exports = function nooklyAndroidTextClippingFix({ types: t }) {
 
         if (nestedInsideText) return;
 
-        const spacerExpression = t.jsxExpressionContainer(
-          t.conditionalExpression(
-            t.binaryExpression(
-              "===",
-              t.memberExpression(
-                t.identifier(platformLocalName),
-                t.identifier("OS"),
+        path.node.children.push(
+          t.jsxExpressionContainer(
+            t.conditionalExpression(
+              t.binaryExpression(
+                "===",
+                t.memberExpression(
+                  t.identifier(platformLocalName),
+                  t.identifier("OS"),
+                ),
+                t.stringLiteral("android"),
               ),
-              t.stringLiteral("android"),
+              t.stringLiteral("\u2009"),
+              t.stringLiteral(""),
             ),
-            t.stringLiteral("\u2009"),
-            t.stringLiteral(""),
           ),
         );
-
-        path.node.children.push(spacerExpression);
       },
     },
   };
