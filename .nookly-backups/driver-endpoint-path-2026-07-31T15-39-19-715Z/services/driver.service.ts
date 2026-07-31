@@ -71,7 +71,7 @@ async function executeDriverRequest<T>(
     functionId: DRIVER_FUNCTION_ID,
     body: body ? JSON.stringify(body) : "",
     async: false,
-    xpath: path,
+    path,
     method,
     headers: {
       "content-type": "application/json",

@@ -1,10 +1,4 @@
-import {
-  Client,
-  Databases,
-  ID,
-  Query,
-  TablesDB,
-} from "node-appwrite";
+import { Client, Databases, ID, Query, TablesDB } from "node-appwrite";
 
 const ACTIVE_RIDE_STATUSES = ["scheduled", "boarding", "active", "delayed"];
 
@@ -17,8 +11,7 @@ const STATUS_TRANSITIONS = {
   cancelled: new Set(),
 };
 
-const env = (name, fallback = "") =>
-  process.env[name]?.trim() || fallback;
+const env = (name, fallback = "") => process.env[name]?.trim() || fallback;
 
 const DATABASE_ID = env(
   "APPWRITE_DATABASE_ID",
@@ -76,21 +69,20 @@ const requiredConfig = () => {
   }
 };
 
-const ok = (res, data, status = 200) =>
-  res.json({ ok: true, data }, status);
+const ok = (res, data, status = 200) => res.json({ ok: true, data }, status);
 
 const fail = (res, status, message) =>
   res.json({ ok: false, error: message }, status);
 
 const parseBody = (req) => {
-  if (req.bodyJson && typeof req.bodyJson === "object") {
-    return req.bodyJson;
+  const bodyText = typeof req.bodyText === "string" ? req.bodyText.trim() : "";
+
+  if (!bodyText) {
+    return {};
   }
 
-  if (!req.bodyText) return {};
-
   try {
-    return JSON.parse(req.bodyText);
+    return JSON.parse(bodyText);
   } catch {
     return {};
   }
@@ -147,11 +139,7 @@ export default async ({ req, res, log, error }) => {
     const driver = driverResult.rows[0];
 
     if (!driver) {
-      return fail(
-        res,
-        403,
-        "No driver profile is linked to this account.",
-      );
+      return fail(res, 403, "No driver profile is linked to this account.");
     }
 
     if (driver.status !== "active") {
@@ -262,18 +250,12 @@ export default async ({ req, res, log, error }) => {
         tablesDB.listRows({
           databaseId: DATABASE_ID,
           tableId: TABLES.vehicles,
-          queries: [
-            Query.equal("driverId", driver.$id),
-            Query.limit(20),
-          ],
+          queries: [Query.equal("driverId", driver.$id), Query.limit(20)],
         }),
         tablesDB.listRows({
           databaseId: DATABASE_ID,
           tableId: TABLES.rides,
-          queries: [
-            Query.equal("driverId", driver.$id),
-            Query.limit(100),
-          ],
+          queries: [Query.equal("driverId", driver.$id), Query.limit(100)],
         }),
       ]);
 
@@ -286,12 +268,8 @@ export default async ({ req, res, log, error }) => {
         ["scheduled", "boarding", "active", "delayed"].includes(ride.status),
       );
 
-      const activeRide = activeRideRaw
-        ? await enrichRide(activeRideRaw)
-        : null;
-      const upcomingRides = await Promise.all(
-        upcomingRaw.map(enrichRide),
-      );
+      const activeRide = activeRideRaw ? await enrichRide(activeRideRaw) : null;
+      const upcomingRides = await Promise.all(upcomingRaw.map(enrichRide));
 
       return ok(res, {
         profile: driver,
@@ -308,23 +286,13 @@ export default async ({ req, res, log, error }) => {
       const result = await tablesDB.listRows({
         databaseId: DATABASE_ID,
         tableId: TABLES.rides,
-        queries: [
-          Query.equal("driverId", driver.$id),
-          Query.limit(100),
-        ],
+        queries: [Query.equal("driverId", driver.$id), Query.limit(100)],
       });
 
-      return ok(
-        res,
-        await Promise.all(sortRides(result.rows).map(enrichRide)),
-      );
+      return ok(res, await Promise.all(sortRides(result.rows).map(enrichRide)));
     }
 
-    if (
-      method === "GET" &&
-      parts.length === 2 &&
-      parts[0] === "rides"
-    ) {
+    if (method === "GET" && parts.length === 2 && parts[0] === "rides") {
       const ride = await getRide(parts[1]);
       const [route, stops, bookings] = await Promise.all([
         getRoute(ride.routeId),
@@ -364,7 +332,9 @@ export default async ({ req, res, log, error }) => {
       parts[2] === "status"
     ) {
       const ride = await getRide(parts[1]);
-      const nextStatus = String(body.status || "").trim().toLowerCase();
+      const nextStatus = String(body.status || "")
+        .trim()
+        .toLowerCase();
       const allowed = STATUS_TRANSITIONS[ride.status] ?? new Set();
 
       if (!allowed.has(nextStatus)) {
@@ -503,8 +473,7 @@ export default async ({ req, res, log, error }) => {
         ],
       });
 
-      const sequence =
-        Number(recentLocations.rows[0]?.sequence ?? -1) + 1;
+      const sequence = Number(recentLocations.rows[0]?.sequence ?? -1) + 1;
 
       await tablesDB.updateRow({
         databaseId: DATABASE_ID,
@@ -598,9 +567,7 @@ export default async ({ req, res, log, error }) => {
           reporterType: "driver",
           category,
           description,
-          ...(isFiniteNumber(body.latitude)
-            ? { latitude: body.latitude }
-            : {}),
+          ...(isFiniteNumber(body.latitude) ? { latitude: body.latitude } : {}),
           ...(isFiniteNumber(body.longitude)
             ? { longitude: body.longitude }
             : {}),

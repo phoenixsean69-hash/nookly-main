@@ -1,8 +1,9 @@
-Nookly text clipping hotfix v3
+Nookly Driver endpoint path hotfix
 
-The previous thin-space workaround was insufficient. This version uses the
-normal trailing-space workaround confirmed for React Native Android text
-clipping and removes clipping/ellipsis from Driver tab labels.
+Appwrite's current React Native createExecution call uses `xpath` for the
+execution path. The Nookly service was sending `path`, which was ignored and
+defaulted every request to `/`.
 
 Install:
-node apply-nookly-text-clipping-hotfix-v3.mjs
+
+node apply-nookly-driver-endpoint-path-hotfix.mjs
