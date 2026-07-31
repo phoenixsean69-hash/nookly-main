@@ -4,12 +4,14 @@ import {
   getDriverDashboard,
   updateDriverAvailability,
 } from "@/services/driver.service";
+import useAuthStore from "@/store/auth.store";
 import type { DriverDashboard } from "@/types/driver";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   RefreshControl,
   ScrollView,
   Switch,
@@ -20,14 +22,59 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const isDisplayableAvatar = (value?: string | null): value is string => {
+  if (!value?.trim()) return false;
+
+  return /^(https?:|file:|content:)/i.test(value.trim());
+};
+
+const getInitials = (name?: string | null): string => {
+  const initials = String(name || "Driver")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  return initials || "DR";
+};
+
 export default function DriverHomeScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
+  const user = useAuthStore((state) => state.user);
+
   const [dashboard, setDashboard] = useState<DriverDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
+  const avatarUri = useMemo(() => {
+    const candidates = [
+      user?.customAvatar,
+      user?.avatar,
+      dashboard?.profile.avatar,
+    ];
+
+    return candidates.find(isDisplayableAvatar) ?? null;
+  }, [
+    dashboard?.profile.avatar,
+    user?.avatar,
+    user?.customAvatar,
+  ]);
+
+  const displayName =
+    dashboard?.profile.name?.trim() ||
+    user?.name?.trim() ||
+    "Driver";
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [avatarUri]);
 
   const loadDashboard = useCallback(async (refresh = false) => {
     if (refresh) {
@@ -35,6 +82,7 @@ export default function DriverHomeScreen() {
     } else {
       setLoading(true);
     }
+
     setError(null);
 
     try {
@@ -61,6 +109,7 @@ export default function DriverHomeScreen() {
     if (!dashboard || availabilityLoading) return;
 
     const previousValue = dashboard.profile.isOnline ?? false;
+
     setDashboard({
       ...dashboard,
       profile: {
@@ -80,6 +129,7 @@ export default function DriverHomeScreen() {
           isOnline: previousValue,
         },
       });
+
       setError(
         caughtError instanceof Error
           ? caughtError.message
@@ -89,6 +139,44 @@ export default function DriverHomeScreen() {
       setAvailabilityLoading(false);
     }
   };
+
+  const setupPending =
+    Boolean(error) &&
+    /no driver profile|verification is|account is inactive|account is pending/i.test(
+      error || "",
+    );
+
+  const renderAvatar = () => (
+    <TouchableOpacity
+      onPress={() => router.push("/driver-profile")}
+      activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel="Open driver profile"
+      className="h-12 w-12 overflow-hidden rounded-full border-2"
+      style={{
+        backgroundColor: `${theme.primary[300]}18`,
+        borderColor: `${theme.primary[300]}55`,
+      }}
+    >
+      {avatarUri && !avatarFailed ? (
+        <Image
+          source={{ uri: avatarUri }}
+          resizeMode="cover"
+          className="h-full w-full"
+          onError={() => setAvatarFailed(true)}
+        />
+      ) : (
+        <View className="h-full w-full items-center justify-center">
+          <Text
+            className="text-sm font-rubik-bold"
+            style={{ color: theme.primary[300] }}
+          >
+            {getInitials(displayName)}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
 
   if (loading && !dashboard) {
     return (
@@ -110,6 +198,7 @@ export default function DriverHomeScreen() {
       style={{ backgroundColor: theme.background }}
     >
       <ScrollView
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 20, paddingBottom: 110 }}
         refreshControl={
           <RefreshControl
@@ -127,222 +216,268 @@ export default function DriverHomeScreen() {
               className="mt-1 text-3xl font-rubik-bold"
               style={{ color: theme.title }}
             >
-              Hello, {dashboard?.profile.name || "Driver"}
+              Hello, {displayName}
             </Text>
           </View>
 
-          <View
-            className="h-12 w-12 items-center justify-center rounded-2xl"
-            style={{ backgroundColor: `${theme.primary[300]}18` }}
-          >
-            <Ionicons
-              name="bus-outline"
-              size={26}
-              color={theme.primary[300]}
-            />
-          </View>
+          {renderAvatar()}
         </View>
 
-        {error && (
-          <TouchableOpacity
-            onPress={() => void loadDashboard(true)}
-            className="mt-5 flex-row items-center rounded-2xl border p-4"
-            style={{
-              backgroundColor: `${theme.danger}08`,
-              borderColor: `${theme.danger}30`,
-            }}
-          >
-            <Ionicons
-              name="warning-outline"
-              size={20}
-              color={theme.danger}
-            />
-            <Text
-              className="ml-3 flex-1 text-sm"
-              style={{ color: theme.text }}
-            >
-              {error}
-            </Text>
-            <Ionicons
-              name="refresh"
-              size={18}
-              color={theme.primary[300]}
-            />
-          </TouchableOpacity>
-        )}
-
-        <View
-          className="mt-6 flex-row items-center justify-between rounded-2xl border p-4"
-          style={{
-            backgroundColor: theme.surface,
-            borderColor: `${theme.muted}25`,
-          }}
-        >
-          <View className="flex-1 pr-4">
-            <Text
-              className="text-base font-rubik-bold"
-              style={{ color: theme.title }}
-            >
-              Available for assignments
-            </Text>
-            <Text className="mt-1 text-sm" style={{ color: theme.muted }}>
-              Turn this on when you are ready to drive.
-            </Text>
-          </View>
-          {availabilityLoading ? (
-            <ActivityIndicator color={theme.primary[300]} />
-          ) : (
-            <Switch
-              value={dashboard?.profile.isOnline ?? false}
-              onValueChange={(value) => void toggleAvailability(value)}
-              trackColor={{
-                false: `${theme.muted}50`,
-                true: `${theme.primary[300]}70`,
-              }}
-              thumbColor={
-                dashboard?.profile.isOnline
-                  ? theme.primary[300]
-                  : theme.surface
-              }
-            />
-          )}
-        </View>
-
-        <View className="mt-6 flex-row gap-3">
+        {setupPending && !dashboard ? (
           <View
-            className="flex-1 rounded-2xl border p-4"
+            className="mt-6 rounded-3xl border p-5"
             style={{
               backgroundColor: theme.surface,
-              borderColor: `${theme.muted}25`,
+              borderColor: `${theme.primary[300]}30`,
             }}
           >
-            <Ionicons
-              name="checkmark-done-outline"
-              size={22}
-              color="#16A34A"
-            />
-            <Text
-              className="mt-3 text-2xl font-rubik-bold"
-              style={{ color: theme.title }}
-            >
-              {dashboard?.completedTrips ?? 0}
-            </Text>
-            <Text className="text-xs" style={{ color: theme.muted }}>
-              Completed trips
-            </Text>
-          </View>
-
-          <View
-            className="flex-1 rounded-2xl border p-4"
-            style={{
-              backgroundColor: theme.surface,
-              borderColor: `${theme.muted}25`,
-            }}
-          >
-            <Ionicons
-              name="calendar-outline"
-              size={22}
-              color={theme.primary[300]}
-            />
-            <Text
-              className="mt-3 text-2xl font-rubik-bold"
-              style={{ color: theme.title }}
-            >
-              {dashboard?.upcomingRides.length ?? 0}
-            </Text>
-            <Text className="text-xs" style={{ color: theme.muted }}>
-              Upcoming rides
-            </Text>
-          </View>
-        </View>
-
-        <View className="mt-7">
-          <View className="mb-3 flex-row items-center justify-between">
-            <Text
-              className="text-xl font-rubik-bold"
-              style={{ color: theme.title }}
-            >
-              Active assignment
-            </Text>
-            {dashboard?.activeRide && (
-              <TouchableOpacity
-                onPress={() => router.push("/driver-active")}
-              >
-                <Text
-                  className="font-rubik-medium"
-                  style={{ color: theme.primary[300] }}
-                >
-                  Open
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {dashboard?.activeRide ? (
-            <DriverRideCard
-              ride={dashboard.activeRide}
-              onPress={() => router.push("/driver-active")}
-            />
-          ) : (
             <View
-              className="items-center rounded-2xl border border-dashed p-7"
-              style={{
-                backgroundColor: theme.surface,
-                borderColor: `${theme.muted}40`,
-              }}
+              className="h-12 w-12 items-center justify-center rounded-2xl"
+              style={{ backgroundColor: `${theme.primary[300]}15` }}
             >
               <Ionicons
-                name="time-outline"
-                size={34}
-                color={theme.muted}
+                name="shield-checkmark-outline"
+                size={25}
+                color={theme.primary[300]}
               />
-              <Text
-                className="mt-3 font-rubik-medium"
-                style={{ color: theme.title }}
-              >
-                No active ride
-              </Text>
-              <Text
-                className="mt-1 text-center text-sm"
-                style={{ color: theme.muted }}
-              >
-                Your active assignment will appear here.
-              </Text>
             </View>
-          )}
-        </View>
 
-        <View className="mt-7">
-          <View className="mb-3 flex-row items-center justify-between">
             <Text
-              className="text-xl font-rubik-bold"
+              className="mt-4 text-xl font-rubik-bold"
               style={{ color: theme.title }}
             >
-              Next rides
+              Driver setup pending
             </Text>
-            <TouchableOpacity onPress={() => router.push("/driver-rides")}>
-              <Text
-                className="font-rubik-medium"
-                style={{ color: theme.primary[300] }}
-              >
-                See all
+
+            <Text
+              className="mt-2 text-sm leading-6"
+              style={{ color: theme.muted }}
+            >
+              Your Nookly account is ready, but an organization still needs to
+              create, link and verify your driver profile before rides can be
+              assigned.
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => void loadDashboard(true)}
+              className="mt-5 flex-row items-center justify-center rounded-2xl py-3.5"
+              style={{ backgroundColor: theme.primary[300] }}
+            >
+              <Ionicons name="refresh" size={18} color="#FFFFFF" />
+              <Text className="ml-2 font-rubik-bold text-white">
+                Check again
               </Text>
             </TouchableOpacity>
           </View>
+        ) : (
+          <>
+            {error && (
+              <TouchableOpacity
+                onPress={() => void loadDashboard(true)}
+                className="mt-5 flex-row items-center rounded-2xl border p-4"
+                style={{
+                  backgroundColor: `${theme.danger}08`,
+                  borderColor: `${theme.danger}30`,
+                }}
+              >
+                <Ionicons
+                  name="warning-outline"
+                  size={20}
+                  color={theme.danger}
+                />
+                <Text
+                  className="ml-3 flex-1 text-sm"
+                  style={{ color: theme.text }}
+                >
+                  {error}
+                </Text>
+                <Ionicons
+                  name="refresh"
+                  size={18}
+                  color={theme.primary[300]}
+                />
+              </TouchableOpacity>
+            )}
 
-          {(dashboard?.upcomingRides ?? []).slice(0, 3).map((ride) => (
-            <DriverRideCard
-              key={ride.$id}
-              ride={ride}
-              onPress={() =>
-                router.push({
-                  pathname: "/driver-ride-details",
-                  params: { rideId: ride.$id },
-                })
-              }
-            />
-          ))}
-        </View>
+            <View
+              className="mt-6 flex-row items-center justify-between rounded-2xl border p-4"
+              style={{
+                backgroundColor: theme.surface,
+                borderColor: `${theme.muted}25`,
+              }}
+            >
+              <View className="flex-1 pr-4">
+                <Text
+                  className="text-base font-rubik-bold"
+                  style={{ color: theme.title }}
+                >
+                  Available for assignments
+                </Text>
+                <Text className="mt-1 text-sm" style={{ color: theme.muted }}>
+                  Turn this on when you are ready to drive.
+                </Text>
+              </View>
+
+              {availabilityLoading ? (
+                <ActivityIndicator color={theme.primary[300]} />
+              ) : (
+                <Switch
+                  value={dashboard?.profile.isOnline ?? false}
+                  onValueChange={(value) => void toggleAvailability(value)}
+                  trackColor={{
+                    false: `${theme.muted}50`,
+                    true: `${theme.primary[300]}70`,
+                  }}
+                  thumbColor={
+                    dashboard?.profile.isOnline
+                      ? theme.primary[300]
+                      : theme.surface
+                  }
+                />
+              )}
+            </View>
+
+            <View className="mt-6 flex-row gap-3">
+              <View
+                className="flex-1 rounded-2xl border p-4"
+                style={{
+                  backgroundColor: theme.surface,
+                  borderColor: `${theme.muted}25`,
+                }}
+              >
+                <Ionicons
+                  name="checkmark-done-outline"
+                  size={22}
+                  color="#16A34A"
+                />
+                <Text
+                  className="mt-3 text-2xl font-rubik-bold"
+                  style={{ color: theme.title }}
+                >
+                  {dashboard?.completedTrips ?? 0}
+                </Text>
+                <Text className="text-xs" style={{ color: theme.muted }}>
+                  Completed trips
+                </Text>
+              </View>
+
+              <View
+                className="flex-1 rounded-2xl border p-4"
+                style={{
+                  backgroundColor: theme.surface,
+                  borderColor: `${theme.muted}25`,
+                }}
+              >
+                <Ionicons
+                  name="calendar-outline"
+                  size={22}
+                  color={theme.primary[300]}
+                />
+                <Text
+                  className="mt-3 text-2xl font-rubik-bold"
+                  style={{ color: theme.title }}
+                >
+                  {dashboard?.upcomingRides.length ?? 0}
+                </Text>
+                <Text className="text-xs" style={{ color: theme.muted }}>
+                  Upcoming rides
+                </Text>
+              </View>
+            </View>
+
+            <View className="mt-7">
+              <View className="mb-3 flex-row items-center justify-between">
+                <Text
+                  className="text-xl font-rubik-bold"
+                  style={{ color: theme.title }}
+                >
+                  Active assignment
+                </Text>
+
+                {dashboard?.activeRide && (
+                  <TouchableOpacity
+                    onPress={() => router.push("/driver-active")}
+                  >
+                    <Text
+                      className="font-rubik-medium"
+                      style={{ color: theme.primary[300] }}
+                    >
+                      Open
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {dashboard?.activeRide ? (
+                <DriverRideCard
+                  ride={dashboard.activeRide}
+                  onPress={() => router.push("/driver-active")}
+                />
+              ) : (
+                <View
+                  className="items-center rounded-2xl border border-dashed p-7"
+                  style={{
+                    backgroundColor: theme.surface,
+                    borderColor: `${theme.muted}40`,
+                  }}
+                >
+                  <Ionicons
+                    name="time-outline"
+                    size={34}
+                    color={theme.muted}
+                  />
+                  <Text
+                    className="mt-3 font-rubik-medium"
+                    style={{ color: theme.title }}
+                  >
+                    No active ride
+                  </Text>
+                  <Text
+                    className="mt-1 text-center text-sm"
+                    style={{ color: theme.muted }}
+                  >
+                    Your active assignment will appear here.
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View className="mt-7">
+              <View className="mb-3 flex-row items-center justify-between">
+                <Text
+                  className="text-xl font-rubik-bold"
+                  style={{ color: theme.title }}
+                >
+                  Next rides
+                </Text>
+
+                <TouchableOpacity
+                  onPress={() => router.push("/driver-rides")}
+                >
+                  <Text
+                    className="font-rubik-medium"
+                    style={{ color: theme.primary[300] }}
+                  >
+                    See all
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {(dashboard?.upcomingRides ?? []).slice(0, 3).map((ride) => (
+                <DriverRideCard
+                  key={ride.$id}
+                  ride={ride}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/driver-ride-details",
+                      params: { rideId: ride.$id },
+                    })
+                  }
+                />
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

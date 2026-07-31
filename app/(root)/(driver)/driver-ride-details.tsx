@@ -9,6 +9,7 @@ import {
 } from "@/services/driver.service";
 import type { DriverRideDetails, DriverRideStatus } from "@/types/driver";
 import { Ionicons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -20,15 +21,24 @@ import {
   View,
   useColorScheme,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 export default function DriverRideDetailsScreen() {
   const { rideId } = useLocalSearchParams<{ rideId?: string }>();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
+  const safeAreaInsets = useSafeAreaInsets();
+  const tabBarHeight = useBottomTabBarHeight();
+
   const [ride, setRide] = useState<DriverRideDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+
+  const bottomClearance =
+    Math.max(tabBarHeight, 80) + safeAreaInsets.bottom + 36;
 
   const loadRide = useCallback(async () => {
     if (!rideId) {
@@ -100,7 +110,11 @@ export default function DriverRideDetailsScreen() {
                   "Driver reported an incident from the mobile driver app.",
                 priority: "medium",
               });
-              Alert.alert("Incident reported", "The organization was notified.");
+
+              Alert.alert(
+                "Incident reported",
+                "The organization was notified.",
+              );
             } catch (caughtError) {
               Alert.alert(
                 "Report failed",
@@ -132,7 +146,11 @@ export default function DriverRideDetailsScreen() {
         className="flex-1 items-center justify-center px-6"
         style={{ backgroundColor: theme.background }}
       >
-        <Ionicons name="alert-circle-outline" size={48} color={theme.muted} />
+        <Ionicons
+          name="alert-circle-outline"
+          size={48}
+          color={theme.muted}
+        />
         <Text
           className="mt-4 text-lg font-rubik-bold"
           style={{ color: theme.title }}
@@ -155,7 +173,14 @@ export default function DriverRideDetailsScreen() {
       className="flex-1"
       style={{ backgroundColor: theme.background }}
     >
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 50 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        scrollIndicatorInsets={{ bottom: tabBarHeight }}
+        contentContainerStyle={{
+          padding: 20,
+          paddingBottom: bottomClearance,
+        }}
+      >
         <TouchableOpacity
           onPress={() => router.back()}
           className="mb-5 h-10 w-10 items-center justify-center rounded-full"
@@ -224,6 +249,7 @@ export default function DriverRideDetailsScreen() {
               {ride.vehicleRegistration}
             </Text>
           </View>
+
           <View className="mt-3 flex-row justify-between">
             <Text style={{ color: theme.muted }}>Passengers</Text>
             <Text
@@ -256,13 +282,18 @@ export default function DriverRideDetailsScreen() {
                   {index + 1}
                 </Text>
               </View>
+
               {index < ride.stops.length - 1 && (
                 <View
                   className="w-0.5 flex-1"
-                  style={{ minHeight: 32, backgroundColor: `${theme.muted}30` }}
+                  style={{
+                    minHeight: 32,
+                    backgroundColor: `${theme.muted}30`,
+                  }}
                 />
               )}
             </View>
+
             <View className="ml-3 flex-1 pb-5">
               <Text
                 className="font-rubik-medium"
@@ -316,6 +347,7 @@ export default function DriverRideDetailsScreen() {
                     {booking.seatCount === 1 ? "" : "s"}
                   </Text>
                 </View>
+
                 <Text
                   className="text-xs font-rubik-medium capitalize"
                   style={{ color: theme.primary[300] }}
@@ -333,7 +365,10 @@ export default function DriverRideDetailsScreen() {
               onPress={() => void changeStatus("boarding")}
               disabled={actionLoading}
               className="rounded-2xl py-4"
-              style={{ backgroundColor: "#D97706" }}
+              style={{
+                backgroundColor: "#D97706",
+                opacity: actionLoading ? 0.65 : 1,
+              }}
             >
               <Text className="text-center font-rubik-bold text-white">
                 Start boarding
@@ -346,7 +381,10 @@ export default function DriverRideDetailsScreen() {
               onPress={() => void changeStatus("active")}
               disabled={actionLoading}
               className="rounded-2xl py-4"
-              style={{ backgroundColor: "#16A34A" }}
+              style={{
+                backgroundColor: "#16A34A",
+                opacity: actionLoading ? 0.65 : 1,
+              }}
             >
               <Text className="text-center font-rubik-bold text-white">
                 Start trip
@@ -356,8 +394,13 @@ export default function DriverRideDetailsScreen() {
 
           <TouchableOpacity
             onPress={reportIncident}
+            disabled={actionLoading}
             className="rounded-2xl border py-4"
-            style={{ borderColor: theme.danger }}
+            style={{
+              borderColor: theme.danger,
+              backgroundColor: `${theme.danger}06`,
+              opacity: actionLoading ? 0.65 : 1,
+            }}
           >
             <Text
               className="text-center font-rubik-bold"

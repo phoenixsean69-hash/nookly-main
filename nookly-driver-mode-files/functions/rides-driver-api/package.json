@@ -1,9 +1,0 @@
-{
-  "name": "nookly-rides-driver-api",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "node-appwrite": "^24.0.0"
-  }
-}
