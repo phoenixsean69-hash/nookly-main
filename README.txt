@@ -1,7 +1,8 @@
-Self-contained installer.
+Nookly text clipping hotfix v3
 
-Extract this ZIP into the Nookly project root and run:
+The previous thin-space workaround was insufficient. This version uses the
+normal trailing-space workaround confirmed for React Native Android text
+clipping and removes clipping/ellipsis from Driver tab labels.
 
-node apply-nookly-driver-tabs-text-rendering-hotfix-v2.mjs
-
-No payload folder is required.
+Install:
+node apply-nookly-text-clipping-hotfix-v3.mjs

@@ -1,12 +1,8 @@
 /**
- * React Native 0.81 Android text clipping workaround.
+ * Expo-compatible workaround for React Native 0.81 Android text clipping.
  *
- * Android can measure Text slightly too narrowly and clip the final glyph.
- * A NORMAL trailing space is required. Thin spaces and zero-width characters
- * can be ignored by Android's visual-bound measurement.
- *
- * Only outer React Native Text nodes are changed. Nested Text spans are skipped
- * to avoid disturbing inline formatting.
+ * It adds a tiny trailing Android-only spacer to outer React Native Text
+ * elements so the final glyph is not measured one pixel too narrowly.
  */
 
 module.exports = function nooklyAndroidTextClippingFix({ types: t }) {
@@ -117,7 +113,7 @@ module.exports = function nooklyAndroidTextClippingFix({ types: t }) {
                 ),
                 t.stringLiteral("android"),
               ),
-              t.stringLiteral(" "),
+              t.stringLiteral("\u2009"),
               t.stringLiteral(""),
             ),
           ),

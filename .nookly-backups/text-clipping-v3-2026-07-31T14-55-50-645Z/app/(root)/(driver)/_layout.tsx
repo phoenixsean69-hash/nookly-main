@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Image,
   ImageSourcePropType,
+  Platform,
   Text,
   View,
   useColorScheme,
@@ -24,27 +25,40 @@ const DriverTabIcon = ({
 }) => {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
+  const color = focused ? theme.primary[300] : theme.muted;
 
   return (
-    <View className="relative mt-2 flex-1 flex-col items-center">
+    <View
+      className="relative mt-2 flex-1 flex-col items-center"
+      style={{
+        width: "100%",
+        minWidth: 0,
+        overflow: "visible",
+      }}
+    >
       <Image
         source={icon}
-        tintColor={focused ? theme.primary[300] : theme.muted}
+        tintColor={color}
         resizeMode="contain"
         className="size-6"
       />
 
       <Text
+        numberOfLines={1}
+        ellipsizeMode="clip"
         className={`mt-0 w-full text-center text-xs ${
           focused ? "font-rubik-medium" : "font-rubik"
         }`}
         style={{
-          color: focused ? theme.primary[300] : theme.text,
-          minWidth: 48,
-          paddingHorizontal: 4,
+          color,
+          width: "100%",
+          minWidth: 0,
+          lineHeight: 16,
+          includeFontPadding: true,
+          paddingHorizontal: Platform.OS === "android" ? 2 : 0,
         }}
       >
-        {`${title} `}
+        {title}
       </Text>
     </View>
   );
