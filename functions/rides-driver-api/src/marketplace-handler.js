@@ -508,10 +508,6 @@ const getDriverOrganizationIds = async (
 ) => {
   const organizationIds = new Set();
 
-  if (String(driver.organizationId || "").trim()) {
-    organizationIds.add(String(driver.organizationId).trim());
-  }
-
   const relationships = await listAllRows(
     tablesDB,
     TABLES.driverInstitutions,
@@ -531,6 +527,16 @@ const getDriverOrganizationIds = async (
       );
     }
   });
+
+  // Legacy verified drivers may predate the institution relationship table.
+  // Use the direct organization only when no relationship rows exist. A new
+  // pending relationship must never be bypassed by driver.organizationId.
+  if (
+    relationships.length === 0 &&
+    String(driver.organizationId || "").trim()
+  ) {
+    organizationIds.add(String(driver.organizationId).trim());
+  }
 
   return organizationIds;
 };
@@ -1360,7 +1366,7 @@ const confirmOffer = async (
     studentId: accountId,
     driverId: driver.$id,
     data: {
-      source: "rides-marketplace-api",
+      source: "rides-driver-api",
       rideType:
         request.ridePreference || "requested_private",
     },

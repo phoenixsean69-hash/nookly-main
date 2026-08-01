@@ -21,6 +21,10 @@ const USERS_COLLECTION_ID = env(
   "APPWRITE_USERS_COLLECTION_ID",
   env("EXPO_PUBLIC_APPWRITE_USERS_COLLECTION_ID"),
 );
+const ORGANIZATIONS_COLLECTION_ID = env(
+  "APPWRITE_ORGANIZATIONS_COLLECTION_ID",
+  env("EXPO_PUBLIC_APPWRITE_ORGANIZATIONS_COLLECTION_ID"),
+);
 
 const TABLES = {
   drivers: env(
@@ -30,6 +34,10 @@ const TABLES = {
   vehicles: env(
     "APPWRITE_RIDE_VEHICLES_TABLE_ID",
     env("EXPO_PUBLIC_APPWRITE_RIDE_VEHICLES_COLLECTION_ID", "ride_vehicles"),
+  ),
+  driverInstitutions: env(
+    "APPWRITE_RIDE_DRIVER_INSTITUTIONS_TABLE_ID",
+    "ride_driver_institutions",
   ),
   routes: env(
     "APPWRITE_RIDE_ROUTES_TABLE_ID",
@@ -62,9 +70,13 @@ const TABLES = {
 };
 
 const requiredConfig = () => {
-  if (!DATABASE_ID || !USERS_COLLECTION_ID) {
+  if (
+    !DATABASE_ID ||
+    !USERS_COLLECTION_ID ||
+    !ORGANIZATIONS_COLLECTION_ID
+  ) {
     throw new Error(
-      "The driver function is missing database or users collection configuration.",
+      "The driver function is missing database, users, or organizations configuration.",
     );
   }
 };
@@ -100,15 +112,560 @@ const isFiniteNumber = (value) =>
 
 const nowIso = () => new Date().toISOString();
 
+
+const VERIFIED_RELATIONSHIP_STATUSES = new Set([
+  "active",
+  "approved",
+  "acknowledged",
+  "verified",
+]);
+
+const normalize = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+const cleanData = (value) =>
+  Object.fromEntries(
+    Object.entries(value).filter(([, item]) => item !== undefined),
+  );
+
+const statusError = (statusCode, message) =>
+  Object.assign(new Error(message), { statusCode });
+
+const requireString = (value, label, maxLength = 255) => {
+  const normalized = String(value ?? "").trim();
+
+  if (!normalized) {
+    throw statusError(400, `${label} is required.`);
+  }
+
+  if (normalized.length > maxLength) {
+    throw statusError(
+      400,
+      `${label} must be ${maxLength} characters or fewer.`,
+    );
+  }
+
+  return normalized;
+};
+
+const optionalString = (value, maxLength = 1000) => {
+  const normalized = String(value ?? "").trim();
+  return normalized ? normalized.slice(0, maxLength) : undefined;
+};
+
+const requireInteger = (
+  value,
+  label,
+  { min = Number.MIN_SAFE_INTEGER, max = Number.MAX_SAFE_INTEGER } = {},
+) => {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw statusError(400, `${label} is invalid.`);
+  }
+
+  return parsed;
+};
+
+const optionalDate = (value, label) => {
+  const normalized = String(value ?? "").trim();
+
+  if (!normalized) return undefined;
+
+  const date = new Date(normalized);
+
+  if (Number.isNaN(date.getTime())) {
+    throw statusError(400, `${label} is invalid.`);
+  }
+
+  return date.toISOString();
+};
+
+const listAllRows = async (
+  tablesDB,
+  tableId,
+  queries = [],
+  limit = 500,
+) => {
+  const rows = [];
+  const pageSize = Math.min(100, limit);
+
+  for (let offset = 0; offset < limit; offset += pageSize) {
+    const response = await tablesDB.listRows({
+      databaseId: DATABASE_ID,
+      tableId,
+      queries: [
+        ...queries,
+        Query.limit(pageSize),
+        Query.offset(offset),
+      ],
+    });
+
+    rows.push(...response.rows);
+
+    if (
+      response.rows.length < pageSize ||
+      rows.length >= Number(response.total ?? rows.length)
+    ) {
+      break;
+    }
+  }
+
+  return rows.slice(0, limit);
+};
+
+const getOrganizationName = (organization) =>
+  String(
+    organization?.name ||
+      organization?.organizationName ||
+      organization?.institutionName ||
+      organization?.schoolName ||
+      "Institution",
+  ).trim();
+
+const listOrganizationDocuments = async (databases, limit = 1000) => {
+  const organizations = [];
+  const pageSize = 100;
+
+  for (let offset = 0; offset < limit; offset += pageSize) {
+    const response = await databases.listDocuments({
+      databaseId: DATABASE_ID,
+      collectionId: ORGANIZATIONS_COLLECTION_ID,
+      queries: [Query.limit(pageSize), Query.offset(offset)],
+    });
+
+    organizations.push(...response.documents);
+
+    if (
+      response.documents.length < pageSize ||
+      organizations.length >=
+        Number(response.total ?? organizations.length)
+    ) {
+      break;
+    }
+  }
+
+  return organizations.slice(0, limit);
+};
+
+const listDriverOrganizations = async (databases) => {
+  const organizations = await listOrganizationDocuments(databases);
+
+  return organizations
+    .map((organization) => ({
+      $id: String(organization.$id || "").trim(),
+      name: getOrganizationName(organization),
+      email: optionalString(organization.email, 160),
+      phone: optionalString(organization.phone, 32),
+      avatar: optionalString(organization.avatar, 2048),
+      city: optionalString(
+        organization.city ||
+          organization.location ||
+          organization.schoolLocation,
+        128,
+      ),
+    }))
+    .filter((organization) => organization.$id && organization.name)
+    .sort((left, right) => left.name.localeCompare(right.name));
+};
+
+const resolveDriverOrganization = async (
+  databases,
+  organizationId,
+  institutionName,
+) => {
+  const normalizedOrganizationId = optionalString(organizationId, 36);
+
+  if (normalizedOrganizationId) {
+    try {
+      return await databases.getDocument({
+        databaseId: DATABASE_ID,
+        collectionId: ORGANIZATIONS_COLLECTION_ID,
+        documentId: normalizedOrganizationId,
+      });
+    } catch {
+      throw statusError(
+        409,
+        "That institution is no longer available on Nookly Web. Refresh the institution list and choose again.",
+      );
+    }
+  }
+
+  const target = normalize(institutionName);
+
+  if (!target) {
+    throw statusError(
+      400,
+      "Select an institution registered on Nookly Web.",
+    );
+  }
+
+  const organizations = await listOrganizationDocuments(databases);
+  const match = organizations.find((organization) =>
+    [
+      organization.name,
+      organization.organizationName,
+      organization.institutionName,
+      organization.schoolName,
+    ]
+      .map(normalize)
+      .filter(Boolean)
+      .includes(target),
+  );
+
+  if (!match?.$id) {
+    throw statusError(
+      409,
+      "That institution has not completed its Nookly organization setup yet.",
+    );
+  }
+
+  return match;
+};
+
+const getDriverRelationships = async (tablesDB, driverId) => {
+  if (!driverId) return [];
+
+  return listAllRows(
+    tablesDB,
+    TABLES.driverInstitutions,
+    [Query.equal("driverId", driverId)],
+    100,
+  );
+};
+
+const attachOrganizationNames = async (databases, relationships) =>
+  Promise.all(
+    relationships.map(async (relationship) => {
+      try {
+        const organization = await databases.getDocument({
+          databaseId: DATABASE_ID,
+          collectionId: ORGANIZATIONS_COLLECTION_ID,
+          documentId: relationship.organizationId,
+        });
+
+        return {
+          ...relationship,
+          organizationName: getOrganizationName(organization),
+        };
+      } catch {
+        return relationship;
+      }
+    }),
+  );
+
+const isMarketplaceReady = (driver, relationships, vehicles) =>
+  normalize(driver?.status) === "active" &&
+  normalize(driver?.verificationStatus) === "verified" &&
+  relationships.some((relationship) =>
+    VERIFIED_RELATIONSHIP_STATUSES.has(normalize(relationship.status)),
+  ) &&
+  vehicles.some((vehicle) => normalize(vehicle.status) === "active");
+
+const upsertDriverOnboarding = async ({
+  databases,
+  tablesDB,
+  user,
+  accountId,
+  body,
+}) => {
+  const requestedOrganizationId = optionalString(
+    body.organizationId,
+    36,
+  );
+  const requestedInstitutionName = optionalString(
+    body.institutionName,
+    160,
+  );
+  const licenceNumber = requireString(
+    body.licenceNumber,
+    "Driver licence number",
+    80,
+  ).toUpperCase();
+  const licenceExpiry = optionalDate(
+    body.licenceExpiry,
+    "Driver licence expiry",
+  );
+  const emergencyContactName = requireString(
+    body.emergencyContactName,
+    "Emergency contact name",
+    128,
+  );
+  const emergencyContactPhone = requireString(
+    body.emergencyContactPhone,
+    "Emergency contact phone",
+    32,
+  );
+  const registrationNumber = requireString(
+    body.vehicleRegistrationNumber,
+    "Vehicle registration number",
+    32,
+  ).toUpperCase();
+  const make = requireString(body.vehicleMake, "Vehicle make", 80);
+  const model = requireString(body.vehicleModel, "Vehicle model", 80);
+  const color = requireString(body.vehicleColor, "Vehicle color", 48);
+  const capacity = requireInteger(
+    body.vehicleCapacity,
+    "Vehicle passenger capacity",
+    { min: 1, max: 200 },
+  );
+  const vehicleType =
+    optionalString(body.vehicleType, 32) || "car";
+  const manufactureYear =
+    body.manufactureYear === null ||
+    body.manufactureYear === undefined ||
+    body.manufactureYear === ""
+      ? undefined
+      : requireInteger(
+          body.manufactureYear,
+          "Vehicle manufacture year",
+          {
+            min: 1900,
+            max: new Date().getFullYear() + 1,
+          },
+        );
+  const insuranceExpiry = optionalDate(
+    body.insuranceExpiry,
+    "Insurance expiry",
+  );
+  const fitnessExpiry = optionalDate(
+    body.fitnessExpiry,
+    "Vehicle fitness expiry",
+  );
+
+  const organization = await resolveDriverOrganization(
+    databases,
+    requestedOrganizationId,
+    requestedInstitutionName,
+  );
+  const organizationId = organization.$id;
+  const institutionName = getOrganizationName(organization);
+  const timestamp = nowIso();
+
+  const existingDrivers = await listAllRows(
+    tablesDB,
+    TABLES.drivers,
+    [Query.equal("userId", accountId)],
+    5,
+  );
+  let driver = existingDrivers[0] ?? null;
+
+  const matchingVehicles = await listAllRows(
+    tablesDB,
+    TABLES.vehicles,
+    [Query.equal("registrationNumber", registrationNumber)],
+    10,
+  );
+  const vehicleOwnedByAnotherDriver = matchingVehicles.find(
+    (vehicle) =>
+      !driver ||
+      String(vehicle.driverId || "") !== String(driver.$id),
+  );
+
+  if (vehicleOwnedByAnotherDriver) {
+    throw statusError(
+      409,
+      "That vehicle registration number is already linked to another driver.",
+    );
+  }
+
+  const approvedDriver =
+    normalize(driver?.verificationStatus) === "verified";
+
+  const driverData = cleanData({
+    organizationId,
+    userId: accountId,
+    name: requireString(user.name, "Driver name", 128),
+    phone: requireString(user.phone, "Driver phone", 32),
+    email: optionalString(user.email, 160),
+    avatar: optionalString(user.avatar, 2048) || "",
+    licenceNumber,
+    licenceExpiry,
+    verificationStatus: approvedDriver ? "verified" : "pending",
+    rating: Number(driver?.rating || 0),
+    completedTrips: Number(driver?.completedTrips || 0),
+    status: approvedDriver
+      ? String(driver?.status || "active")
+      : "active",
+    emergencyContactName,
+    emergencyContactPhone,
+    isOnline: approvedDriver ? driver?.isOnline === true : false,
+    currentRideId: String(driver?.currentRideId || ""),
+    lastSeenAt: timestamp,
+    serviceAreas: [institutionName],
+    acceptsPrivateRides:
+      driver?.acceptsPrivateRides === false ? false : true,
+    acceptsSharedRides:
+      driver?.acceptsSharedRides === false ? false : true,
+    pricingModel: String(driver?.pricingModel || "offer"),
+    maxPickupDistanceKm: Number(
+      driver?.maxPickupDistanceKm || 1,
+    ),
+    availabilityNote: approvedDriver
+      ? optionalString(driver?.availabilityNote, 500)
+      : `Awaiting verification by ${getOrganizationName(organization)}.`,
+    updatedAt: timestamp,
+  });
+
+  if (driver) {
+    driver = await tablesDB.updateRow({
+      databaseId: DATABASE_ID,
+      tableId: TABLES.drivers,
+      rowId: driver.$id,
+      data: driverData,
+    });
+  } else {
+    driver = await tablesDB.createRow({
+      databaseId: DATABASE_ID,
+      tableId: TABLES.drivers,
+      rowId: ID.unique(),
+      data: {
+        ...driverData,
+        createdBy: user.$id,
+        createdAt: timestamp,
+      },
+    });
+  }
+
+  const relationships = await listAllRows(
+    tablesDB,
+    TABLES.driverInstitutions,
+    [
+      Query.equal("driverId", driver.$id),
+      Query.equal("organizationId", organizationId),
+    ],
+    5,
+  );
+  let relationship = relationships[0] ?? null;
+  const approvedRelationship = VERIFIED_RELATIONSHIP_STATUSES.has(
+    normalize(relationship?.status),
+  );
+
+  const relationshipData = cleanData({
+    driverId: driver.$id,
+    organizationId,
+    status: approvedRelationship
+      ? String(relationship.status)
+      : "pending",
+    notes:
+      optionalString(body.applicationNotes, 2000) ||
+      "Submitted from Nookly Mobile driver onboarding.",
+    updatedAt: timestamp,
+  });
+
+  if (relationship) {
+    relationship = await tablesDB.updateRow({
+      databaseId: DATABASE_ID,
+      tableId: TABLES.driverInstitutions,
+      rowId: relationship.$id,
+      data: relationshipData,
+    });
+  } else {
+    relationship = await tablesDB.createRow({
+      databaseId: DATABASE_ID,
+      tableId: TABLES.driverInstitutions,
+      rowId: ID.unique(),
+      data: {
+        ...relationshipData,
+        createdAt: timestamp,
+      },
+    });
+  }
+
+  let vehicle =
+    matchingVehicles.find(
+      (candidate) =>
+        String(candidate.driverId || "") === String(driver.$id),
+    ) ?? null;
+
+  if (!vehicle) {
+    const driverVehicles = await listAllRows(
+      tablesDB,
+      TABLES.vehicles,
+      [Query.equal("driverId", driver.$id)],
+      20,
+    );
+    vehicle = driverVehicles[0] ?? null;
+  }
+
+  const preserveActiveVehicle =
+    approvedDriver && normalize(vehicle?.status) === "active";
+
+  const vehicleData = cleanData({
+    organizationId,
+    driverId: driver.$id,
+    registrationNumber,
+    make,
+    model,
+    color,
+    capacity,
+    image: String(vehicle?.image || ""),
+    status: preserveActiveVehicle ? "active" : "inactive",
+    insuranceExpiry,
+    fitnessExpiry,
+    vehicleType,
+    manufactureYear,
+    passengerCapacity: capacity,
+    availableSeats: capacity,
+    conditionStatus: preserveActiveVehicle
+      ? String(vehicle?.conditionStatus || "approved")
+      : "pending_review",
+    roadworthinessStatus: preserveActiveVehicle
+      ? String(vehicle?.roadworthinessStatus || "approved")
+      : "pending_review",
+    allowsSharedRides:
+      vehicle?.allowsSharedRides === false ? false : true,
+    updatedAt: timestamp,
+  });
+
+  if (vehicle) {
+    vehicle = await tablesDB.updateRow({
+      databaseId: DATABASE_ID,
+      tableId: TABLES.vehicles,
+      rowId: vehicle.$id,
+      data: vehicleData,
+    });
+  } else {
+    vehicle = await tablesDB.createRow({
+      databaseId: DATABASE_ID,
+      tableId: TABLES.vehicles,
+      rowId: ID.unique(),
+      data: {
+        ...vehicleData,
+        createdAt: timestamp,
+      },
+    });
+  }
+
+  return {
+    profile: driver,
+    vehicle,
+    institution: {
+      ...relationship,
+      organizationName: getOrganizationName(organization),
+    },
+    organization: {
+      $id: organizationId,
+      name: getOrganizationName(organization),
+    },
+    marketplaceReady: isMarketplaceReady(
+      driver,
+      [relationship],
+      [vehicle],
+    ),
+    applicationStatus: relationship.status,
+  };
+};
+
 export default async ({ req, res, log, error }) => {
   try {
     requiredConfig();
 
-    const accountId = req.headers["x-appwrite-user-id"];
-
-    if (!accountId) {
-      return fail(res, 401, "Sign in with a driver account to continue.");
-    }
+    const method = String(req.method || "GET").toUpperCase();
+    const path = String(req.path || "/").replace(/\/+$/, "") || "/";
 
     const client = new Client()
       .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
@@ -117,6 +674,17 @@ export default async ({ req, res, log, error }) => {
 
     const databases = new Databases(client);
     const tablesDB = new TablesDB(client);
+
+    if (method === "GET" && path === "/organizations") {
+      const organizations = await listDriverOrganizations(databases);
+      return ok(res, organizations);
+    }
+
+    const accountId = req.headers["x-appwrite-user-id"];
+
+    if (!accountId) {
+      return fail(res, 401, "Sign in with a driver account to continue.");
+    }
 
     const userResult = await databases.listDocuments({
       databaseId: DATABASE_ID,
@@ -130,19 +698,69 @@ export default async ({ req, res, log, error }) => {
       return fail(res, 403, "This account is not registered as a driver.");
     }
 
+    const parts = path.split("/").filter(Boolean);
+    const body = parseBody(req);
+
+    if (method === "POST" && path === "/onboarding") {
+      const result = await upsertDriverOnboarding({
+        databases,
+        tablesDB,
+        user,
+        accountId,
+        body,
+      });
+
+      log?.(
+        `Driver onboarding submitted for ${accountId} to organization ${result.organization.$id}.`,
+      );
+
+      return ok(res, result, 201);
+    }
+
     const driverResult = await tablesDB.listRows({
       databaseId: DATABASE_ID,
       tableId: TABLES.drivers,
       queries: [Query.equal("userId", accountId), Query.limit(1)],
     });
 
-    const driver = driverResult.rows[0];
+    const driver = driverResult.rows[0] ?? null;
+    const relationships = driver
+      ? await getDriverRelationships(tablesDB, driver.$id)
+      : [];
+    const institutions = await attachOrganizationNames(
+      databases,
+      relationships,
+    );
+    const vehicleResult = driver
+      ? await tablesDB.listRows({
+          databaseId: DATABASE_ID,
+          tableId: TABLES.vehicles,
+          queries: [Query.equal("driverId", driver.$id), Query.limit(20)],
+        })
+      : { rows: [] };
+    const vehicles = vehicleResult.rows;
+    const marketplaceReady = isMarketplaceReady(
+      driver,
+      relationships,
+      vehicles,
+    );
+
+    if (method === "GET" && path === "/onboarding") {
+      return ok(res, {
+        profile: driver,
+        vehicles,
+        institutions,
+        marketplaceReady,
+      });
+    }
 
     if (!driver) {
       return fail(res, 403, "No driver profile is linked to this account.");
     }
 
-    if (driver.status !== "active") {
+    const dashboardRequest = method === "GET" && path === "/dashboard";
+
+    if (!dashboardRequest && driver.status !== "active") {
       return fail(
         res,
         403,
@@ -150,7 +768,7 @@ export default async ({ req, res, log, error }) => {
       );
     }
 
-    if (driver.verificationStatus !== "verified") {
+    if (!dashboardRequest && driver.verificationStatus !== "verified") {
       return fail(
         res,
         403,
@@ -240,24 +858,12 @@ export default async ({ req, res, log, error }) => {
       });
     };
 
-    const method = String(req.method || "GET").toUpperCase();
-    const path = String(req.path || "/").replace(/\/+$/, "") || "/";
-    const parts = path.split("/").filter(Boolean);
-    const body = parseBody(req);
-
     if (method === "GET" && path === "/dashboard") {
-      const [vehicleResult, rideResult] = await Promise.all([
-        tablesDB.listRows({
-          databaseId: DATABASE_ID,
-          tableId: TABLES.vehicles,
-          queries: [Query.equal("driverId", driver.$id), Query.limit(20)],
-        }),
-        tablesDB.listRows({
-          databaseId: DATABASE_ID,
-          tableId: TABLES.rides,
-          queries: [Query.equal("driverId", driver.$id), Query.limit(100)],
-        }),
-      ]);
+      const rideResult = await tablesDB.listRows({
+        databaseId: DATABASE_ID,
+        tableId: TABLES.rides,
+        queries: [Query.equal("driverId", driver.$id), Query.limit(100)],
+      });
 
       const allRides = sortRides(rideResult.rows);
       const activeRideRaw =
@@ -273,7 +879,9 @@ export default async ({ req, res, log, error }) => {
 
       return ok(res, {
         profile: driver,
-        vehicles: vehicleResult.rows,
+        vehicles,
+        institutions,
+        marketplaceReady,
         activeRide,
         upcomingRides,
         completedTrips:

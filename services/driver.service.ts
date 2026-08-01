@@ -4,6 +4,10 @@ import { client } from "@/lib/appwrite";
 import type {
   DriverDashboard,
   DriverIncidentInput,
+  DriverOnboardingInput,
+  DriverOnboardingResult,
+  DriverOnboardingStatus,
+  DriverOrganizationOption,
   DriverLocationInput,
   DriverRide,
   DriverRideDetails,
@@ -79,6 +83,31 @@ async function executeDriverRequest<T>(
   });
 
   return parseExecutionBody<T>(execution);
+}
+
+
+export async function getDriverOrganizations(): Promise<DriverOrganizationOption[]> {
+  return executeDriverRequest<DriverOrganizationOption[]>(
+    "/organizations",
+    "GET",
+  );
+}
+
+export async function submitDriverOnboarding(
+  input: DriverOnboardingInput,
+): Promise<DriverOnboardingResult> {
+  return executeDriverRequest<DriverOnboardingResult>(
+    "/onboarding",
+    "POST",
+    input as unknown as Record<string, unknown>,
+  );
+}
+
+export async function getDriverOnboardingStatus(): Promise<DriverOnboardingStatus> {
+  return executeDriverRequest<DriverOnboardingStatus>(
+    "/onboarding",
+    "GET",
+  );
 }
 
 export async function getDriverDashboard(): Promise<DriverDashboard> {

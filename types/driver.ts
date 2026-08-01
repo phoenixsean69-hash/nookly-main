@@ -6,6 +6,15 @@ export type DriverVerificationStatus =
 
 export type DriverStatus = "active" | "inactive" | "suspended";
 
+export type DriverInstitutionStatus =
+  | "pending"
+  | "acknowledged"
+  | "approved"
+  | "active"
+  | "verified"
+  | "rejected"
+  | "suspended";
+
 export type DriverRideStatus =
   | "scheduled"
   | "boarding"
@@ -33,6 +42,14 @@ export interface DriverProfile {
   isOnline?: boolean;
   currentRideId?: string;
   lastSeenAt?: string;
+  serviceAreas?: string[];
+  acceptsPrivateRides?: boolean;
+  acceptsSharedRides?: boolean;
+  pricingModel?: string;
+  baseFare?: number;
+  pricePerKm?: number;
+  maxPickupDistanceKm?: number;
+  availabilityNote?: string;
 }
 
 export interface DriverVehicle {
@@ -48,6 +65,85 @@ export interface DriverVehicle {
   status: "active" | "maintenance" | "inactive" | "suspended";
   insuranceExpiry?: string;
   fitnessExpiry?: string;
+  vehicleType?: string;
+  manufactureYear?: number;
+  numberOfDoors?: number;
+  passengerCapacity?: number;
+  availableSeats?: number;
+  conditionStatus?: string;
+  roadworthinessStatus?: string;
+  insuranceProvider?: string;
+  insurancePolicyNumber?: string;
+  licenceDiskExpiry?: string;
+  fitnessCertificateNumber?: string;
+  hasSeatbelts?: boolean;
+  hasAirConditioning?: boolean;
+  allowsLuggage?: boolean;
+  allowsSharedRides?: boolean;
+  lastInspectionAt?: string;
+}
+
+
+export interface DriverOrganizationOption {
+  $id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  avatar?: string;
+  city?: string;
+}
+
+export interface DriverInstitutionLink {
+  $id: string;
+  driverId: string;
+  organizationId: string;
+  organizationName?: string;
+  status: DriverInstitutionStatus;
+  verifiedBy?: string;
+  acknowledgedAt?: string;
+  verifiedAt?: string;
+  suspendedAt?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface DriverOnboardingInput {
+  organizationId: string;
+  institutionName?: string;
+  licenceNumber: string;
+  licenceExpiry?: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  vehicleRegistrationNumber: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  vehicleColor: string;
+  vehicleCapacity: number;
+  vehicleType?: string;
+  manufactureYear?: number;
+  insuranceExpiry?: string;
+  fitnessExpiry?: string;
+  applicationNotes?: string;
+}
+
+export interface DriverOnboardingResult {
+  profile: DriverProfile;
+  vehicle: DriverVehicle;
+  institution: DriverInstitutionLink;
+  organization: {
+    $id: string;
+    name: string;
+  };
+  marketplaceReady: boolean;
+  applicationStatus: DriverInstitutionStatus;
+}
+
+export interface DriverOnboardingStatus {
+  profile: DriverProfile | null;
+  vehicles: DriverVehicle[];
+  institutions: DriverInstitutionLink[];
+  marketplaceReady: boolean;
 }
 
 export interface DriverRoute {
@@ -146,6 +242,8 @@ export interface DriverRideDetails extends DriverRide {
 export interface DriverDashboard {
   profile: DriverProfile;
   vehicles: DriverVehicle[];
+  institutions?: DriverInstitutionLink[];
+  marketplaceReady?: boolean;
   activeRide: DriverRide | null;
   upcomingRides: DriverRide[];
   completedTrips: number;

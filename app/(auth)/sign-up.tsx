@@ -1,6 +1,7 @@
 import CustomInput from "@/components/CustomInput";
 import ErrorModal from "@/components/ErrorModal";
 import OperationSuccesfull from "@/components/OperationSuccesfull";
+import DriverOrganizationPicker from "@/components/driver/DriverOrganizationPicker";
 import SearchableInstitutionPicker from "@/components/SearchableInstitutionPicker";
 import { Colors } from "@/constants/Colors";
 import images from "@/constants/images";
@@ -10,7 +11,12 @@ import {
   PrimaryUserMode,
   TenantType,
 } from "@/lib/userMode";
+import {
+  saveDriverOnboardingDraft,
+} from "@/services/driver-onboarding-draft.service";
+import { submitDriverOnboarding } from "@/services/driver.service";
 import useAuthStore from "@/store/auth.store";
+import type { DriverOnboardingInput } from "@/types/driver";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -40,6 +46,21 @@ interface FormData {
   confirmPassword: string;
   avatar: string;
   schoolLocation: string;
+  driverOrganizationId: string;
+  driverInstitution: string;
+  driverLicenceNumber: string;
+  driverLicenceExpiry: string;
+  emergencyContactName: string;
+  emergencyContactPhone: string;
+  vehicleRegistrationNumber: string;
+  vehicleMake: string;
+  vehicleModel: string;
+  vehicleColor: string;
+  vehicleCapacity: string;
+  vehicleType: string;
+  manufactureYear: string;
+  insuranceExpiry: string;
+  fitnessExpiry: string;
 }
 
 interface ValidationError {
@@ -99,7 +120,7 @@ const MODE_OPTIONS: ModeOption[] = [
     value: "driver",
     title: "Driver",
     description:
-      "Manage assigned rides after your driver profile is verified.",
+      "Receive student ride requests and send offers after verification.",
     icon: "car-sport-outline",
   },
 ];
@@ -134,6 +155,29 @@ const getInitialsColor = (name: string): string => {
   return colors[Math.abs(hash) % colors.length];
 };
 
+const buildDriverOnboardingPayload = (
+  formData: FormData,
+): DriverOnboardingInput => ({
+  organizationId: formData.driverOrganizationId.trim(),
+  institutionName: formData.driverInstitution.trim(),
+  licenceNumber: formData.driverLicenceNumber.trim(),
+  licenceExpiry: formData.driverLicenceExpiry.trim() || undefined,
+  emergencyContactName: formData.emergencyContactName.trim(),
+  emergencyContactPhone: formData.emergencyContactPhone.trim(),
+  vehicleRegistrationNumber:
+    formData.vehicleRegistrationNumber.trim().toUpperCase(),
+  vehicleMake: formData.vehicleMake.trim(),
+  vehicleModel: formData.vehicleModel.trim(),
+  vehicleColor: formData.vehicleColor.trim(),
+  vehicleCapacity: Number(formData.vehicleCapacity),
+  vehicleType: formData.vehicleType.trim() || "Car",
+  manufactureYear: formData.manufactureYear.trim()
+    ? Number(formData.manufactureYear)
+    : undefined,
+  insuranceExpiry: formData.insuranceExpiry.trim() || undefined,
+  fitnessExpiry: formData.fitnessExpiry.trim() || undefined,
+});
+
 export default function SignUp() {
   const router = useRouter();
   const colorScheme = useColorScheme();
@@ -150,6 +194,21 @@ export default function SignUp() {
     confirmPassword: "",
     avatar: "",
     schoolLocation: "",
+    driverOrganizationId: "",
+    driverInstitution: "",
+    driverLicenceNumber: "",
+    driverLicenceExpiry: "",
+    emergencyContactName: "",
+    emergencyContactPhone: "",
+    vehicleRegistrationNumber: "",
+    vehicleMake: "",
+    vehicleModel: "",
+    vehicleColor: "",
+    vehicleCapacity: "",
+    vehicleType: "Car",
+    manufactureYear: "",
+    insuranceExpiry: "",
+    fitnessExpiry: "",
   });
 
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
@@ -239,6 +298,93 @@ export default function SignUp() {
       });
     }
 
+    if (formData.userMode === "driver") {
+      if (!formData.driverOrganizationId.trim()) {
+        errors.push({
+          field: "driverInstitution",
+          message:
+            "Select an institution that has completed Nookly Web setup.",
+        });
+      }
+
+      if (!formData.driverLicenceNumber.trim()) {
+        errors.push({
+          field: "driverLicenceNumber",
+          message: "Enter your driver licence number.",
+        });
+      }
+
+      if (!formData.emergencyContactName.trim()) {
+        errors.push({
+          field: "emergencyContactName",
+          message: "Enter an emergency contact name.",
+        });
+      }
+
+      if (!formData.emergencyContactPhone.trim()) {
+        errors.push({
+          field: "emergencyContactPhone",
+          message: "Enter an emergency contact phone number.",
+        });
+      }
+
+      if (!formData.vehicleRegistrationNumber.trim()) {
+        errors.push({
+          field: "vehicleRegistrationNumber",
+          message: "Enter the vehicle registration number.",
+        });
+      }
+
+      if (!formData.vehicleMake.trim()) {
+        errors.push({ field: "vehicleMake", message: "Enter the vehicle make." });
+      }
+
+      if (!formData.vehicleModel.trim()) {
+        errors.push({ field: "vehicleModel", message: "Enter the vehicle model." });
+      }
+
+      if (!formData.vehicleColor.trim()) {
+        errors.push({ field: "vehicleColor", message: "Enter the vehicle color." });
+      }
+
+      const capacity = Number(formData.vehicleCapacity);
+      if (!Number.isInteger(capacity) || capacity < 1 || capacity > 200) {
+        errors.push({
+          field: "vehicleCapacity",
+          message: "Enter a valid passenger capacity.",
+        });
+      }
+
+      if (formData.manufactureYear.trim()) {
+        const year = Number(formData.manufactureYear);
+        const maximumYear = new Date().getFullYear() + 1;
+
+        if (!Number.isInteger(year) || year < 1900 || year > maximumYear) {
+          errors.push({
+            field: "manufactureYear",
+            message: "Enter a valid vehicle manufacture year.",
+          });
+        }
+      }
+
+      const optionalDates: Array<[keyof FormData, string]> = [
+        ["driverLicenceExpiry", "driver licence expiry"],
+        ["insuranceExpiry", "insurance expiry"],
+        ["fitnessExpiry", "vehicle fitness expiry"],
+      ];
+
+      optionalDates.forEach(([field, label]) => {
+        const value = String(formData[field] || "").trim();
+
+        if (value && Number.isNaN(new Date(value).getTime())) {
+          errors.push({
+            field,
+            message: `Enter a valid ${label} date using YYYY-MM-DD.`,
+          });
+        }
+      });
+    }
+
     if (!formData.password) {
       errors.push({ field: "password", message: "Create a password." });
     } else if (formData.password.length < 8) {
@@ -300,6 +446,12 @@ export default function SignUp() {
   };
 
   const handleSignUp = async () => {
+    let accountCreated = false;
+    const driverOnboardingPayload =
+      formData.userMode === "driver"
+        ? buildDriverOnboardingPayload(formData)
+        : null;
+
     setErrorMessage("");
     const errors = validateForm();
 
@@ -337,6 +489,24 @@ export default function SignUp() {
         );
       }
 
+      accountCreated = true;
+
+      if (driverOnboardingPayload) {
+        const accountId = useAuthStore.getState().user?.accountId || "";
+
+        try {
+          await saveDriverOnboardingDraft(
+            accountId,
+            driverOnboardingPayload,
+          );
+        } catch (draftError) {
+          console.warn(
+            "Could not retain the driver application details:",
+            draftError,
+          );
+        }
+      }
+
       // Upload the optional avatar only after Appwrite has created the session.
       // Failure here must not roll back an otherwise valid account.
       if (formData.avatar) {
@@ -370,6 +540,11 @@ export default function SignUp() {
         }
       }
 
+      if (driverOnboardingPayload) {
+        await submitDriverOnboarding(driverOnboardingPayload);
+
+      }
+
       const destinationUser: Record<string, unknown> = {
         userMode: formData.userMode,
         ...(formData.userMode === "tenant" && formData.tenantType
@@ -393,6 +568,15 @@ export default function SignUp() {
 
       if (message.toLowerCase().includes("already exists")) {
         message = "This email is already registered. Sign in instead.";
+      }
+
+      if (accountCreated && formData.userMode === "driver") {
+        message =
+          `Your account was created, but the driver application was not submitted. ${message} You can retry from Driver profile.`;
+
+        setTimeout(() => {
+          router.replace("/driver-profile" as any);
+        }, 1600);
       }
 
       setErrorMessage(message);
@@ -578,6 +762,25 @@ export default function SignUp() {
                                     tenantType: "",
                                     schoolLocation: "",
                                   }),
+                              ...(option.value === "driver"
+                                ? {}
+                                : {
+                                    driverOrganizationId: "",
+                                    driverInstitution: "",
+                                    driverLicenceNumber: "",
+                                    driverLicenceExpiry: "",
+                                    emergencyContactName: "",
+                                    emergencyContactPhone: "",
+                                    vehicleRegistrationNumber: "",
+                                    vehicleMake: "",
+                                    vehicleModel: "",
+                                    vehicleColor: "",
+                                    vehicleCapacity: "",
+                                    vehicleType: "Car",
+                                    manufactureYear: "",
+                                    insuranceExpiry: "",
+                                    fitnessExpiry: "",
+                                  }),
                             }));
 
                             setValidationErrors((current) =>
@@ -585,6 +788,20 @@ export default function SignUp() {
                                 (error) =>
                                   error.field !== "tenantType" &&
                                   error.field !== "schoolLocation" &&
+                                  error.field !== "driverInstitution" &&
+                                  error.field !== "driverLicenceNumber" &&
+                                  error.field !== "driverLicenceExpiry" &&
+                                  error.field !== "emergencyContactName" &&
+                                  error.field !== "emergencyContactPhone" &&
+                                  error.field !== "vehicleRegistrationNumber" &&
+                                  error.field !== "vehicleMake" &&
+                                  error.field !== "vehicleModel" &&
+                                  error.field !== "vehicleColor" &&
+                                  error.field !== "vehicleCapacity" &&
+                                  error.field !== "vehicleType" &&
+                                  error.field !== "manufactureYear" &&
+                                  error.field !== "insuranceExpiry" &&
+                                  error.field !== "fitnessExpiry" &&
                                   error.field !== "userMode",
                               ),
                             );
@@ -762,6 +979,190 @@ export default function SignUp() {
                     />
                   )}
 
+                {formData.userMode === "driver" && (
+                  <View className="gap-4">
+                    <View
+                      className="rounded-2xl border p-4"
+                      style={{
+                        backgroundColor: `${theme.primary[300]}0D`,
+                        borderColor: `${theme.primary[300]}35`,
+                      }}
+                    >
+                      <Text
+                        className="text-base font-rubik-bold"
+                        style={{ color: theme.title }}
+                      >
+                        Driver verification application
+                      </Text>
+                      <Text
+                        className="mt-1 text-sm"
+                        style={{ color: theme.muted }}
+                      >
+                        Your institution reviews this information on Nookly Web.
+                        Ride requests remain locked until approval.
+                      </Text>
+                    </View>
+
+                    <DriverOrganizationPicker
+                      value={formData.driverOrganizationId}
+                      selectedName={formData.driverInstitution}
+                      onChange={(organization) => {
+                        updateField(
+                          "driverOrganizationId",
+                          organization?.$id || "",
+                        );
+                        updateField(
+                          "driverInstitution",
+                          organization?.name || "",
+                        );
+                      }}
+                      error={getFieldError("driverInstitution")}
+                    />
+
+                    <Text
+                      className="text-lg font-rubik-bold mt-1"
+                      style={{ color: theme.title }}
+                    >
+                      Licence and safety
+                    </Text>
+
+                    <CustomInput
+                      label="Driver licence number"
+                      value={formData.driverLicenceNumber}
+                      onChangeText={(value) =>
+                        updateField("driverLicenceNumber", value)
+                      }
+                      placeholder="e.g. ZW-DL-123456"
+                      autoCapitalize="characters"
+                      error={getFieldError("driverLicenceNumber")}
+                    />
+
+                    <CustomInput
+                      label="Driver licence expiry (optional)"
+                      value={formData.driverLicenceExpiry}
+                      onChangeText={(value) =>
+                        updateField("driverLicenceExpiry", value)
+                      }
+                      placeholder="YYYY-MM-DD"
+                      autoCapitalize="none"
+                      error={getFieldError("driverLicenceExpiry")}
+                    />
+
+                    <CustomInput
+                      label="Emergency contact name"
+                      value={formData.emergencyContactName}
+                      onChangeText={(value) =>
+                        updateField("emergencyContactName", value)
+                      }
+                      placeholder="Full name"
+                      error={getFieldError("emergencyContactName")}
+                    />
+
+                    <CustomInput
+                      label="Emergency contact phone"
+                      value={formData.emergencyContactPhone}
+                      onChangeText={(value) =>
+                        updateField("emergencyContactPhone", value)
+                      }
+                      placeholder="Phone number"
+                      keyboardType="phone-pad"
+                      error={getFieldError("emergencyContactPhone")}
+                    />
+
+                    <Text
+                      className="text-lg font-rubik-bold mt-2"
+                      style={{ color: theme.title }}
+                    >
+                      Vehicle details
+                    </Text>
+
+                    <CustomInput
+                      label="Registration number"
+                      value={formData.vehicleRegistrationNumber}
+                      onChangeText={(value) =>
+                        updateField("vehicleRegistrationNumber", value)
+                      }
+                      placeholder="e.g. ABE 1234"
+                      autoCapitalize="characters"
+                      error={getFieldError("vehicleRegistrationNumber")}
+                    />
+
+                    <CustomInput
+                      label="Vehicle make"
+                      value={formData.vehicleMake}
+                      onChangeText={(value) => updateField("vehicleMake", value)}
+                      placeholder="e.g. Toyota"
+                      error={getFieldError("vehicleMake")}
+                    />
+
+                    <CustomInput
+                      label="Vehicle model"
+                      value={formData.vehicleModel}
+                      onChangeText={(value) => updateField("vehicleModel", value)}
+                      placeholder="e.g. Wish"
+                      error={getFieldError("vehicleModel")}
+                    />
+
+                    <CustomInput
+                      label="Vehicle color"
+                      value={formData.vehicleColor}
+                      onChangeText={(value) => updateField("vehicleColor", value)}
+                      placeholder="e.g. Silver"
+                      error={getFieldError("vehicleColor")}
+                    />
+
+                    <CustomInput
+                      label="Passenger capacity"
+                      value={formData.vehicleCapacity}
+                      onChangeText={(value) =>
+                        updateField("vehicleCapacity", value.replace(/[^0-9]/g, ""))
+                      }
+                      placeholder="e.g. 4"
+                      keyboardType="number-pad"
+                      error={getFieldError("vehicleCapacity")}
+                    />
+
+                    <CustomInput
+                      label="Vehicle type"
+                      value={formData.vehicleType}
+                      onChangeText={(value) => updateField("vehicleType", value)}
+                      placeholder="Car, van, minibus..."
+                      error={getFieldError("vehicleType")}
+                    />
+
+                    <CustomInput
+                      label="Manufacture year (optional)"
+                      value={formData.manufactureYear}
+                      onChangeText={(value) =>
+                        updateField("manufactureYear", value.replace(/[^0-9]/g, ""))
+                      }
+                      placeholder="e.g. 2018"
+                      keyboardType="number-pad"
+                      error={getFieldError("manufactureYear")}
+                    />
+
+                    <CustomInput
+                      label="Insurance expiry (optional)"
+                      value={formData.insuranceExpiry}
+                      onChangeText={(value) =>
+                        updateField("insuranceExpiry", value)
+                      }
+                      placeholder="YYYY-MM-DD"
+                      autoCapitalize="none"
+                      error={getFieldError("insuranceExpiry")}
+                    />
+
+                    <CustomInput
+                      label="Vehicle fitness expiry (optional)"
+                      value={formData.fitnessExpiry}
+                      onChangeText={(value) => updateField("fitnessExpiry", value)}
+                      placeholder="YYYY-MM-DD"
+                      autoCapitalize="none"
+                      error={getFieldError("fitnessExpiry")}
+                    />
+                  </View>
+                )}
+
                 <CustomInput
                   label="Password"
                   value={formData.password}
@@ -829,7 +1230,7 @@ export default function SignUp() {
           title="Account created"
           message={
             formData.userMode === "driver"
-              ? "Your driver account is ready. Ride access starts after your driver profile is verified and assigned."
+              ? "Your driver application was submitted. Your institution will review it on Nookly Web before ride access is activated."
               : "Your personalised Nookly account is ready."
           }
         />
