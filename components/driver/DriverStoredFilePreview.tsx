@@ -23,13 +23,21 @@ interface DriverStoredFilePreviewProps {
   imageHeight?: number;
 }
 
+interface CachedDriverFile {
+  uri: string;
+  type?: string | null;
+}
+
 const CACHE_DIRECTORY_NAME = "nookly-driver-files";
-const activeDownloads = new Map<string, Promise<File>>();
+const activeDownloads = new Map<string, Promise<CachedDriverFile>>();
 
 const safeCacheKey = (value: string): string =>
-  value.trim().replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 120);
+  value
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, "-")
+    .slice(0, 120);
 
-const findCachedFile = (directory: Directory): File | null => {
+const findCachedFile = (directory: Directory): CachedDriverFile | null => {
   if (!directory.exists) return null;
 
   try {
@@ -49,7 +57,7 @@ const findCachedFile = (directory: Directory): File | null => {
 const resolveCachedFile = async (
   fileId: string,
   remoteUrl: string,
-): Promise<File> => {
+): Promise<CachedDriverFile> => {
   const normalizedFileId = fileId.trim();
   const existingDownload = activeDownloads.get(normalizedFileId);
 
@@ -57,7 +65,7 @@ const resolveCachedFile = async (
     return existingDownload;
   }
 
-  const download = (async () => {
+  const download: Promise<CachedDriverFile> = (async () => {
     const fileDirectory = new Directory(
       Paths.cache,
       CACHE_DIRECTORY_NAME,
@@ -74,7 +82,15 @@ const resolveCachedFile = async (
       return existingFile;
     }
 
-    return File.downloadFileAsync(remoteUrl, fileDirectory);
+    const downloadedFile = await File.downloadFileAsync(
+      remoteUrl,
+      fileDirectory,
+    );
+
+    return {
+      uri: downloadedFile.uri,
+      type: downloadedFile.type,
+    };
   })();
 
   activeDownloads.set(normalizedFileId, download);
@@ -233,7 +249,9 @@ export default function DriverStoredFilePreview({
                 style={{ backgroundColor: `${theme.primary[300]}18` }}
               >
                 <Ionicons
-                  name={cacheError ? "warning-outline" : "document-text-outline"}
+                  name={
+                    cacheError ? "warning-outline" : "document-text-outline"
+                  }
                   size={30}
                   color={cacheError ? theme.danger : theme.primary[300]}
                 />
@@ -275,11 +293,7 @@ export default function DriverStoredFilePreview({
           </View>
 
           {!loadingCache && cachedUri ? (
-            <Ionicons
-              name={actionIcon}
-              size={21}
-              color={theme.primary[300]}
-            />
+            <Ionicons name={actionIcon} size={21} color={theme.primary[300]} />
           ) : null}
         </View>
       </TouchableOpacity>

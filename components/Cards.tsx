@@ -1,4 +1,4 @@
-import { AccreditedBadge } from "@/components/AccreditedBadge";
+﻿import { AccreditedBadge } from "@/components/AccreditedBadge";
 import OrganizationApprovedBadge from "@/components/OrganizationApprovedBadge";
 import icons from "@/constants/icons";
 import { isAccredited } from "@/lib/accreditation";
@@ -21,7 +21,7 @@ export interface PropertyDocument {
   $permissions?: string[];
   $databaseId?: string;
   $collectionId?: string;
-  $sequence?: number;
+  $sequence?: string | number;
   propertyName?: string;
   name?: string;
   type?: string;
@@ -158,7 +158,7 @@ export const FeaturedCard = ({
       {showPriceChange && priceDropped ? (
         <View className="absolute left-4 top-4 z-20">
           <View className="flex-row items-center rounded-full bg-red-500 px-3 py-1.5">
-            <Text className="mr-1 text-xs font-rubik-bold text-white">🔥</Text>
+            <Text className="mr-1 text-xs font-rubik-bold text-white">ðŸ”¥</Text>
             <Text className="text-xs font-rubik-bold text-white">
               -${getPriceDropAmount(item)}
             </Text>
@@ -300,7 +300,7 @@ export const Card = ({
           <View className="absolute left-2 top-2 z-10">
             <View className="flex-row items-center rounded-full bg-red-500 px-3 py-1.5">
               <Text className="mr-1 text-xs font-rubik-bold text-white">
-                🔥
+                ðŸ”¥
               </Text>
               <Text className="text-xs font-rubik-bold text-white">
                 -${getPriceDropAmount(item)}
@@ -358,7 +358,7 @@ export const Card = ({
           {accredited && (
             <View className="ml-2 flex-shrink-0 rounded-full bg-green-500 px-1.5 py-0.5">
               <Text className="text-[8px] font-rubik-bold text-white">
-                ✓ accredited
+                âœ“ accredited
               </Text>
             </View>
           )}

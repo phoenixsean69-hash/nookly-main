@@ -1,4 +1,4 @@
-import NetInfo from "@react-native-community/netinfo";
+﻿import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { ID, Query } from "react-native-appwrite";
@@ -12,7 +12,7 @@ import {
 } from "@/lib/appwrite";
 import { getData, removeData, storeData } from "@/lib/cache";
 import { clearPersistentQueryCache } from "@/lib/persistentQueryCache";
-import notificationService from "@/services/notification.service";
+import pushFunctionService from "@/services/push-function.service";
 
 const createValidAppwriteId = (): string => {
   let id = ID.unique();
@@ -212,9 +212,9 @@ const useAuthStore = create<AuthState>((set, get) => ({
         STORAGE_KEYS.USER_DATA,
         JSON.stringify(user),
       );
-      console.log("✅ User data saved locally");
+      console.log("âœ… User data saved locally");
     } catch (error) {
-      console.error("❌ Failed to save user locally:", error);
+      console.error("âŒ Failed to save user locally:", error);
     }
   },
 
@@ -226,7 +226,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       return normalizeUserRecord(JSON.parse(userData) as User);
     } catch (error) {
-      console.error("❌ Failed to load saved user:", error);
+      console.error("âŒ Failed to load saved user:", error);
       return null;
     }
   },
@@ -235,7 +235,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await AsyncStorage.removeItem(STORAGE_KEYS.USER_DATA);
     } catch (error) {
-      console.error("❌ Failed to remove saved user:", error);
+      console.error("âŒ Failed to remove saved user:", error);
     }
   },
 
@@ -248,7 +248,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
         JSON.stringify(organization),
       );
     } catch (error) {
-      console.error("❌ Failed to save organization locally:", error);
+      console.error("âŒ Failed to save organization locally:", error);
     }
   },
 
@@ -263,7 +263,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
         return JSON.parse(organizationData) as Organization;
       } catch (error) {
-        console.error("❌ Failed to load saved organization:", error);
+        console.error("âŒ Failed to load saved organization:", error);
         return null;
       }
     },
@@ -272,7 +272,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await AsyncStorage.removeItem(STORAGE_KEYS.ORGANIZATION_DATA);
     } catch (error) {
-      console.error("❌ Failed to remove saved organization:", error);
+      console.error("âŒ Failed to remove saved organization:", error);
     }
   },
 
@@ -343,7 +343,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       return { success: true };
     } catch (error: any) {
-      console.error("❌ Error updating user:", error);
+      console.error("âŒ Error updating user:", error);
 
       return {
         success: false,
@@ -385,7 +385,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       return { success: true };
     } catch (error: any) {
-      console.error("❌ Error updating organization:", error);
+      console.error("âŒ Error updating organization:", error);
 
       return {
         success: false,
@@ -434,7 +434,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
           isInitialized: true,
         });
 
-        console.log("✅ Offline account restored from local storage");
+        console.log("âœ… Offline account restored from local storage");
         return;
       }
 
@@ -447,7 +447,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
         isInitialized: true,
       });
     } catch (error) {
-      console.error("❌ Auth hydration error:", error);
+      console.error("âŒ Auth hydration error:", error);
 
       set({
         isLoading: false,
@@ -485,7 +485,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
         await AsyncStorage.multiRemove(removableKeys);
       }
     } catch (error) {
-      console.error("❌ Error clearing auth cache:", error);
+      console.error("âŒ Error clearing auth cache:", error);
     }
   },
 
@@ -504,7 +504,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (cachedUser) {
-        console.log("✅ Offline: using saved account");
+        console.log("âœ… Offline: using saved account");
       }
 
       return;
@@ -626,9 +626,9 @@ const useAuthStore = create<AuthState>((set, get) => ({
         isInitialized: true,
       });
 
-      console.log("✅ Fresh account data synchronized");
+      console.log("âœ… Fresh account data synchronized");
     } catch (error) {
-      console.log("⚠️ Could not refresh account data:", error);
+      console.log("âš ï¸ Could not refresh account data:", error);
 
       if (cachedUser) {
         set({
@@ -751,7 +751,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       return { success: true };
     } catch (error: any) {
       set({ isLoading: false });
-      console.error("❌ Sign in failed:", error);
+      console.error("âŒ Sign in failed:", error);
 
       return {
         success: false,
@@ -892,7 +892,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
               );
             } catch (agentError) {
               console.error(
-                "⚠️ Error adding landlord profile:",
+                "âš ï¸ Error adding landlord profile:",
                 agentError,
               );
             }
@@ -904,7 +904,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       return { success: true };
     } catch (error: any) {
-      console.error("❌ Sign up failed:", error);
+      console.error("âŒ Sign up failed:", error);
 
       if (createdUserDocumentId) {
         try {
@@ -947,16 +947,16 @@ const useAuthStore = create<AuthState>((set, get) => ({
       const online = await hasInternetConnection();
 
       if (online && currentUser?.accountId) {
-        const token = notificationService.getExpoPushToken();
+        const token = await AsyncStorage.getItem(
+          "nookly_expo_push_token",
+        );
 
         if (token) {
           try {
-            await notificationService.removePushToken(
-              currentUser.accountId,
-              token,
-            );
+            await pushFunctionService.deactivateDevice(token);
+            await AsyncStorage.removeItem("nookly_expo_push_token");
           } catch (error) {
-            console.error("Could not remove push token:", error);
+            console.error("Could not deactivate push token:", error);
           }
         }
       }
@@ -982,7 +982,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       return { success: true };
     } catch (error: any) {
-      console.error("❌ Sign out failed:", error);
+      console.error("âŒ Sign out failed:", error);
 
       return {
         success: false,
@@ -993,3 +993,4 @@ const useAuthStore = create<AuthState>((set, get) => ({
 }));
 
 export default useAuthStore;
+

@@ -2,12 +2,13 @@ import "expo-sqlite/localStorage/install";
 import "react-native-url-polyfill/auto";
 
 import OfflineStatusBanner from "@/components/OfflineStatusBanner";
+import { registerForPushNotifications } from "@/lib/notifications";
 import {
   getModeAwareRoute,
   getUserHomeRoute,
   isLandlordUser,
 } from "@/lib/userMode";
-import notificationService from "@/services/notification.service";
+import pushFunctionService from "@/services/push-function.service";
 import useAuthStore from "@/store/auth.store";
 import useOfflineStore from "@/store/offline.store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -18,6 +19,8 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, LogBox, Platform, View } from "react-native";
 import "./global.css";
+
+const EXPO_PUSH_TOKEN_STORAGE_KEY = "nookly_expo_push_token";
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
@@ -115,12 +118,7 @@ export default function RootLayout() {
     }
 
     previousOnlineRef.current = isOnline;
-  }, [
-    appIsReady,
-    fetchAuthenticatedUser,
-    isOnline,
-    offlineInitialized,
-  ]);
+  }, [appIsReady, fetchAuthenticatedUser, isOnline, offlineInitialized]);
 
   useEffect(() => {
     if (!fontsLoaded || !appIsReady) return;
@@ -129,6 +127,8 @@ export default function RootLayout() {
   }, [appIsReady, fontsLoaded]);
 
   useEffect(() => {
+    let cancelled = false;
+
     const registerPushNotifications = async () => {
       if (!isOnline || !user?.accountId) return;
 
@@ -139,8 +139,23 @@ export default function RootLayout() {
 
         if (pushEnabled === "false") return;
 
-        await notificationService.registerForPushNotificationsAsync(
-          user.accountId,
+        const token = await registerForPushNotifications();
+
+        if (!token || cancelled) return;
+
+        const result = await pushFunctionService.registerDevice(
+          token,
+          Platform.OS,
+        );
+
+        if (cancelled) return;
+
+        await AsyncStorage.setItem(EXPO_PUSH_TOKEN_STORAGE_KEY, token);
+
+        console.log(
+          result.created
+            ? "✅ Push device registered through Nookly Push API"
+            : "✅ Push device reactivated through Nookly Push API",
         );
       } catch (error) {
         console.error("Push registration error:", error);
@@ -148,12 +163,14 @@ export default function RootLayout() {
     };
 
     void registerPushNotifications();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOnline, user?.accountId]);
 
   useEffect(() => {
-    const handleNotificationNavigation = (
-      data?: Record<string, any>,
-    ) => {
+    const handleNotificationNavigation = (data?: Record<string, any>) => {
       const currentUser = useAuthStore.getState().user;
       const homeRoute = getUserHomeRoute(currentUser);
 
@@ -186,9 +203,7 @@ export default function RootLayout() {
 
         default:
           if (typeof data.screen === "string") {
-            router.push(
-              getModeAwareRoute(data.screen, currentUser) as any,
-            );
+            router.push(getModeAwareRoute(data.screen, currentUser) as any);
           } else {
             router.push(homeRoute as any);
           }
@@ -239,35 +254,6 @@ export default function RootLayout() {
       console.error("Error setting notification channel:", error);
     });
   }, []);
-
-  const previousAccountIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const removeTokenOnLogout = async (accountId: string) => {
-      if (!isOnline) return;
-
-      const token = notificationService.getExpoPushToken();
-
-      if (!token) return;
-
-      try {
-        await notificationService.deactivatePushToken(accountId, token);
-      } catch (error) {
-        console.error("Failed to deactivate push token:", error);
-      }
-    };
-
-    if (user?.accountId) {
-      previousAccountIdRef.current = user.accountId;
-      return;
-    }
-
-    if (!user && previousAccountIdRef.current) {
-      const accountId = previousAccountIdRef.current;
-      previousAccountIdRef.current = null;
-      void removeTokenOnLogout(accountId);
-    }
-  }, [isOnline, user]);
 
   if (!fontsLoaded || !appIsReady) {
     return (
