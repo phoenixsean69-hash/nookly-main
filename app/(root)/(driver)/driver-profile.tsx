@@ -1,8 +1,8 @@
 import CustomInput from "@/components/CustomInput";
 import DriverDocumentUpload from "@/components/driver/DriverDocumentUpload";
-import DriverVehicleImageUpload from "@/components/driver/DriverVehicleImageUpload";
-import DriverStoredFilePreview from "@/components/driver/DriverStoredFilePreview";
 import DriverOrganizationPicker from "@/components/driver/DriverOrganizationPicker";
+import DriverStoredFilePreview from "@/components/driver/DriverStoredFilePreview";
+import DriverVehicleImageUpload from "@/components/driver/DriverVehicleImageUpload";
 import { Colors } from "@/constants/Colors";
 import {
   loadDriverOnboardingDraft,
@@ -13,10 +13,7 @@ import {
   submitDriverOnboarding,
 } from "@/services/driver.service";
 import useAuthStore from "@/store/auth.store";
-import type {
-  DriverDashboard,
-  DriverOnboardingInput,
-} from "@/types/driver";
+import type { DriverDashboard, DriverOnboardingInput } from "@/types/driver";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
@@ -118,9 +115,7 @@ const expiryInputToIso = (value: string): string | undefined => {
   const month = Number(match[1]);
   const year = 2000 + Number(match[2]);
 
-  return new Date(
-    Date.UTC(year, month, 0, 23, 59, 59, 999),
-  ).toISOString();
+  return new Date(Date.UTC(year, month, 0, 23, 59, 59, 999)).toISOString();
 };
 
 const isValidExpiryInput = (value: string): boolean => {
@@ -157,32 +152,25 @@ const formFromOnboardingInput = (
   sideImageFileName: input.sideImageFileName || "",
   backImageFileId: input.backImageFileId || "",
   backImageFileName: input.backImageFileName || "",
-  manufactureYear: input.manufactureYear
-    ? String(input.manufactureYear)
-    : "",
+  manufactureYear: input.manufactureYear ? String(input.manufactureYear) : "",
   insuranceExpiry: toExpiryInputValue(input.insuranceExpiry),
   fitnessExpiry: toExpiryInputValue(input.fitnessExpiry),
 });
 
-const formFromDashboard = (
-  dashboard: DriverDashboard,
-): OnboardingFormState => {
+const formFromDashboard = (dashboard: DriverDashboard): OnboardingFormState => {
   const profile = dashboard.profile;
   const vehicle = dashboard.vehicles[0];
   const institution = dashboard.institutions?.[0];
 
   return {
-    organizationId:
-      institution?.organizationId || profile.organizationId || "",
+    organizationId: institution?.organizationId || profile.organizationId || "",
     institutionName: institution?.organizationName || "",
     driverLicenceFileId: profile.driverLicenceFileId || "",
     driverLicenceFileName: profile.driverLicenceFileId
       ? "Driver licence uploaded"
       : "",
     nationalIdFileId: profile.nationalIdFileId || "",
-    nationalIdFileName: profile.nationalIdFileId
-      ? "National ID uploaded"
-      : "",
+    nationalIdFileName: profile.nationalIdFileId ? "National ID uploaded" : "",
     emergencyContactName: profile.emergencyContactName || "",
     emergencyContactPhone: profile.emergencyContactPhone || "",
     vehicleRegistrationNumber: vehicle?.registrationNumber || "",
@@ -194,17 +182,11 @@ const formFromDashboard = (
       : "",
     vehicleType: vehicle?.vehicleType || "Car",
     frontImageFileId: vehicle?.frontImageFileId || "",
-    frontImageFileName: vehicle?.frontImageFileId
-      ? "Front view uploaded"
-      : "",
+    frontImageFileName: vehicle?.frontImageFileId ? "Front view uploaded" : "",
     sideImageFileId: vehicle?.sideImageFileId || "",
-    sideImageFileName: vehicle?.sideImageFileId
-      ? "Side view uploaded"
-      : "",
+    sideImageFileName: vehicle?.sideImageFileId ? "Side view uploaded" : "",
     backImageFileId: vehicle?.backImageFileId || "",
-    backImageFileName: vehicle?.backImageFileId
-      ? "Back view uploaded"
-      : "",
+    backImageFileName: vehicle?.backImageFileId ? "Back view uploaded" : "",
     manufactureYear: vehicle?.manufactureYear
       ? String(vehicle.manufactureYear)
       : "",
@@ -337,7 +319,10 @@ export default function DriverProfileScreen() {
       [form.nationalIdFileId, "Upload your national ID."],
       [form.emergencyContactName, "Enter an emergency contact name."],
       [form.emergencyContactPhone, "Enter an emergency contact phone."],
-      [form.vehicleRegistrationNumber, "Enter the vehicle registration number."],
+      [
+        form.vehicleRegistrationNumber,
+        "Enter the vehicle registration number.",
+      ],
       [form.vehicleMake, "Enter the vehicle make."],
       [form.vehicleModel, "Enter the vehicle model."],
       [form.vehicleColor, "Enter the vehicle color."],
@@ -392,8 +377,9 @@ export default function DriverProfileScreen() {
       nationalIdFileName: form.nationalIdFileName.trim() || undefined,
       emergencyContactName: form.emergencyContactName.trim(),
       emergencyContactPhone: form.emergencyContactPhone.trim(),
-      vehicleRegistrationNumber:
-        form.vehicleRegistrationNumber.trim().toUpperCase(),
+      vehicleRegistrationNumber: form.vehicleRegistrationNumber
+        .trim()
+        .toUpperCase(),
       vehicleMake: form.vehicleMake.trim(),
       vehicleModel: form.vehicleModel.trim(),
       vehicleColor: form.vehicleColor.trim(),
@@ -482,9 +468,7 @@ export default function DriverProfileScreen() {
   const retainedDriverLicenceUploaded = Boolean(
     retainedDriverLicenceFileId.trim(),
   );
-  const retainedNationalIdUploaded = Boolean(
-    retainedNationalIdFileId.trim(),
-  );
+  const retainedNationalIdUploaded = Boolean(retainedNationalIdFileId.trim());
   const retainedDocumentsSubmittedAt = profile?.documentsSubmittedAt || "";
   const retainedEmergencyName =
     profile?.emergencyContactName ||
@@ -505,23 +489,16 @@ export default function DriverProfileScreen() {
     vehicle?.passengerCapacity ??
     vehicle?.capacity ??
     (form.vehicleCapacity ? Number(form.vehicleCapacity) : 0);
-  const retainedVehicleType =
-    vehicle?.vehicleType || form.vehicleType || "Car";
+  const retainedVehicleType = vehicle?.vehicleType || form.vehicleType || "Car";
   const retainedFrontImageFileId =
     vehicle?.frontImageFileId || form.frontImageFileId || "";
   const retainedSideImageFileId =
     vehicle?.sideImageFileId || form.sideImageFileId || "";
   const retainedBackImageFileId =
     vehicle?.backImageFileId || form.backImageFileId || "";
-  const retainedFrontImageUploaded = Boolean(
-    retainedFrontImageFileId.trim(),
-  );
-  const retainedSideImageUploaded = Boolean(
-    retainedSideImageFileId.trim(),
-  );
-  const retainedBackImageUploaded = Boolean(
-    retainedBackImageFileId.trim(),
-  );
+  const retainedFrontImageUploaded = Boolean(retainedFrontImageFileId.trim());
+  const retainedSideImageUploaded = Boolean(retainedSideImageFileId.trim());
+  const retainedBackImageUploaded = Boolean(retainedBackImageFileId.trim());
   const anyVehicleImageUploaded =
     retainedFrontImageUploaded ||
     retainedSideImageUploaded ||
@@ -545,9 +522,9 @@ export default function DriverProfileScreen() {
       profile?.verificationStatus === "verified" &&
       Boolean(
         institution &&
-          APPROVED_RELATIONSHIP_STATUSES.has(
-            String(institution.status).toLowerCase(),
-          ),
+        APPROVED_RELATIONSHIP_STATUSES.has(
+          String(institution.status).toLowerCase(),
+        ),
       ) &&
       vehicle?.status === "active",
     [institution, profile?.verificationStatus, vehicle?.status],
@@ -561,7 +538,9 @@ export default function DriverProfileScreen() {
 
   const showForm =
     showApplicationForm ||
-    (!loading && !profile && errorMessage.toLowerCase().includes("no driver profile"));
+    (!loading &&
+      !profile &&
+      errorMessage.toLowerCase().includes("no driver profile"));
 
   return (
     <SafeAreaView
@@ -593,11 +572,7 @@ export default function DriverProfileScreen() {
               className="h-24 w-24 items-center justify-center rounded-full"
               style={{ backgroundColor: `${theme.primary[300]}18` }}
             >
-              <Ionicons
-                name="person"
-                size={42}
-                color={theme.primary[300]}
-              />
+              <Ionicons name="person" size={42} color={theme.primary[300]} />
             </View>
           )}
 
@@ -652,11 +627,7 @@ export default function DriverProfileScreen() {
                 <Text className="ml-3 flex-1" style={{ color: theme.text }}>
                   {errorMessage}
                 </Text>
-                <Ionicons
-                  name="refresh"
-                  size={18}
-                  color={theme.primary[300]}
-                />
+                <Ionicons name="refresh" size={18} color={theme.primary[300]} />
               </TouchableOpacity>
             )}
 
@@ -677,8 +648,8 @@ export default function DriverProfileScreen() {
                 <Text className="mt-2 text-sm" style={{ color: theme.muted }}>
                   Upload your driver's licence and national ID, then add your
                   vehicle details and three clear vehicle views. Your selected
-                  institution will review the
-                  application from the separate Nookly Web platform.
+                  institution will review the application from the separate
+                  Nookly Web platform.
                 </Text>
 
                 <View className="mt-5 gap-4">
@@ -928,7 +899,9 @@ export default function DriverProfileScreen() {
                           style={{ color: theme.muted }}
                         >
                           {institution?.organizationName || "Your institution"}
-                          {" reviews this application through Nookly Web. You cannot receive student ride requests until both the driver and vehicle are approved."}
+                          {
+                            " reviews this application through Nookly Web. You cannot receive student ride requests until both the driver and vehicle are approved."
+                          }
                         </Text>
                       </View>
                     </View>
@@ -999,7 +972,9 @@ export default function DriverProfileScreen() {
 
                   <View className="mt-4 gap-3">
                     <View className="flex-row justify-between gap-4">
-                      <Text style={{ color: theme.muted }}>Driver's licence</Text>
+                      <Text style={{ color: theme.muted }}>
+                        Driver's licence
+                      </Text>
                       <Text
                         className="flex-1 text-right font-rubik-medium"
                         style={{
@@ -1076,7 +1051,9 @@ export default function DriverProfileScreen() {
                       </View>
                     )}
                     <View className="flex-row justify-between gap-4">
-                      <Text style={{ color: theme.muted }}>Emergency contact</Text>
+                      <Text style={{ color: theme.muted }}>
+                        Emergency contact
+                      </Text>
                       <Text
                         className="flex-1 text-right font-rubik-medium"
                         style={{ color: theme.text }}
@@ -1085,7 +1062,9 @@ export default function DriverProfileScreen() {
                       </Text>
                     </View>
                     <View className="flex-row justify-between gap-4">
-                      <Text style={{ color: theme.muted }}>Emergency phone</Text>
+                      <Text style={{ color: theme.muted }}>
+                        Emergency phone
+                      </Text>
                       <Text
                         className="flex-1 text-right font-rubik-medium"
                         style={{ color: theme.text }}
@@ -1094,7 +1073,9 @@ export default function DriverProfileScreen() {
                       </Text>
                     </View>
                     <View className="flex-row justify-between">
-                      <Text style={{ color: theme.muted }}>Completed trips</Text>
+                      <Text style={{ color: theme.muted }}>
+                        Completed trips
+                      </Text>
                       <Text
                         className="font-rubik-medium"
                         style={{ color: theme.text }}
@@ -1161,7 +1142,9 @@ export default function DriverProfileScreen() {
                       </Text>
                     </View>
                     <View className="flex-row justify-between gap-4">
-                      <Text style={{ color: theme.muted }}>Passenger capacity</Text>
+                      <Text style={{ color: theme.muted }}>
+                        Passenger capacity
+                      </Text>
                       <Text
                         className="flex-1 text-right font-rubik-medium"
                         style={{ color: theme.text }}
@@ -1170,7 +1153,9 @@ export default function DriverProfileScreen() {
                       </Text>
                     </View>
                     <View className="flex-row justify-between gap-4">
-                      <Text style={{ color: theme.muted }}>Manufacture year</Text>
+                      <Text style={{ color: theme.muted }}>
+                        Manufacture year
+                      </Text>
                       <Text
                         className="flex-1 text-right font-rubik-medium"
                         style={{ color: theme.text }}
@@ -1179,7 +1164,9 @@ export default function DriverProfileScreen() {
                       </Text>
                     </View>
                     <View className="flex-row justify-between gap-4">
-                      <Text style={{ color: theme.muted }}>Insurance expiry</Text>
+                      <Text style={{ color: theme.muted }}>
+                        Insurance expiry
+                      </Text>
                       <Text
                         className="flex-1 text-right font-rubik-medium"
                         style={{ color: theme.text }}
@@ -1203,7 +1190,7 @@ export default function DriverProfileScreen() {
                         className="flex-1 text-right font-rubik-medium"
                         style={{
                           color: allVehicleImagesUploaded
-                            ? "#16A34A"
+                            ? "#848482"
                             : "#D97706",
                         }}
                       >
@@ -1214,7 +1201,9 @@ export default function DriverProfileScreen() {
                     </View>
                     {allVehicleImagesUploaded && (
                       <View className="flex-row justify-between gap-4">
-                        <Text style={{ color: theme.muted }}>Photos submitted</Text>
+                        <Text style={{ color: theme.muted }}>
+                          Photos submitted
+                        </Text>
                         <Text
                           className="flex-1 text-right font-rubik-medium"
                           style={{ color: theme.text }}
