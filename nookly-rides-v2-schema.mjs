@@ -457,6 +457,9 @@ export const EXISTING_TABLE_ADDITIONS = {
       float("pricePerKm", { min: 0 }),
       float("maxPickupDistanceKm", { min: 0 }),
       varchar("availabilityNote", 500),
+      varchar("driverLicenceFileId", 36),
+      varchar("nationalIdFileId", 36),
+      datetime("documentsSubmittedAt"),
     ],
     indexes: [
       keyIndex("drivers_online_status", ["isOnline", "status"]),
@@ -489,6 +492,10 @@ export const EXISTING_TABLE_ADDITIONS = {
       boolean("allowsLuggage"),
       boolean("allowsSharedRides"),
       datetime("lastInspectionAt"),
+      varchar("frontImageFileId", 36),
+      varchar("sideImageFileId", 36),
+      varchar("backImageFileId", 36),
+      datetime("vehicleImagesSubmittedAt"),
     ],
     indexes: [
       keyIndex(
@@ -648,3 +655,8 @@ export const REQUIRED_FLAG_CHANGES = [
       "Direct rides use destination coordinates instead of a predefined route stop.",
   },
 ];
+
+export const RIDE_DRIVER_DOCUMENTS_BUCKET = {
+  bucketId: "69a20709002844cb4f69",
+  reuseExisting: true,
+};

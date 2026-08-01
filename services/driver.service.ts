@@ -1,6 +1,8 @@
-import { Functions } from "react-native-appwrite";
+import * as DocumentPicker from "expo-document-picker";
+import { File as ExpoFile } from "expo-file-system";
+import { Functions, ID } from "react-native-appwrite";
 
-import { client } from "@/lib/appwrite";
+import { client, config, storage } from "@/lib/appwrite";
 import type {
   DriverDashboard,
   DriverIncidentInput,
@@ -20,6 +22,174 @@ const DRIVER_FUNCTION_ID =
   "rides-driver-api";
 
 type HttpMethod = "GET" | "POST" | "PATCH";
+
+export type DriverDocumentKind = "driver-licence" | "national-id";
+export type DriverVehicleImageKind =
+  | "vehicle-front"
+  | "vehicle-side"
+  | "vehicle-back";
+
+export interface UploadedDriverDocument {
+  fileId: string;
+  fileName: string;
+  mimeType: string;
+  size: number;
+}
+
+export type UploadedDriverVehicleImage = UploadedDriverDocument;
+
+const MAX_DRIVER_DOCUMENT_SIZE = 5 * 1024 * 1024;
+const DRIVER_DOCUMENT_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "application/pdf",
+];
+const DRIVER_VEHICLE_IMAGE_MIME_TYPES = ["image/jpeg", "image/png"];
+
+const mimeTypeFromName = (fileName: string): string => {
+  const extension = fileName.split(".").pop()?.toLowerCase();
+
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  if (extension === "png") return "image/png";
+  if (extension === "pdf") return "application/pdf";
+
+  return "application/octet-stream";
+};
+
+const normalizedDocumentName = (
+  originalName: string | undefined,
+  kind: DriverDocumentKind | DriverVehicleImageKind,
+  mimeType: string,
+): string => {
+  const fallbackExtension =
+    mimeType === "application/pdf"
+      ? "pdf"
+      : mimeType === "image/png"
+        ? "png"
+        : "jpg";
+  const fallbackName = `${kind}-${Date.now()}.${fallbackExtension}`;
+  const candidate = originalName?.trim() || fallbackName;
+
+  return candidate.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-180);
+};
+
+export async function pickAndUploadDriverDocument(
+  kind: DriverDocumentKind,
+): Promise<UploadedDriverDocument | null> {
+  if (!config.bucketId) {
+    throw new Error("The Appwrite storage bucket is not configured.");
+  }
+
+  const result = await DocumentPicker.getDocumentAsync({
+    type: DRIVER_DOCUMENT_MIME_TYPES,
+    multiple: false,
+    copyToCacheDirectory: true,
+  });
+
+  if (result.canceled || !result.assets?.[0]) {
+    return null;
+  }
+
+  const asset = result.assets[0];
+  const inferredMimeType = mimeTypeFromName(asset.name || asset.uri);
+  const reportedMimeType = asset.mimeType || "";
+  const mimeType = DRIVER_DOCUMENT_MIME_TYPES.includes(reportedMimeType)
+    ? reportedMimeType
+    : inferredMimeType;
+
+  if (!DRIVER_DOCUMENT_MIME_TYPES.includes(mimeType)) {
+    throw new Error("Only JPG, PNG, and PDF documents are allowed.");
+  }
+
+  const localFile = new ExpoFile(asset.uri);
+  const fileSize = Number(asset.size || localFile.size || 0);
+
+  if (!Number.isFinite(fileSize) || fileSize <= 0) {
+    throw new Error("Could not determine the selected document size.");
+  }
+
+  if (fileSize > MAX_DRIVER_DOCUMENT_SIZE) {
+    throw new Error("The selected document must be 5 MB or smaller.");
+  }
+
+  const fileName = normalizedDocumentName(asset.name, kind, mimeType);
+  const uploaded = await storage.createFile(
+    config.bucketId,
+    ID.unique(),
+    {
+      uri: asset.uri,
+      name: fileName,
+      type: mimeType,
+      size: fileSize,
+    },
+  );
+
+  return {
+    fileId: uploaded.$id,
+    fileName,
+    mimeType,
+    size: fileSize,
+  };
+}
+
+export async function pickAndUploadDriverVehicleImage(
+  kind: DriverVehicleImageKind,
+): Promise<UploadedDriverVehicleImage | null> {
+  if (!config.bucketId) {
+    throw new Error("The Appwrite storage bucket is not configured.");
+  }
+
+  const result = await DocumentPicker.getDocumentAsync({
+    type: DRIVER_VEHICLE_IMAGE_MIME_TYPES,
+    multiple: false,
+    copyToCacheDirectory: true,
+  });
+
+  if (result.canceled || !result.assets?.[0]) {
+    return null;
+  }
+
+  const asset = result.assets[0];
+  const inferredMimeType = mimeTypeFromName(asset.name || asset.uri);
+  const reportedMimeType = asset.mimeType || "";
+  const mimeType = DRIVER_VEHICLE_IMAGE_MIME_TYPES.includes(reportedMimeType)
+    ? reportedMimeType
+    : inferredMimeType;
+
+  if (!DRIVER_VEHICLE_IMAGE_MIME_TYPES.includes(mimeType)) {
+    throw new Error("Only JPG and PNG vehicle images are allowed.");
+  }
+
+  const localFile = new ExpoFile(asset.uri);
+  const fileSize = Number(asset.size || localFile.size || 0);
+
+  if (!Number.isFinite(fileSize) || fileSize <= 0) {
+    throw new Error("Could not determine the selected image size.");
+  }
+
+  if (fileSize > MAX_DRIVER_DOCUMENT_SIZE) {
+    throw new Error("The selected vehicle image must be 5 MB or smaller.");
+  }
+
+  const fileName = normalizedDocumentName(asset.name, kind, mimeType);
+  const uploaded = await storage.createFile(
+    config.bucketId,
+    ID.unique(),
+    {
+      uri: asset.uri,
+      name: fileName,
+      type: mimeType,
+      size: fileSize,
+    },
+  );
+
+  return {
+    fileId: uploaded.$id,
+    fileName,
+    mimeType,
+    size: fileSize,
+  };
+}
 
 interface ApiEnvelope<T> {
   ok: boolean;

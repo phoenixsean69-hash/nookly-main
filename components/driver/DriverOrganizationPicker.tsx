@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Keyboard,
   Modal,
   Pressable,
@@ -29,6 +30,8 @@ interface DriverOrganizationPickerProps {
 
 const normalize = (value: unknown): string =>
   String(value ?? "").trim().toLowerCase();
+
+const BUILDING_ICON = require("../../assets/icons/building.png");
 
 export default function DriverOrganizationPicker({
   value,
@@ -136,10 +139,15 @@ export default function DriverOrganizationPicker({
           {loading ? (
             <ActivityIndicator size="small" color={theme.primary[300]} />
           ) : (
-            <Ionicons
-              name="business-outline"
-              size={20}
-              color={theme.primary[300]}
+            <Image
+              source={BUILDING_ICON}
+              resizeMode="contain"
+              style={{
+                width: 21,
+                height: 21,
+                tintColor:
+                  colorScheme === "dark" ? "#FFFFFF" : "#0B2A5B",
+              }}
             />
           )}
         </View>
@@ -297,10 +305,16 @@ export default function DriverOrganizationPicker({
               ItemSeparatorComponent={() => <View className="h-2" />}
               ListEmptyComponent={
                 <View className="flex-1 items-center justify-center px-8 py-16">
-                  <Ionicons
-                    name="business-outline"
-                    size={46}
-                    color={theme.muted}
+                  <Image
+                    source={BUILDING_ICON}
+                    resizeMode="contain"
+                    style={{
+                      width: 46,
+                      height: 46,
+                      tintColor:
+                        colorScheme === "dark" ? "#FFFFFF" : "#0B2A5B",
+                      opacity: 0.75,
+                    }}
                   />
                   <Text
                     className="mt-4 text-center text-base font-rubik-bold"
@@ -343,10 +357,18 @@ export default function DriverOrganizationPicker({
                           : `${theme.primary[300]}12`,
                       }}
                     >
-                      <Ionicons
-                        name="business-outline"
-                        size={22}
-                        color={selected ? "#FFFFFF" : theme.primary[300]}
+                      <Image
+                        source={BUILDING_ICON}
+                        resizeMode="contain"
+                        style={{
+                          width: 23,
+                          height: 23,
+                          tintColor: selected
+                            ? "#FFFFFF"
+                            : colorScheme === "dark"
+                              ? "#FFFFFF"
+                              : "#0B2A5B",
+                        }}
                       />
                     </View>
 

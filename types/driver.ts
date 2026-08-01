@@ -33,6 +33,9 @@ export interface DriverProfile {
   avatar?: string;
   licenceNumber: string;
   licenceExpiry?: string;
+  driverLicenceFileId?: string;
+  nationalIdFileId?: string;
+  documentsSubmittedAt?: string;
   verificationStatus: DriverVerificationStatus;
   rating?: number;
   completedTrips?: number;
@@ -62,6 +65,10 @@ export interface DriverVehicle {
   color: string;
   capacity: number;
   image?: string;
+  frontImageFileId?: string;
+  sideImageFileId?: string;
+  backImageFileId?: string;
+  vehicleImagesSubmittedAt?: string;
   status: "active" | "maintenance" | "inactive" | "suspended";
   insuranceExpiry?: string;
   fitnessExpiry?: string;
@@ -111,8 +118,10 @@ export interface DriverInstitutionLink {
 export interface DriverOnboardingInput {
   organizationId: string;
   institutionName?: string;
-  licenceNumber: string;
-  licenceExpiry?: string;
+  driverLicenceFileId: string;
+  driverLicenceFileName?: string;
+  nationalIdFileId: string;
+  nationalIdFileName?: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
   vehicleRegistrationNumber: string;
@@ -121,6 +130,12 @@ export interface DriverOnboardingInput {
   vehicleColor: string;
   vehicleCapacity: number;
   vehicleType?: string;
+  frontImageFileId: string;
+  frontImageFileName?: string;
+  sideImageFileId: string;
+  sideImageFileName?: string;
+  backImageFileId: string;
+  backImageFileName?: string;
   manufactureYear?: number;
   insuranceExpiry?: string;
   fitnessExpiry?: string;

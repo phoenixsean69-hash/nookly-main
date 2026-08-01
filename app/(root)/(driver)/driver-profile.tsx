@@ -1,4 +1,6 @@
 import CustomInput from "@/components/CustomInput";
+import DriverDocumentUpload from "@/components/driver/DriverDocumentUpload";
+import DriverVehicleImageUpload from "@/components/driver/DriverVehicleImageUpload";
 import DriverOrganizationPicker from "@/components/driver/DriverOrganizationPicker";
 import { Colors } from "@/constants/Colors";
 import {
@@ -32,8 +34,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 interface OnboardingFormState {
   organizationId: string;
   institutionName: string;
-  licenceNumber: string;
-  licenceExpiry: string;
+  driverLicenceFileId: string;
+  driverLicenceFileName: string;
+  nationalIdFileId: string;
+  nationalIdFileName: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
   vehicleRegistrationNumber: string;
@@ -42,6 +46,12 @@ interface OnboardingFormState {
   vehicleColor: string;
   vehicleCapacity: string;
   vehicleType: string;
+  frontImageFileId: string;
+  frontImageFileName: string;
+  sideImageFileId: string;
+  sideImageFileName: string;
+  backImageFileId: string;
+  backImageFileName: string;
   manufactureYear: string;
   insuranceExpiry: string;
   fitnessExpiry: string;
@@ -50,8 +60,10 @@ interface OnboardingFormState {
 const EMPTY_FORM: OnboardingFormState = {
   organizationId: "",
   institutionName: "",
-  licenceNumber: "",
-  licenceExpiry: "",
+  driverLicenceFileId: "",
+  driverLicenceFileName: "",
+  nationalIdFileId: "",
+  nationalIdFileName: "",
   emergencyContactName: "",
   emergencyContactPhone: "",
   vehicleRegistrationNumber: "",
@@ -60,21 +72,75 @@ const EMPTY_FORM: OnboardingFormState = {
   vehicleColor: "",
   vehicleCapacity: "",
   vehicleType: "Car",
+  frontImageFileId: "",
+  frontImageFileName: "",
+  sideImageFileId: "",
+  sideImageFileName: "",
+  backImageFileId: "",
+  backImageFileName: "",
   manufactureYear: "",
   insuranceExpiry: "",
   fitnessExpiry: "",
 };
 
-const toDateInputValue = (value?: string): string =>
-  value ? String(value).slice(0, 10) : "";
+const formatExpiryInput = (value: string): string => {
+  const digits = value.replace(/[^0-9]/g, "").slice(0, 4);
+
+  if (digits.length <= 2) return digits;
+
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+};
+
+const toExpiryInputValue = (value?: string): string => {
+  if (!value?.trim()) return "";
+
+  if (/^\d{2}\/\d{2}$/.test(value.trim())) {
+    return value.trim();
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const year = String(date.getUTCFullYear()).slice(-2);
+
+  return `${month}/${year}`;
+};
+
+const expiryInputToIso = (value: string): string | undefined => {
+  const normalized = value.trim();
+  if (!normalized) return undefined;
+
+  const match = normalized.match(/^(\d{2})\/(\d{2})$/);
+  if (!match) return undefined;
+
+  const month = Number(match[1]);
+  const year = 2000 + Number(match[2]);
+
+  return new Date(
+    Date.UTC(year, month, 0, 23, 59, 59, 999),
+  ).toISOString();
+};
+
+const isValidExpiryInput = (value: string): boolean => {
+  if (!value.trim()) return true;
+
+  const match = value.trim().match(/^(\d{2})\/(\d{2})$/);
+  if (!match) return false;
+
+  const month = Number(match[1]);
+  return month >= 1 && month <= 12;
+};
 
 const formFromOnboardingInput = (
   input: DriverOnboardingInput,
 ): OnboardingFormState => ({
   organizationId: input.organizationId || "",
   institutionName: input.institutionName || "",
-  licenceNumber: input.licenceNumber || "",
-  licenceExpiry: toDateInputValue(input.licenceExpiry),
+  driverLicenceFileId: input.driverLicenceFileId || "",
+  driverLicenceFileName: input.driverLicenceFileName || "",
+  nationalIdFileId: input.nationalIdFileId || "",
+  nationalIdFileName: input.nationalIdFileName || "",
   emergencyContactName: input.emergencyContactName || "",
   emergencyContactPhone: input.emergencyContactPhone || "",
   vehicleRegistrationNumber: input.vehicleRegistrationNumber || "",
@@ -84,11 +150,17 @@ const formFromOnboardingInput = (
   vehicleCapacity:
     input.vehicleCapacity > 0 ? String(input.vehicleCapacity) : "",
   vehicleType: input.vehicleType || "Car",
+  frontImageFileId: input.frontImageFileId || "",
+  frontImageFileName: input.frontImageFileName || "",
+  sideImageFileId: input.sideImageFileId || "",
+  sideImageFileName: input.sideImageFileName || "",
+  backImageFileId: input.backImageFileId || "",
+  backImageFileName: input.backImageFileName || "",
   manufactureYear: input.manufactureYear
     ? String(input.manufactureYear)
     : "",
-  insuranceExpiry: toDateInputValue(input.insuranceExpiry),
-  fitnessExpiry: toDateInputValue(input.fitnessExpiry),
+  insuranceExpiry: toExpiryInputValue(input.insuranceExpiry),
+  fitnessExpiry: toExpiryInputValue(input.fitnessExpiry),
 });
 
 const formFromDashboard = (
@@ -102,8 +174,14 @@ const formFromDashboard = (
     organizationId:
       institution?.organizationId || profile.organizationId || "",
     institutionName: institution?.organizationName || "",
-    licenceNumber: profile.licenceNumber || "",
-    licenceExpiry: toDateInputValue(profile.licenceExpiry),
+    driverLicenceFileId: profile.driverLicenceFileId || "",
+    driverLicenceFileName: profile.driverLicenceFileId
+      ? "Driver licence uploaded"
+      : "",
+    nationalIdFileId: profile.nationalIdFileId || "",
+    nationalIdFileName: profile.nationalIdFileId
+      ? "National ID uploaded"
+      : "",
     emergencyContactName: profile.emergencyContactName || "",
     emergencyContactPhone: profile.emergencyContactPhone || "",
     vehicleRegistrationNumber: vehicle?.registrationNumber || "",
@@ -114,11 +192,23 @@ const formFromDashboard = (
       ? String(vehicle.passengerCapacity ?? vehicle.capacity ?? "")
       : "",
     vehicleType: vehicle?.vehicleType || "Car",
+    frontImageFileId: vehicle?.frontImageFileId || "",
+    frontImageFileName: vehicle?.frontImageFileId
+      ? "Front view uploaded"
+      : "",
+    sideImageFileId: vehicle?.sideImageFileId || "",
+    sideImageFileName: vehicle?.sideImageFileId
+      ? "Side view uploaded"
+      : "",
+    backImageFileId: vehicle?.backImageFileId || "",
+    backImageFileName: vehicle?.backImageFileId
+      ? "Back view uploaded"
+      : "",
     manufactureYear: vehicle?.manufactureYear
       ? String(vehicle.manufactureYear)
       : "",
-    insuranceExpiry: toDateInputValue(vehicle?.insuranceExpiry),
-    fitnessExpiry: toDateInputValue(vehicle?.fitnessExpiry),
+    insuranceExpiry: toExpiryInputValue(vehicle?.insuranceExpiry),
+    fitnessExpiry: toExpiryInputValue(vehicle?.fitnessExpiry),
   };
 };
 
@@ -153,6 +243,9 @@ const formatProfileDate = (value?: string): string => {
     year: "numeric",
   });
 };
+
+const formatProfileExpiry = (value?: string): string =>
+  toExpiryInputValue(value) || "Not provided";
 
 const APPROVED_RELATIONSHIP_STATUSES = new Set([
   "active",
@@ -239,7 +332,8 @@ export default function DriverProfileScreen() {
         form.organizationId,
         "Select an institution that has completed Nookly Web setup.",
       ],
-      [form.licenceNumber, "Enter your driver licence number."],
+      [form.driverLicenceFileId, "Upload your driver's licence."],
+      [form.nationalIdFileId, "Upload your national ID."],
       [form.emergencyContactName, "Enter an emergency contact name."],
       [form.emergencyContactPhone, "Enter an emergency contact phone."],
       [form.vehicleRegistrationNumber, "Enter the vehicle registration number."],
@@ -247,6 +341,9 @@ export default function DriverProfileScreen() {
       [form.vehicleModel, "Enter the vehicle model."],
       [form.vehicleColor, "Enter the vehicle color."],
       [form.vehicleCapacity, "Enter the passenger capacity."],
+      [form.frontImageFileId, "Upload the vehicle front-view image."],
+      [form.sideImageFileId, "Upload the vehicle side-view image."],
+      [form.backImageFileId, "Upload the vehicle back-view image."],
     ];
 
     const missing = requiredFields.find(([value]) => !value.trim());
@@ -266,6 +363,14 @@ export default function DriverProfileScreen() {
       }
     }
 
+    if (!isValidExpiryInput(form.insuranceExpiry)) {
+      return "Enter the insurance expiry as MM/YY.";
+    }
+
+    if (!isValidExpiryInput(form.fitnessExpiry)) {
+      return "Enter the vehicle fitness expiry as MM/YY.";
+    }
+
     return null;
   };
 
@@ -280,8 +385,10 @@ export default function DriverProfileScreen() {
     const payload: DriverOnboardingInput = {
       organizationId: form.organizationId.trim(),
       institutionName: form.institutionName.trim(),
-      licenceNumber: form.licenceNumber.trim(),
-      licenceExpiry: form.licenceExpiry.trim() || undefined,
+      driverLicenceFileId: form.driverLicenceFileId.trim(),
+      driverLicenceFileName: form.driverLicenceFileName.trim() || undefined,
+      nationalIdFileId: form.nationalIdFileId.trim(),
+      nationalIdFileName: form.nationalIdFileName.trim() || undefined,
       emergencyContactName: form.emergencyContactName.trim(),
       emergencyContactPhone: form.emergencyContactPhone.trim(),
       vehicleRegistrationNumber:
@@ -291,11 +398,17 @@ export default function DriverProfileScreen() {
       vehicleColor: form.vehicleColor.trim(),
       vehicleCapacity: Number(form.vehicleCapacity),
       vehicleType: form.vehicleType.trim() || "Car",
+      frontImageFileId: form.frontImageFileId.trim(),
+      frontImageFileName: form.frontImageFileName.trim() || undefined,
+      sideImageFileId: form.sideImageFileId.trim(),
+      sideImageFileName: form.sideImageFileName.trim() || undefined,
+      backImageFileId: form.backImageFileId.trim(),
+      backImageFileName: form.backImageFileName.trim() || undefined,
       manufactureYear: form.manufactureYear.trim()
         ? Number(form.manufactureYear)
         : undefined,
-      insuranceExpiry: form.insuranceExpiry.trim() || undefined,
-      fitnessExpiry: form.fitnessExpiry.trim() || undefined,
+      insuranceExpiry: expiryInputToIso(form.insuranceExpiry),
+      fitnessExpiry: expiryInputToIso(form.fitnessExpiry),
     };
 
     setSubmittingApplication(true);
@@ -312,8 +425,8 @@ export default function DriverProfileScreen() {
       await saveDriverOnboardingDraft(accountId, payload);
 
       Alert.alert(
-        "Application submitted",
-        `${result.organization.name} can now review your driver and vehicle details on Nookly Web.`,
+        profile ? "Application updated" : "Application submitted",
+        `${result.organization.name} can now review your driver, documents, vehicle details, and vehicle photos on Nookly Web.`,
       );
 
       setShowApplicationForm(false);
@@ -361,10 +474,13 @@ export default function DriverProfileScreen() {
 
   const retainedInstitutionName =
     institution?.organizationName || form.institutionName || "Not linked";
-  const retainedLicenceNumber =
-    profile?.licenceNumber || form.licenceNumber || "Not available";
-  const retainedLicenceExpiry =
-    profile?.licenceExpiry || form.licenceExpiry || "";
+  const retainedDriverLicenceUploaded = Boolean(
+    profile?.driverLicenceFileId || form.driverLicenceFileId,
+  );
+  const retainedNationalIdUploaded = Boolean(
+    profile?.nationalIdFileId || form.nationalIdFileId,
+  );
+  const retainedDocumentsSubmittedAt = profile?.documentsSubmittedAt || "";
   const retainedEmergencyName =
     profile?.emergencyContactName ||
     form.emergencyContactName ||
@@ -386,6 +502,21 @@ export default function DriverProfileScreen() {
     (form.vehicleCapacity ? Number(form.vehicleCapacity) : 0);
   const retainedVehicleType =
     vehicle?.vehicleType || form.vehicleType || "Car";
+  const retainedFrontImageUploaded = Boolean(
+    vehicle?.frontImageFileId || form.frontImageFileId,
+  );
+  const retainedSideImageUploaded = Boolean(
+    vehicle?.sideImageFileId || form.sideImageFileId,
+  );
+  const retainedBackImageUploaded = Boolean(
+    vehicle?.backImageFileId || form.backImageFileId,
+  );
+  const allVehicleImagesUploaded =
+    retainedFrontImageUploaded &&
+    retainedSideImageUploaded &&
+    retainedBackImageUploaded;
+  const retainedVehicleImagesSubmittedAt =
+    vehicle?.vehicleImagesSubmittedAt || "";
   const retainedManufactureYear =
     vehicle?.manufactureYear ||
     (form.manufactureYear ? Number(form.manufactureYear) : undefined);
@@ -529,9 +660,10 @@ export default function DriverProfileScreen() {
                   Complete driver application
                 </Text>
                 <Text className="mt-2 text-sm" style={{ color: theme.muted }}>
-                  Submit your licence and vehicle details. Your selected
-                  institution will approve or reject the application from the
-                  separate Nookly Web platform.
+                  Upload your driver's licence and national ID, then add your
+                  vehicle details and three clear vehicle views. Your selected
+                  institution will review the
+                  application from the separate Nookly Web platform.
                 </Text>
 
                 <View className="mt-5 gap-4">
@@ -544,20 +676,30 @@ export default function DriverProfileScreen() {
                     }}
                   />
 
-                  <CustomInput
-                    label="Driver licence number"
-                    value={form.licenceNumber}
-                    onChangeText={(value) => updateForm("licenceNumber", value)}
-                    placeholder="e.g. ZW-DL-123456"
-                    autoCapitalize="characters"
+                  <DriverDocumentUpload
+                    label="Upload driver's licence"
+                    description="JPG, PNG, or PDF · maximum 5 MB"
+                    kind="driver-licence"
+                    fileId={form.driverLicenceFileId}
+                    fileName={form.driverLicenceFileName}
+                    disabled={submittingApplication}
+                    onUploaded={(document) => {
+                      updateForm("driverLicenceFileId", document.fileId);
+                      updateForm("driverLicenceFileName", document.fileName);
+                    }}
                   />
 
-                  <CustomInput
-                    label="Driver licence expiry (optional)"
-                    value={form.licenceExpiry}
-                    onChangeText={(value) => updateForm("licenceExpiry", value)}
-                    placeholder="YYYY-MM-DD"
-                    autoCapitalize="none"
+                  <DriverDocumentUpload
+                    label="Upload national ID"
+                    description="JPG, PNG, or PDF · maximum 5 MB"
+                    kind="national-id"
+                    fileId={form.nationalIdFileId}
+                    fileName={form.nationalIdFileName}
+                    disabled={submittingApplication}
+                    onUploaded={(document) => {
+                      updateForm("nationalIdFileId", document.fileId);
+                      updateForm("nationalIdFileName", document.fileName);
+                    }}
                   />
 
                   <CustomInput
@@ -630,35 +772,95 @@ export default function DriverProfileScreen() {
                     placeholder="Car, van, minibus..."
                   />
 
+                  <View className="mt-1">
+                    <Text
+                      className="text-base font-rubik-bold"
+                      style={{ color: theme.title }}
+                    >
+                      Vehicle photos
+                    </Text>
+                    <Text
+                      className="mt-1 text-xs"
+                      style={{ color: theme.muted }}
+                    >
+                      Upload clear JPG or PNG images showing the registered
+                      vehicle from the front, side, and back.
+                    </Text>
+                  </View>
+
+                  <DriverVehicleImageUpload
+                    label="Front view"
+                    description="Clear front view · JPG or PNG · maximum 5 MB"
+                    kind="vehicle-front"
+                    fileId={form.frontImageFileId}
+                    fileName={form.frontImageFileName}
+                    disabled={submittingApplication}
+                    onUploaded={(image) => {
+                      updateForm("frontImageFileId", image.fileId);
+                      updateForm("frontImageFileName", image.fileName);
+                    }}
+                  />
+
+                  <DriverVehicleImageUpload
+                    label="Side view"
+                    description="Clear side view · JPG or PNG · maximum 5 MB"
+                    kind="vehicle-side"
+                    fileId={form.sideImageFileId}
+                    fileName={form.sideImageFileName}
+                    disabled={submittingApplication}
+                    onUploaded={(image) => {
+                      updateForm("sideImageFileId", image.fileId);
+                      updateForm("sideImageFileName", image.fileName);
+                    }}
+                  />
+
+                  <DriverVehicleImageUpload
+                    label="Back view"
+                    description="Clear back view · JPG or PNG · maximum 5 MB"
+                    kind="vehicle-back"
+                    fileId={form.backImageFileId}
+                    fileName={form.backImageFileName}
+                    disabled={submittingApplication}
+                    onUploaded={(image) => {
+                      updateForm("backImageFileId", image.fileId);
+                      updateForm("backImageFileName", image.fileName);
+                    }}
+                  />
+
                   <CustomInput
                     label="Manufacture year (optional)"
                     value={form.manufactureYear}
                     onChangeText={(value) =>
                       updateForm(
                         "manufactureYear",
-                        value.replace(/[^0-9]/g, ""),
+                        value.replace(/[^0-9]/g, "").slice(0, 4),
                       )
                     }
                     placeholder="e.g. 2018"
                     keyboardType="number-pad"
+                    maxLength={4}
                   />
 
                   <CustomInput
                     label="Insurance expiry (optional)"
                     value={form.insuranceExpiry}
                     onChangeText={(value) =>
-                      updateForm("insuranceExpiry", value)
+                      updateForm("insuranceExpiry", formatExpiryInput(value))
                     }
-                    placeholder="YYYY-MM-DD"
-                    autoCapitalize="none"
+                    placeholder="MM/YY"
+                    keyboardType="number-pad"
+                    maxLength={5}
                   />
 
                   <CustomInput
                     label="Vehicle fitness expiry (optional)"
                     value={form.fitnessExpiry}
-                    onChangeText={(value) => updateForm("fitnessExpiry", value)}
-                    placeholder="YYYY-MM-DD"
-                    autoCapitalize="none"
+                    onChangeText={(value) =>
+                      updateForm("fitnessExpiry", formatExpiryInput(value))
+                    }
+                    placeholder="MM/YY"
+                    keyboardType="number-pad"
+                    maxLength={5}
                   />
 
                   <TouchableOpacity
@@ -671,7 +873,7 @@ export default function DriverProfileScreen() {
                       <ActivityIndicator color="#FFFFFF" />
                     ) : (
                       <Text className="text-center font-rubik-bold text-white">
-                        Submit application
+                        {profile ? "Update application" : "Submit application"}
                       </Text>
                     )}
                   </TouchableOpacity>
@@ -716,17 +918,17 @@ export default function DriverProfileScreen() {
                       </View>
                     </View>
 
-                    {profile.verificationStatus === "rejected" && (
-                      <TouchableOpacity
-                        onPress={() => setShowApplicationForm(true)}
-                        className="mt-4 rounded-xl py-3"
-                        style={{ backgroundColor: statusColor }}
-                      >
-                        <Text className="text-center font-rubik-bold text-white">
-                          Update and resubmit
-                        </Text>
-                      </TouchableOpacity>
-                    )}
+                    <TouchableOpacity
+                      onPress={() => setShowApplicationForm(true)}
+                      className="mt-4 rounded-xl py-3"
+                      style={{ backgroundColor: statusColor }}
+                    >
+                      <Text className="text-center font-rubik-bold text-white">
+                        {allVehicleImagesUploaded
+                          ? "Update application"
+                          : "Add required vehicle photos"}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
 
@@ -777,26 +979,47 @@ export default function DriverProfileScreen() {
                     className="text-lg font-rubik-bold"
                     style={{ color: theme.title }}
                   >
-                    Licence and emergency contact
+                    Documents and emergency contact
                   </Text>
 
                   <View className="mt-4 gap-3">
                     <View className="flex-row justify-between gap-4">
-                      <Text style={{ color: theme.muted }}>Licence number</Text>
+                      <Text style={{ color: theme.muted }}>Driver's licence</Text>
                       <Text
                         className="flex-1 text-right font-rubik-medium"
-                        style={{ color: theme.text }}
+                        style={{
+                          color: retainedDriverLicenceUploaded
+                            ? "#16A34A"
+                            : theme.muted,
+                        }}
                       >
-                        {retainedLicenceNumber}
+                        {retainedDriverLicenceUploaded
+                          ? "Uploaded"
+                          : "Not uploaded"}
                       </Text>
                     </View>
                     <View className="flex-row justify-between gap-4">
-                      <Text style={{ color: theme.muted }}>Licence expiry</Text>
+                      <Text style={{ color: theme.muted }}>National ID</Text>
+                      <Text
+                        className="flex-1 text-right font-rubik-medium"
+                        style={{
+                          color: retainedNationalIdUploaded
+                            ? "#16A34A"
+                            : theme.muted,
+                        }}
+                      >
+                        {retainedNationalIdUploaded
+                          ? "Uploaded"
+                          : "Not uploaded"}
+                      </Text>
+                    </View>
+                    <View className="flex-row justify-between gap-4">
+                      <Text style={{ color: theme.muted }}>Submitted</Text>
                       <Text
                         className="flex-1 text-right font-rubik-medium"
                         style={{ color: theme.text }}
                       >
-                        {formatProfileDate(retainedLicenceExpiry)}
+                        {formatProfileDate(retainedDocumentsSubmittedAt)}
                       </Text>
                     </View>
                     <View className="flex-row justify-between gap-4">
@@ -908,7 +1131,7 @@ export default function DriverProfileScreen() {
                         className="flex-1 text-right font-rubik-medium"
                         style={{ color: theme.text }}
                       >
-                        {formatProfileDate(retainedInsuranceExpiry)}
+                        {formatProfileExpiry(retainedInsuranceExpiry)}
                       </Text>
                     </View>
                     <View className="flex-row justify-between gap-4">
@@ -917,9 +1140,36 @@ export default function DriverProfileScreen() {
                         className="flex-1 text-right font-rubik-medium"
                         style={{ color: theme.text }}
                       >
-                        {formatProfileDate(retainedFitnessExpiry)}
+                        {formatProfileExpiry(retainedFitnessExpiry)}
                       </Text>
                     </View>
+
+                    <View className="flex-row justify-between gap-4">
+                      <Text style={{ color: theme.muted }}>Vehicle photos</Text>
+                      <Text
+                        className="flex-1 text-right font-rubik-medium"
+                        style={{
+                          color: allVehicleImagesUploaded
+                            ? "#16A34A"
+                            : "#D97706",
+                        }}
+                      >
+                        {allVehicleImagesUploaded
+                          ? "Front, side and back uploaded"
+                          : "Required images missing"}
+                      </Text>
+                    </View>
+                    {allVehicleImagesUploaded && (
+                      <View className="flex-row justify-between gap-4">
+                        <Text style={{ color: theme.muted }}>Photos submitted</Text>
+                        <Text
+                          className="flex-1 text-right font-rubik-medium"
+                          style={{ color: theme.text }}
+                        >
+                          {formatProfileDate(retainedVehicleImagesSubmittedAt)}
+                        </Text>
+                      </View>
+                    )}
 
                     <Text
                       className="mt-1 text-sm font-rubik-medium"

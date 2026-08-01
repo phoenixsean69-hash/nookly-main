@@ -156,6 +156,16 @@ const optionalString = (value, maxLength = 1000) => {
   return normalized ? normalized.slice(0, maxLength) : undefined;
 };
 
+const requireFileId = (value, label) => {
+  const fileId = requireString(value, label, 36);
+
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,35}$/.test(fileId)) {
+    throw statusError(400, `${label} is invalid.`);
+  }
+
+  return fileId;
+};
+
 const requireInteger = (
   value,
   label,
@@ -363,7 +373,13 @@ const isMarketplaceReady = (driver, relationships, vehicles) =>
   relationships.some((relationship) =>
     VERIFIED_RELATIONSHIP_STATUSES.has(normalize(relationship.status)),
   ) &&
-  vehicles.some((vehicle) => normalize(vehicle.status) === "active");
+  vehicles.some(
+    (vehicle) =>
+      normalize(vehicle.status) === "active" &&
+      Boolean(vehicle.frontImageFileId) &&
+      Boolean(vehicle.sideImageFileId) &&
+      Boolean(vehicle.backImageFileId),
+  );
 
 const upsertDriverOnboarding = async ({
   databases,
@@ -380,14 +396,25 @@ const upsertDriverOnboarding = async ({
     body.institutionName,
     160,
   );
-  const licenceNumber = requireString(
-    body.licenceNumber,
-    "Driver licence number",
-    80,
-  ).toUpperCase();
-  const licenceExpiry = optionalDate(
-    body.licenceExpiry,
-    "Driver licence expiry",
+  const driverLicenceFileId = requireFileId(
+    body.driverLicenceFileId,
+    "Driver licence document",
+  );
+  const nationalIdFileId = requireFileId(
+    body.nationalIdFileId,
+    "National ID document",
+  );
+  const frontImageFileId = requireFileId(
+    body.frontImageFileId,
+    "Vehicle front-view image",
+  );
+  const sideImageFileId = requireFileId(
+    body.sideImageFileId,
+    "Vehicle side-view image",
+  );
+  const backImageFileId = requireFileId(
+    body.backImageFileId,
+    "Vehicle back-view image",
   );
   const emergencyContactName = requireString(
     body.emergencyContactName,
@@ -452,6 +479,9 @@ const upsertDriverOnboarding = async ({
     5,
   );
   let driver = existingDrivers[0] ?? null;
+  const legacyLicenceNumber =
+    optionalString(driver?.licenceNumber, 64) ||
+    `DOC-${driverLicenceFileId}`.slice(0, 64).toUpperCase();
 
   const matchingVehicles = await listAllRows(
     tablesDB,
@@ -482,8 +512,14 @@ const upsertDriverOnboarding = async ({
     phone: requireString(user.phone, "Driver phone", 32),
     email: optionalString(user.email, 160),
     avatar: optionalString(user.avatar, 2048) || "",
-    licenceNumber,
-    licenceExpiry,
+    // The legacy licenceNumber column is still required and uniquely indexed.
+    // Keep an existing value, or derive an internal reference from the uploaded
+    // document ID. It is no longer collected or shown in the mobile form.
+    licenceNumber: legacyLicenceNumber,
+    licenceExpiry: driver?.licenceExpiry || undefined,
+    driverLicenceFileId,
+    nationalIdFileId,
+    documentsSubmittedAt: timestamp,
     verificationStatus: approvedDriver ? "verified" : "pending",
     rating: Number(driver?.rating || 0),
     completedTrips: Number(driver?.completedTrips || 0),
@@ -603,6 +639,10 @@ const upsertDriverOnboarding = async ({
     color,
     capacity,
     image: String(vehicle?.image || ""),
+    frontImageFileId,
+    sideImageFileId,
+    backImageFileId,
+    vehicleImagesSubmittedAt: timestamp,
     status: preserveActiveVehicle ? "active" : "inactive",
     insuranceExpiry,
     fitnessExpiry,
