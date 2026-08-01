@@ -21,15 +21,17 @@ interface MapLayersProps {
   centerLongitude?: number;
 }
 
-const validCoordinates = (latitude?: number, longitude?: number): latitude is number =>
-  typeof latitude === "number" &&
-  Number.isFinite(latitude) &&
-  latitude >= -90 &&
-  latitude <= 90 &&
-  typeof longitude === "number" &&
-  Number.isFinite(longitude) &&
-  longitude >= -180 &&
-  longitude <= 180;
+const isValidLatitude = (value?: number): value is number =>
+  typeof value === "number" &&
+  Number.isFinite(value) &&
+  value >= -90 &&
+  value <= 90;
+
+const isValidLongitude = (value?: number): value is number =>
+  typeof value === "number" &&
+  Number.isFinite(value) &&
+  value >= -180 &&
+  value <= 180;
 
 const emptyCounts = (): Record<POICategoryId, number> => ({
   schools: 0,
@@ -61,7 +63,11 @@ export const MapLayers = ({
   useEffect(() => {
     let cancelled = false;
 
-    if (!visible || !validCoordinates(centerLatitude, centerLongitude)) {
+    if (
+      !visible ||
+      !isValidLatitude(centerLatitude) ||
+      !isValidLongitude(centerLongitude)
+    ) {
       setLoading(false);
       setError(null);
       setPoiCounts(emptyCounts());
@@ -70,14 +76,17 @@ export const MapLayers = ({
       };
     }
 
+    const latitude = centerLatitude;
+    const longitude = centerLongitude;
+
     const loadCounts = async () => {
       setLoading(true);
       setError(null);
 
       try {
         const pois = await getPOIs(
-          centerLatitude,
-          centerLongitude,
+          latitude,
+          longitude,
           3,
           undefined,
           retryKey > 0,

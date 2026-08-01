@@ -85,20 +85,22 @@ export default function Help() {
 
     // Scroll to the category after modal is rendered
     setTimeout(() => {
-      if (categoryRefs.current[category]) {
-        const nodeHandle = findNodeHandle(categoryRefs.current[category]);
-        if (nodeHandle && scrollViewRef.current) {
-          scrollViewRef.current.scrollTo({ y: 0, animated: true });
-          // Use measure to get position
-          categoryRefs.current[category]?.measureLayout(
-            findNodeHandle(scrollViewRef.current),
-            (x, y) => {
-              scrollViewRef.current?.scrollTo({ y: y - 100, animated: true });
-            },
-            () => {},
-          );
-        }
-      }
+      const categoryView = categoryRefs.current[category];
+      const scrollView = scrollViewRef.current;
+
+      if (!categoryView || !scrollView) return;
+
+      const scrollNodeHandle = findNodeHandle(scrollView);
+      if (scrollNodeHandle === null) return;
+
+      scrollView.scrollTo({ y: 0, animated: true });
+      categoryView.measureLayout(
+        scrollNodeHandle,
+        (_x, y) => {
+          scrollViewRef.current?.scrollTo({ y: y - 100, animated: true });
+        },
+        () => {},
+      );
     }, 300);
   };
 

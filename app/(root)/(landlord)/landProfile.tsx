@@ -245,7 +245,7 @@ const LandLordProfile = () => {
             if (result.success) {
               router.replace("/sign-in");
             } else {
-              Alert.alert("Error", result.error || "Failed to logout");
+              Alert.alert("Error", "Failed to logout");
             }
           } catch (error) {
             console.error("Logout error:", error);

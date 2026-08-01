@@ -12,10 +12,16 @@ import {
   useColorScheme,
   View,
 } from "react-native";
-import { Models } from "react-native-appwrite";
 import { Colors } from "../constants/Colors";
 
-export interface PropertyDocument extends Models.Document {
+export interface PropertyDocument {
+  $id: string;
+  $createdAt?: string;
+  $updatedAt?: string;
+  $permissions?: string[];
+  $databaseId?: string;
+  $collectionId?: string;
+  $sequence?: number;
   propertyName?: string;
   name?: string;
   type?: string;
@@ -173,7 +179,7 @@ export const FeaturedCard = ({
 
       {accredited ? (
         <View className="absolute right-4 top-4 z-20">
-          <AccreditedBadge size="small" />
+          <AccreditedBadge />
         </View>
       ) : (
         <View className="absolute right-4 top-4 z-20 flex-row items-center rounded-full bg-white/90 px-3 py-1.5">
@@ -319,7 +325,7 @@ export const Card = ({
 
         {accredited ? (
           <View className="absolute right-2 top-2 z-10">
-            <AccreditedBadge size="small" />
+            <AccreditedBadge />
           </View>
         ) : (
           <View className="absolute right-2 top-2 z-10 flex-row items-center rounded-full bg-white/90 px-3 py-1.5">

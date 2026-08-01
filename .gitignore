@@ -31,3 +31,6 @@ build/
 
 # Expo generated
 expo-env.d.ts
+# Local Nookly development artifacts
+.nookly-backups/
+migration-output/

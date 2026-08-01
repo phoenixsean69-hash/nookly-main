@@ -4,6 +4,13 @@ import { Query } from "react-native-appwrite";
 
 const COLORS = ["#3B82F6", "#10B981", "#8B5CF6", "#F59E0B", "#EF4444", "#6366F1"];
 
+export interface PopularLocation {
+  id: string;
+  name: string;
+  propertyCount: number;
+  color: string;
+}
+
 function extractCity(address: string): string {
   if (!address) return "Other";
   const parts = address.split(",").map(p => p.trim()).filter(Boolean);
@@ -13,7 +20,7 @@ function extractCity(address: string): string {
 }
 
 export const locationService = {
-  async getPopularLocations(limit = 4) {
+  async getPopularLocations(limit = 4): Promise<PopularLocation[]> {
     const res = await databases.listDocuments(
       config.databaseId!,
       config.propertiesCollectionId!,

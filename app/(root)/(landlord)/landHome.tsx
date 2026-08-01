@@ -62,6 +62,7 @@ export default function LandLordHome() {
   const params = useLocalSearchParams<{ filter?: string; refresh?: string }>();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
+  const displayName = user?.name?.trim() || "Landlord";
 
   const { loadNotifications, fetchAppwriteUnreadCount, totalUnreadCount } =
     useNotificationStore();
@@ -310,9 +311,9 @@ export default function LandLordHome() {
                 numberOfLines={1}
                 ellipsizeMode="tail"
               >
-                {user?.name?.length > 20
-                  ? `${user.name.substring(0, 18)}...`
-                  : user?.name || "Landlord"}
+                {displayName.length > 20
+                  ? `${displayName.substring(0, 18)}...`
+                  : displayName}
               </Text>
             </View>
           </View>
@@ -538,7 +539,7 @@ export default function LandLordHome() {
                   Properties you've listed
                 </Text>
               </View>
-              {myProperties?.length > 0 && (
+              {(myProperties?.length ?? 0) > 0 && (
                 <TouchableOpacity onPress={() => router.push("/myDashboard")}>
                   <Text className="text-sm font-rubik-medium text-primary-300">
                     View All

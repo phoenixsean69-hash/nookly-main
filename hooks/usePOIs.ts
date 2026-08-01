@@ -16,18 +16,21 @@ interface UsePOIsResult {
   clearCache: () => void;
 }
 
-const hasValidCoordinates = (
-  latitude?: number | null,
-  longitude?: number | null,
-): latitude is number =>
-  typeof latitude === "number" &&
-  Number.isFinite(latitude) &&
-  latitude >= -90 &&
-  latitude <= 90 &&
-  typeof longitude === "number" &&
-  Number.isFinite(longitude) &&
-  longitude >= -180 &&
-  longitude <= 180;
+const isValidLatitude = (
+  value?: number | null,
+): value is number =>
+  typeof value === "number" &&
+  Number.isFinite(value) &&
+  value >= -90 &&
+  value <= 90;
+
+const isValidLongitude = (
+  value?: number | null,
+): value is number =>
+  typeof value === "number" &&
+  Number.isFinite(value) &&
+  value >= -180 &&
+  value <= 180;
 
 export const usePOIs = (
   latitude?: number | null,
@@ -47,7 +50,10 @@ export const usePOIs = (
     async (radiusOverride?: number, forceRefresh = false) => {
       const requestId = ++requestIdRef.current;
 
-      if (!hasValidCoordinates(latitude, longitude)) {
+      if (
+        !isValidLatitude(latitude) ||
+        !isValidLongitude(longitude)
+      ) {
         setPois([]);
         setAmenities(null);
         setError(null);
@@ -55,6 +61,8 @@ export const usePOIs = (
         return;
       }
 
+      const resolvedLatitude = latitude;
+      const resolvedLongitude = longitude;
       const requestedRadius = radiusOverride ?? radiusKm;
       const requestedCategories = categoryKey ? categoryKey.split("|") : undefined;
 
@@ -63,8 +71,8 @@ export const usePOIs = (
 
       try {
         const fetchedPOIs = await getPOIs(
-          latitude,
-          longitude,
+          resolvedLatitude,
+          resolvedLongitude,
           requestedRadius,
           requestedCategories,
           forceRefresh,
@@ -76,8 +84,8 @@ export const usePOIs = (
         setAmenities(
           calculatePropertyAmenities(
             fetchedPOIs,
-            latitude,
-            longitude,
+            resolvedLatitude,
+            resolvedLongitude,
             requestedRadius,
           ),
         );

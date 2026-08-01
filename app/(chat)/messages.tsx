@@ -71,7 +71,7 @@ const Messages = () => {
           id: "1",
           userId: "user1",
           userName: "John Doe",
-          userAvatar: images.human2,
+          userAvatar: images.human1,
           lastMessage: "Hey, is the property still available?",
           lastMessageTime: new Date(Date.now() - 1000 * 60 * 30),
           unreadCount: 2,
