@@ -28,8 +28,9 @@ export default function DriverActiveRideScreen() {
   const [statusLoading, setStatusLoading] = useState(false);
   const [sharingLocation, setSharingLocation] = useState(false);
   const [lastLocationAt, setLastLocationAt] = useState<string | null>(null);
-  const locationSubscription =
-    useRef<Location.LocationSubscription | null>(null);
+  const locationSubscription = useRef<Location.LocationSubscription | null>(
+    null,
+  );
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -81,10 +82,7 @@ export default function DriverActiveRideScreen() {
     setStatusLoading(true);
 
     try {
-      const updatedRide = await updateDriverRideStatus(
-        activeRide.$id,
-        status,
-      );
+      const updatedRide = await updateDriverRideStatus(activeRide.$id, status);
 
       setDashboard((current) =>
         current
@@ -148,8 +146,7 @@ export default function DriverActiveRideScreen() {
               longitude: position.coords.longitude,
               heading: position.coords.heading,
               speedKph:
-                position.coords.speed !== null &&
-                position.coords.speed >= 0
+                position.coords.speed !== null && position.coords.speed >= 0
                   ? position.coords.speed * 3.6
                   : null,
               accuracyMeters: position.coords.accuracy,
@@ -303,12 +300,8 @@ export default function DriverActiveRideScreen() {
             <View
               className="mt-5 rounded-2xl border p-5"
               style={{
-                backgroundColor: sharingLocation
-                  ? "#ECFDF5"
-                  : theme.surface,
-                borderColor: sharingLocation
-                  ? "#16A34A40"
-                  : `${theme.muted}25`,
+                backgroundColor: sharingLocation ? "#ECFDF5" : theme.surface,
+                borderColor: sharingLocation ? "#84848240" : `${theme.muted}25`,
               }}
             >
               <View className="flex-row items-center">
@@ -319,7 +312,7 @@ export default function DriverActiveRideScreen() {
                       : "navigate-circle-outline"
                   }
                   size={30}
-                  color={sharingLocation ? "#16A34A" : theme.muted}
+                  color={sharingLocation ? "#848482" : theme.muted}
                 />
                 <View className="ml-3 flex-1">
                   <Text
@@ -387,7 +380,7 @@ export default function DriverActiveRideScreen() {
                   onPress={() => void changeStatus("active")}
                   disabled={statusLoading}
                   className="rounded-2xl py-4"
-                  style={{ backgroundColor: "#16A34A" }}
+                  style={{ backgroundColor: "#848482" }}
                 >
                   <Text className="text-center font-rubik-bold text-white">
                     Start trip

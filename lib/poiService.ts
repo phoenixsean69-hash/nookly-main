@@ -57,14 +57,44 @@ export class POIUnavailableError extends Error {
 
 export const POI_CATEGORIES: readonly POICategory[] = [
   { id: "schools", label: "Schools", icon: "school-outline", color: "#2563EB" },
-  { id: "universities", label: "Universities", icon: "library-outline", color: "#7C3AED" },
-  { id: "hospitals", label: "Health services", icon: "medical-outline", color: "#DC2626" },
+  {
+    id: "universities",
+    label: "Universities",
+    icon: "library-outline",
+    color: "#7C3AED",
+  },
+  {
+    id: "hospitals",
+    label: "Health services",
+    icon: "medical-outline",
+    color: "#DC2626",
+  },
   { id: "shopping", label: "Shopping", icon: "cart-outline", color: "#D97706" },
-  { id: "busTerminals", label: "Public transport", icon: "bus-outline", color: "#059669" },
-  { id: "policeStations", label: "Police", icon: "shield-checkmark-outline", color: "#475569" },
-  { id: "restaurants", label: "Food & restaurants", icon: "restaurant-outline", color: "#EA580C" },
-  { id: "parks", label: "Parks", icon: "leaf-outline", color: "#16A34A" },
-  { id: "fuelStations", label: "Fuel stations", icon: "car-outline", color: "#0891B2" },
+  {
+    id: "busTerminals",
+    label: "Public transport",
+    icon: "bus-outline",
+    color: "#059669",
+  },
+  {
+    id: "policeStations",
+    label: "Police",
+    icon: "shield-checkmark-outline",
+    color: "#475569",
+  },
+  {
+    id: "restaurants",
+    label: "Food & restaurants",
+    icon: "restaurant-outline",
+    color: "#EA580C",
+  },
+  { id: "parks", label: "Parks", icon: "leaf-outline", color: "#848482" },
+  {
+    id: "fuelStations",
+    label: "Fuel stations",
+    icon: "car-outline",
+    color: "#0891B2",
+  },
 ] as const;
 
 const CATEGORY_BY_ID = new Map<POICategoryId, POICategory>(
@@ -227,9 +257,7 @@ const buildOverpassStatements = (
     statements.push(
       `nwr(${around})["public_transport"~"^(platform|station|stop_position)$"];`,
     );
-    statements.push(
-      `nwr(${around})["railway"~"^(station|halt|tram_stop)$"];`,
-    );
+    statements.push(`nwr(${around})["railway"~"^(station|halt|tram_stop)$"];`);
   }
 
   if (selected.has("parks")) {
@@ -413,7 +441,8 @@ const requestPOIs = async (
     } catch (error) {
       const aborted =
         error instanceof Error &&
-        (error.name === "AbortError" || error.message.toLowerCase().includes("abort"));
+        (error.name === "AbortError" ||
+          error.message.toLowerCase().includes("abort"));
       lastMessage = aborted
         ? "The nearby-amenities server took too long to respond."
         : `The nearby-amenities server failed${
@@ -427,7 +456,8 @@ const requestPOIs = async (
   }
 
   if (!attemptedEndpoint) {
-    lastMessage = "Nearby amenities are cooling down after a network timeout. Try again shortly.";
+    lastMessage =
+      "Nearby amenities are cooling down after a network timeout. Try again shortly.";
   }
 
   throw new POIUnavailableError(lastMessage);
@@ -507,7 +537,8 @@ export const calculatePropertyAmenities = (
   const unique = new Map<string, POI>();
 
   for (const poi of pois) {
-    if (!isFiniteNumber(poi.latitude) || !isFiniteNumber(poi.longitude)) continue;
+    if (!isFiniteNumber(poi.latitude) || !isFiniteNumber(poi.longitude))
+      continue;
 
     const distanceKm = calculateDistanceKm(
       latitude,
@@ -551,7 +582,9 @@ export const clearPOICache = (): void => {
 
   void AsyncStorage.getAllKeys()
     .then((keys) => keys.filter((key) => key.startsWith("@nookly:poi:")))
-    .then((keys) => (keys.length > 0 ? AsyncStorage.multiRemove(keys) : undefined))
+    .then((keys) =>
+      keys.length > 0 ? AsyncStorage.multiRemove(keys) : undefined,
+    )
     .catch((error) => {
       console.warn("Unable to clear POI cache:", error);
     });

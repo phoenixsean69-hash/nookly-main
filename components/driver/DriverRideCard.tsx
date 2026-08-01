@@ -18,16 +18,13 @@ interface DriverRideCardProps {
 const STATUS_COLORS: Record<string, string> = {
   scheduled: "#2563EB",
   boarding: "#D97706",
-  active: "#16A34A",
+  active: "#848482",
   delayed: "#DC2626",
   completed: "#64748B",
   cancelled: "#991B1B",
 };
 
-export default function DriverRideCard({
-  ride,
-  onPress,
-}: DriverRideCardProps) {
+export default function DriverRideCard({ ride, onPress }: DriverRideCardProps) {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
   const statusColor = STATUS_COLORS[ride.status] ?? theme.primary[300];
@@ -76,11 +73,7 @@ export default function DriverRideCard({
 
       <View className="mt-4 flex-row flex-wrap gap-3">
         <View className="flex-row items-center">
-          <Ionicons
-            name="calendar-outline"
-            size={16}
-            color={theme.muted}
-          />
+          <Ionicons name="calendar-outline" size={16} color={theme.muted} />
           <Text className="ml-1 text-xs" style={{ color: theme.text }}>
             {formatDriverRideDate(ride.departureTime)}
           </Text>

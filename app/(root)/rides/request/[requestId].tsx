@@ -39,13 +39,15 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "#2563EB",
   quoted: "#D97706",
   confirming: "#7C3AED",
-  confirmed: "#16A34A",
+  confirmed: "#848482",
   cancelled: "#DC2626",
   expired: "#64748B",
 };
 
 const normalizeStatus = (value: string): string =>
-  String(value || "").trim().toLowerCase();
+  String(value || "")
+    .trim()
+    .toLowerCase();
 
 const SummaryRow = ({
   icon,
@@ -128,7 +130,7 @@ const DriverOfferCard = ({
       className="mb-4 rounded-3xl border p-4"
       style={{
         backgroundColor: theme.surface,
-        borderColor: selected ? "#16A34A" : `${theme.muted}22`,
+        borderColor: selected ? "#848482" : `${theme.muted}22`,
         borderWidth: selected ? 2 : 1,
       }}
     >
@@ -317,7 +319,11 @@ const DriverOfferCard = ({
           {accepting ? (
             <ActivityIndicator size="small" color="#FFFFFF" />
           ) : (
-            <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
+            <Ionicons
+              name="checkmark-circle-outline"
+              size={20}
+              color="#FFFFFF"
+            />
           )}
           <Text className="ml-2 font-rubik-bold text-white">
             {accepting ? "Confirming..." : "Choose this driver"}
@@ -352,8 +358,9 @@ export default function StudentRideRequestDetailsScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
 
-  const [details, setDetails] =
-    useState<StudentRideRequestDetails | null>(null);
+  const [details, setDetails] = useState<StudentRideRequestDetails | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [acceptingOfferId, setAcceptingOfferId] = useState("");
@@ -411,7 +418,10 @@ export default function StudentRideRequestDetailsScreen() {
         style={{ backgroundColor: theme.background }}
       >
         <ActivityIndicator size="large" color={theme.primary[300]} />
-        <Text className="mt-3 text-sm font-rubik" style={{ color: theme.muted }}>
+        <Text
+          className="mt-3 text-sm font-rubik"
+          style={{ color: theme.muted }}
+        >
           Loading ride request...
         </Text>
       </View>
@@ -549,8 +559,7 @@ export default function StudentRideRequestDetailsScreen() {
 
   const request = details.request;
   const requestStatus = normalizeStatus(request.status);
-  const statusColor =
-    STATUS_COLORS[requestStatus] ?? theme.primary[300];
+  const statusColor = STATUS_COLORS[requestStatus] ?? theme.primary[300];
   const requestOpen = isMarketplaceRequestOpen(requestStatus);
   const selectedOfferId = request.selectedOfferId || "";
 

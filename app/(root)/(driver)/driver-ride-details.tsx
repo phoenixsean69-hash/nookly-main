@@ -146,11 +146,7 @@ export default function DriverRideDetailsScreen() {
         className="flex-1 items-center justify-center px-6"
         style={{ backgroundColor: theme.background }}
       >
-        <Ionicons
-          name="alert-circle-outline"
-          size={48}
-          color={theme.muted}
-        />
+        <Ionicons name="alert-circle-outline" size={48} color={theme.muted} />
         <Text
           className="mt-4 text-lg font-rubik-bold"
           style={{ color: theme.title }}
@@ -242,20 +238,14 @@ export default function DriverRideDetailsScreen() {
             style={{ borderTopColor: `${theme.muted}20` }}
           >
             <Text style={{ color: theme.muted }}>Vehicle</Text>
-            <Text
-              className="font-rubik-medium"
-              style={{ color: theme.text }}
-            >
+            <Text className="font-rubik-medium" style={{ color: theme.text }}>
               {ride.vehicleRegistration}
             </Text>
           </View>
 
           <View className="mt-3 flex-row justify-between">
             <Text style={{ color: theme.muted }}>Passengers</Text>
-            <Text
-              className="font-rubik-medium"
-              style={{ color: theme.text }}
-            >
+            <Text className="font-rubik-medium" style={{ color: theme.text }}>
               {ride.bookedSeats}/{ride.totalSeats}
             </Text>
           </View>
@@ -382,7 +372,7 @@ export default function DriverRideDetailsScreen() {
               disabled={actionLoading}
               className="rounded-2xl py-4"
               style={{
-                backgroundColor: "#16A34A",
+                backgroundColor: "#848482",
                 opacity: actionLoading ? 0.65 : 1,
               }}
             >
@@ -410,9 +400,7 @@ export default function DriverRideDetailsScreen() {
             </Text>
           </TouchableOpacity>
 
-          {actionLoading && (
-            <ActivityIndicator color={theme.primary[300]} />
-          )}
+          {actionLoading && <ActivityIndicator color={theme.primary[300]} />}
         </View>
       </ScrollView>
     </SafeAreaView>

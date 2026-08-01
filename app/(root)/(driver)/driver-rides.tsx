@@ -30,14 +30,16 @@ type DriverRidesSection = "requests" | "offers" | "trips";
 
 const OFFER_STATUS_COLORS: Record<string, string> = {
   submitted: "#D97706",
-  accepted: "#16A34A",
+  accepted: "#848482",
   declined: "#DC2626",
   withdrawn: "#64748B",
   expired: "#64748B",
 };
 
 const normalizeStatus = (value: string): string =>
-  String(value || "").trim().toLowerCase();
+  String(value || "")
+    .trim()
+    .toLowerCase();
 
 const RequestCard = ({
   request,
@@ -59,10 +61,7 @@ const RequestCard = ({
   >
     <View className="flex-row items-start justify-between">
       <View className="min-w-0 flex-1 pr-3">
-        <Text
-          className="text-xs font-rubik"
-          style={{ color: theme.muted }}
-        >
+        <Text className="text-xs font-rubik" style={{ color: theme.muted }}>
           Student pickup
         </Text>
         <Text
@@ -100,10 +99,7 @@ const RequestCard = ({
         />
       </View>
       <View className="ml-3 min-w-0 flex-1">
-        <Text
-          className="text-xs font-rubik"
-          style={{ color: theme.muted }}
-        >
+        <Text className="text-xs font-rubik" style={{ color: theme.muted }}>
           Destination
         </Text>
         <Text
@@ -119,20 +115,14 @@ const RequestCard = ({
     <View className="flex-row flex-wrap gap-x-4 gap-y-2">
       <View className="flex-row items-center">
         <Ionicons name="time-outline" size={16} color={theme.muted} />
-        <Text
-          className="ml-1 text-xs font-rubik"
-          style={{ color: theme.text }}
-        >
+        <Text className="ml-1 text-xs font-rubik" style={{ color: theme.text }}>
           {formatMarketplaceDateTime(request.requestedDepartureTime)}
         </Text>
       </View>
 
       <View className="flex-row items-center">
         <Ionicons name="car-outline" size={16} color={theme.muted} />
-        <Text
-          className="ml-1 text-xs font-rubik"
-          style={{ color: theme.text }}
-        >
+        <Text className="ml-1 text-xs font-rubik" style={{ color: theme.text }}>
           {request.ridePreference === "requested_shared"
             ? "Shared requested"
             : "Private requested"}
@@ -158,11 +148,7 @@ const RequestCard = ({
         >
           Quote trip
         </Text>
-        <Ionicons
-          name="chevron-forward"
-          size={17}
-          color={theme.primary[300]}
-        />
+        <Ionicons name="chevron-forward" size={17} color={theme.primary[300]} />
       </View>
     </View>
   </TouchableOpacity>
@@ -178,8 +164,7 @@ const OfferCard = ({
   theme: any;
 }) => {
   const status = normalizeStatus(offer.status);
-  const statusColor =
-    OFFER_STATUS_COLORS[status] ?? theme.primary[300];
+  const statusColor = OFFER_STATUS_COLORS[status] ?? theme.primary[300];
   const request = offer.request;
 
   return (
@@ -318,8 +303,7 @@ export default function DriverRidesScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
 
-  const [section, setSection] =
-    useState<DriverRidesSection>("requests");
+  const [section, setSection] = useState<DriverRidesSection>("requests");
   const [requests, setRequests] = useState<RideRequest[]>([]);
   const [offers, setOffers] = useState<RideOffer[]>([]);
   const [trips, setTrips] = useState<DriverRide[]>([]);
@@ -447,9 +431,7 @@ export default function DriverRidesScreen() {
             onPress={() => setSection(item.value)}
             className="flex-1 items-center rounded-xl px-2 py-2.5"
             style={{
-              backgroundColor: selected
-                ? theme.primary[300]
-                : "transparent",
+              backgroundColor: selected ? theme.primary[300] : "transparent",
             }}
           >
             <View className="flex-row items-center">
@@ -507,11 +489,7 @@ export default function DriverRidesScreen() {
           className="h-16 w-16 items-center justify-center rounded-full"
           style={{ backgroundColor: `${theme.primary[300]}12` }}
         >
-          <Ionicons
-            name={content.icon}
-            size={31}
-            color={theme.primary[300]}
-          />
+          <Ionicons name={content.icon} size={31} color={theme.primary[300]} />
         </View>
         <Text
           className="mt-4 text-center text-lg font-rubik-bold"
@@ -530,7 +508,10 @@ export default function DriverRidesScreen() {
   };
 
   const showLoading =
-    loading && requests.length === 0 && offers.length === 0 && trips.length === 0;
+    loading &&
+    requests.length === 0 &&
+    offers.length === 0 &&
+    trips.length === 0;
 
   if (showLoading) {
     return (
@@ -539,7 +520,10 @@ export default function DriverRidesScreen() {
         style={{ backgroundColor: theme.background }}
       >
         <ActivityIndicator size="large" color={theme.primary[300]} />
-        <Text className="mt-3 text-sm font-rubik" style={{ color: theme.muted }}>
+        <Text
+          className="mt-3 text-sm font-rubik"
+          style={{ color: theme.muted }}
+        >
           Loading your Nookly Rides marketplace...
         </Text>
       </View>
@@ -558,7 +542,10 @@ export default function DriverRidesScreen() {
         >
           Driver marketplace
         </Text>
-        <Text className="mt-1 text-sm font-rubik" style={{ color: theme.muted }}>
+        <Text
+          className="mt-1 text-sm font-rubik"
+          style={{ color: theme.muted }}
+        >
           Price student requests, manage offers and run confirmed trips.
         </Text>
       </View>
@@ -646,9 +633,7 @@ export default function DriverRidesScreen() {
             <OfferCard
               offer={item}
               onPress={() =>
-                item.requestId
-                  ? openRequest(item.requestId)
-                  : undefined
+                item.requestId ? openRequest(item.requestId) : undefined
               }
               theme={theme}
             />

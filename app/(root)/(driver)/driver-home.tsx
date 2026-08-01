@@ -61,16 +61,10 @@ export default function DriverHomeScreen() {
     ];
 
     return candidates.find(isDisplayableAvatar) ?? null;
-  }, [
-    dashboard?.profile.avatar,
-    user?.avatar,
-    user?.customAvatar,
-  ]);
+  }, [dashboard?.profile.avatar, user?.avatar, user?.customAvatar]);
 
   const displayName =
-    dashboard?.profile.name?.trim() ||
-    user?.name?.trim() ||
-    "Driver";
+    dashboard?.profile.name?.trim() || user?.name?.trim() || "Driver";
 
   useEffect(() => {
     setAvatarFailed(false);
@@ -291,11 +285,7 @@ export default function DriverHomeScreen() {
                 >
                   {error}
                 </Text>
-                <Ionicons
-                  name="refresh"
-                  size={18}
-                  color={theme.primary[300]}
-                />
+                <Ionicons name="refresh" size={18} color={theme.primary[300]} />
               </TouchableOpacity>
             )}
 
@@ -348,7 +338,7 @@ export default function DriverHomeScreen() {
                 <Ionicons
                   name="checkmark-done-outline"
                   size={22}
-                  color="#16A34A"
+                  color="#848482"
                 />
                 <Text
                   className="mt-3 text-2xl font-rubik-bold"
@@ -421,11 +411,7 @@ export default function DriverHomeScreen() {
                     borderColor: `${theme.muted}40`,
                   }}
                 >
-                  <Ionicons
-                    name="time-outline"
-                    size={34}
-                    color={theme.muted}
-                  />
+                  <Ionicons name="time-outline" size={34} color={theme.muted} />
                   <Text
                     className="mt-3 font-rubik-medium"
                     style={{ color: theme.title }}
@@ -451,9 +437,7 @@ export default function DriverHomeScreen() {
                   Next rides
                 </Text>
 
-                <TouchableOpacity
-                  onPress={() => router.push("/driver-rides")}
-                >
+                <TouchableOpacity onPress={() => router.push("/driver-rides")}>
                   <Text
                     className="font-rubik-medium"
                     style={{ color: theme.primary[300] }}

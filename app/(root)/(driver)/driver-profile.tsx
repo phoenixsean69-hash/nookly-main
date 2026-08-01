@@ -531,7 +531,7 @@ export default function DriverProfileScreen() {
   );
 
   const statusColor = applicationApproved
-    ? "#16A34A"
+    ? "#848482"
     : profile?.verificationStatus === "rejected"
       ? "#DC2626"
       : "#D97706";
@@ -979,7 +979,7 @@ export default function DriverProfileScreen() {
                         className="flex-1 text-right font-rubik-medium"
                         style={{
                           color: retainedDriverLicenceUploaded
-                            ? "#16A34A"
+                            ? "#848482"
                             : theme.muted,
                         }}
                       >
@@ -994,7 +994,7 @@ export default function DriverProfileScreen() {
                         className="flex-1 text-right font-rubik-medium"
                         style={{
                           color: retainedNationalIdUploaded
-                            ? "#16A34A"
+                            ? "#848482"
                             : theme.muted,
                         }}
                       >
@@ -1264,7 +1264,7 @@ export default function DriverProfileScreen() {
                       className="mt-1 text-sm font-rubik-medium"
                       style={{
                         color:
-                          vehicle?.status === "active" ? "#16A34A" : "#D97706",
+                          vehicle?.status === "active" ? "#848482" : "#D97706",
                       }}
                     >
                       {vehicle

@@ -128,7 +128,7 @@ export default function DriverDocumentUpload({
           <Ionicons
             name={hasDocument ? "checkmark-circle" : "chevron-forward"}
             size={23}
-            color={hasDocument ? "#16A34A" : theme.muted}
+            color={hasDocument ? "#848482" : theme.muted}
           />
         )}
       </TouchableOpacity>

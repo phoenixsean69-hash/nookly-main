@@ -35,9 +35,9 @@ const ProfileVisibleModal: React.FC<ProfileVisibleModalProps> = ({
         >
           <View
             className="w-16 h-16 rounded-full items-center justify-center mb-4 self-center"
-            style={{ backgroundColor: "#16A34A20" }}
+            style={{ backgroundColor: "#84848220" }}
           >
-            <Ionicons name="eye" size={40} color="#16A34A" />
+            <Ionicons name="eye" size={40} color="#848482" />
           </View>
 
           <Text
@@ -57,7 +57,7 @@ const ProfileVisibleModal: React.FC<ProfileVisibleModalProps> = ({
           <TouchableOpacity
             onPress={onClose}
             className="py-3 rounded-xl"
-            style={{ backgroundColor: "#16A34A" }}
+            style={{ backgroundColor: "#848482" }}
           >
             <Text className="text-white text-center font-rubik-medium">
               Start Matching

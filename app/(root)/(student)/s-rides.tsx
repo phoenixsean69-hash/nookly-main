@@ -34,7 +34,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "#2563EB",
   quoted: "#D97706",
   confirming: "#7C3AED",
-  confirmed: "#16A34A",
+  confirmed: "#848482",
   cancelled: "#DC2626",
   expired: "#64748B",
 };
@@ -47,7 +47,9 @@ const titleCase = (value: string): string =>
     .join(" ");
 
 const normalizeStatus = (value: string): string =>
-  String(value || "").trim().toLowerCase();
+  String(value || "")
+    .trim()
+    .toLowerCase();
 
 const RideRequestCard = ({
   request,
@@ -74,10 +76,7 @@ const RideRequestCard = ({
     >
       <View className="flex-row items-start justify-between">
         <View className="min-w-0 flex-1 pr-3">
-          <Text
-            className="text-xs font-rubik"
-            style={{ color: theme.muted }}
-          >
+          <Text className="text-xs font-rubik" style={{ color: theme.muted }}>
             Pickup
           </Text>
           <Text
@@ -115,10 +114,7 @@ const RideRequestCard = ({
         </View>
 
         <View className="ml-3 min-w-0 flex-1">
-          <Text
-            className="text-xs font-rubik"
-            style={{ color: theme.muted }}
-          >
+          <Text className="text-xs font-rubik" style={{ color: theme.muted }}>
             Destination
           </Text>
           <Text
@@ -133,11 +129,7 @@ const RideRequestCard = ({
 
       <View className="flex-row flex-wrap items-center gap-x-4 gap-y-2">
         <View className="flex-row items-center">
-          <Ionicons
-            name="time-outline"
-            size={16}
-            color={theme.muted}
-          />
+          <Ionicons name="time-outline" size={16} color={theme.muted} />
           <Text
             className="ml-1 text-xs font-rubik"
             style={{ color: theme.text }}
@@ -147,11 +139,7 @@ const RideRequestCard = ({
         </View>
 
         <View className="flex-row items-center">
-          <Ionicons
-            name="people-outline"
-            size={16}
-            color={theme.muted}
-          />
+          <Ionicons name="people-outline" size={16} color={theme.muted} />
           <Text
             className="ml-1 text-xs font-rubik"
             style={{ color: theme.text }}
@@ -285,8 +273,8 @@ export default function StudentRidesScreen() {
               Go where you need to go
             </Text>
             <Text className="mt-1 text-sm font-rubik text-white/85">
-              Request transport, compare verified driver offers and confirm
-              the one that works for you.
+              Request transport, compare verified driver offers and confirm the
+              one that works for you.
             </Text>
           </View>
         </View>
@@ -364,9 +352,7 @@ export default function StudentRidesScreen() {
               onPress={() => setFilter(item)}
               className="flex-1 rounded-xl px-4 py-2.5"
               style={{
-                backgroundColor: selected
-                  ? theme.primary[300]
-                  : "transparent",
+                backgroundColor: selected ? theme.primary[300] : "transparent",
               }}
             >
               <Text
@@ -415,7 +401,10 @@ export default function StudentRidesScreen() {
       return (
         <View className="items-center justify-center py-16">
           <ActivityIndicator size="large" color={theme.primary[300]} />
-          <Text className="mt-3 text-sm font-rubik" style={{ color: theme.muted }}>
+          <Text
+            className="mt-3 text-sm font-rubik"
+            style={{ color: theme.muted }}
+          >
             Loading your ride requests...
           </Text>
         </View>

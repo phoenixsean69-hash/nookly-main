@@ -128,7 +128,7 @@ export default function DriverVehicleImageUpload({
           <Ionicons
             name={hasImage ? "checkmark-circle" : "chevron-forward"}
             size={23}
-            color={hasImage ? "#16A34A" : theme.muted}
+            color={hasImage ? "#848482" : theme.muted}
           />
         )}
       </TouchableOpacity>

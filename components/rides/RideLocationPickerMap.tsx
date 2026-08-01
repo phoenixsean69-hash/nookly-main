@@ -247,7 +247,7 @@ const buildMapHtml = ({
         justify-content: center;
         border: 3px solid #ffffff;
         border-radius: 50%;
-        background: #16a34a;
+        background: #848482;
         box-shadow: 0 3px 12px rgba(15, 23, 42, 0.38);
         color: #ffffff;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -442,7 +442,7 @@ const buildMapHtml = ({
         };
 
         const routeColor = () =>
-          currentRouteMode === "walk" ? "#16a34a" : "#2563eb";
+          currentRouteMode === "walk" ? "#848482" : "#2563eb";
 
         const ensureRouteLayers = () => {
           if (!currentRouteFeature || !map.isStyleLoaded()) return;
@@ -1192,11 +1192,7 @@ const RideLocationPickerMap = forwardRef<
 
     if (modalReady) {
       const focusDriverId = pendingFocusDriverIdRef.current;
-      injectNearbyDrivers(
-        modalWebViewRef,
-        nearbyDrivers,
-        focusDriverId,
-      );
+      injectNearbyDrivers(modalWebViewRef, nearbyDrivers, focusDriverId);
       pendingFocusDriverIdRef.current = null;
     }
   }, [inlineReady, modalReady, nearbyDrivers]);
@@ -1493,8 +1489,7 @@ const RideLocationPickerMap = forwardRef<
   ]);
 
   const openFullScreenMap = (focusNearbyDriverId?: string) => {
-    pendingFocusDriverIdRef.current =
-      focusNearbyDriverId?.trim() || null;
+    pendingFocusDriverIdRef.current = focusNearbyDriverId?.trim() || null;
     setModalReady(false);
     setModalError("");
     setSearchResults([]);
@@ -1528,10 +1523,7 @@ const RideLocationPickerMap = forwardRef<
     if (!normalizedDriverId) return;
 
     if (modalReady) {
-      focusInjectedNearbyDriver(
-        modalWebViewRef,
-        normalizedDriverId,
-      );
+      focusInjectedNearbyDriver(modalWebViewRef, normalizedDriverId);
       return;
     }
 
@@ -1578,10 +1570,7 @@ const RideLocationPickerMap = forwardRef<
         return;
       }
 
-      if (
-        payload.type === "nearby-driver-selected" &&
-        payload.driverId
-      ) {
+      if (payload.type === "nearby-driver-selected" && payload.driverId) {
         onNearbyDriverPress?.(String(payload.driverId));
         return;
       }

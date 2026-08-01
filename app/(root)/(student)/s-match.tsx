@@ -1459,8 +1459,8 @@ const Match = () => {
                 activeOpacity={0.8}
                 className="px-4 py-3 rounded-2xl flex-row items-center"
                 style={{
-                  backgroundColor: isActive ? "#16A34A" : "#9CA3AF",
-                  shadowColor: isActive ? "#16A34A" : "#9CA3AF",
+                  backgroundColor: isActive ? "#848482" : "#9CA3AF",
+                  shadowColor: isActive ? "#848482" : "#9CA3AF",
                   shadowOffset: { width: 0, height: 4 },
                   shadowOpacity: 0.25,
                   shadowRadius: 8,
@@ -1499,7 +1499,7 @@ const Match = () => {
               <View
                 className="w-2 h-2 rounded-full mr-2"
                 style={{
-                  backgroundColor: isActive ? "#16A34A" : "#9CA3AF",
+                  backgroundColor: isActive ? "#848482" : "#9CA3AF",
                 }}
               />
 
