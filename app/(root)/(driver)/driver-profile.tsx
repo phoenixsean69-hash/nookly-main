@@ -1,6 +1,7 @@
 import CustomInput from "@/components/CustomInput";
 import DriverDocumentUpload from "@/components/driver/DriverDocumentUpload";
 import DriverVehicleImageUpload from "@/components/driver/DriverVehicleImageUpload";
+import DriverStoredFilePreview from "@/components/driver/DriverStoredFilePreview";
 import DriverOrganizationPicker from "@/components/driver/DriverOrganizationPicker";
 import { Colors } from "@/constants/Colors";
 import {
@@ -474,11 +475,15 @@ export default function DriverProfileScreen() {
 
   const retainedInstitutionName =
     institution?.organizationName || form.institutionName || "Not linked";
+  const retainedDriverLicenceFileId =
+    profile?.driverLicenceFileId || form.driverLicenceFileId || "";
+  const retainedNationalIdFileId =
+    profile?.nationalIdFileId || form.nationalIdFileId || "";
   const retainedDriverLicenceUploaded = Boolean(
-    profile?.driverLicenceFileId || form.driverLicenceFileId,
+    retainedDriverLicenceFileId.trim(),
   );
   const retainedNationalIdUploaded = Boolean(
-    profile?.nationalIdFileId || form.nationalIdFileId,
+    retainedNationalIdFileId.trim(),
   );
   const retainedDocumentsSubmittedAt = profile?.documentsSubmittedAt || "";
   const retainedEmergencyName =
@@ -502,15 +507,25 @@ export default function DriverProfileScreen() {
     (form.vehicleCapacity ? Number(form.vehicleCapacity) : 0);
   const retainedVehicleType =
     vehicle?.vehicleType || form.vehicleType || "Car";
+  const retainedFrontImageFileId =
+    vehicle?.frontImageFileId || form.frontImageFileId || "";
+  const retainedSideImageFileId =
+    vehicle?.sideImageFileId || form.sideImageFileId || "";
+  const retainedBackImageFileId =
+    vehicle?.backImageFileId || form.backImageFileId || "";
   const retainedFrontImageUploaded = Boolean(
-    vehicle?.frontImageFileId || form.frontImageFileId,
+    retainedFrontImageFileId.trim(),
   );
   const retainedSideImageUploaded = Boolean(
-    vehicle?.sideImageFileId || form.sideImageFileId,
+    retainedSideImageFileId.trim(),
   );
   const retainedBackImageUploaded = Boolean(
-    vehicle?.backImageFileId || form.backImageFileId,
+    retainedBackImageFileId.trim(),
   );
+  const anyVehicleImageUploaded =
+    retainedFrontImageUploaded ||
+    retainedSideImageUploaded ||
+    retainedBackImageUploaded;
   const allVehicleImagesUploaded =
     retainedFrontImageUploaded &&
     retainedSideImageUploaded &&
@@ -1022,6 +1037,44 @@ export default function DriverProfileScreen() {
                         {formatProfileDate(retainedDocumentsSubmittedAt)}
                       </Text>
                     </View>
+
+                    {(retainedDriverLicenceUploaded ||
+                      retainedNationalIdUploaded) && (
+                      <View className="mt-2">
+                        <Text
+                          className="mb-3 text-sm font-rubik-bold"
+                          style={{ color: theme.title }}
+                        >
+                          Uploaded documents
+                        </Text>
+
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={{ paddingRight: 4 }}
+                        >
+                          {retainedDriverLicenceUploaded && (
+                            <View style={{ width: 235, marginRight: 12 }}>
+                              <DriverStoredFilePreview
+                                label="Driver's licence"
+                                fileId={retainedDriverLicenceFileId}
+                                description="Tap to view the uploaded licence."
+                              />
+                            </View>
+                          )}
+
+                          {retainedNationalIdUploaded && (
+                            <View style={{ width: 235, marginRight: 12 }}>
+                              <DriverStoredFilePreview
+                                label="National ID"
+                                fileId={retainedNationalIdFileId}
+                                description="Tap to view the uploaded ID."
+                              />
+                            </View>
+                          )}
+                        </ScrollView>
+                      </View>
+                    )}
                     <View className="flex-row justify-between gap-4">
                       <Text style={{ color: theme.muted }}>Emergency contact</Text>
                       <Text
@@ -1168,6 +1221,53 @@ export default function DriverProfileScreen() {
                         >
                           {formatProfileDate(retainedVehicleImagesSubmittedAt)}
                         </Text>
+                      </View>
+                    )}
+
+                    {anyVehicleImageUploaded && (
+                      <View className="mt-2">
+                        <Text
+                          className="mb-3 text-sm font-rubik-bold"
+                          style={{ color: theme.title }}
+                        >
+                          Vehicle image gallery
+                        </Text>
+
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={{ paddingRight: 4 }}
+                        >
+                          {retainedFrontImageUploaded && (
+                            <View style={{ width: 235, marginRight: 12 }}>
+                              <DriverStoredFilePreview
+                                label="Front view"
+                                fileId={retainedFrontImageFileId}
+                                description="Tap to open the full front image."
+                              />
+                            </View>
+                          )}
+
+                          {retainedSideImageUploaded && (
+                            <View style={{ width: 235, marginRight: 12 }}>
+                              <DriverStoredFilePreview
+                                label="Side view"
+                                fileId={retainedSideImageFileId}
+                                description="Tap to open the full side image."
+                              />
+                            </View>
+                          )}
+
+                          {retainedBackImageUploaded && (
+                            <View style={{ width: 235, marginRight: 12 }}>
+                              <DriverStoredFilePreview
+                                label="Back view"
+                                fileId={retainedBackImageFileId}
+                                description="Tap to open the full back image."
+                              />
+                            </View>
+                          )}
+                        </ScrollView>
                       </View>
                     )}
 

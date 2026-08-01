@@ -46,6 +46,29 @@ const DRIVER_DOCUMENT_MIME_TYPES = [
 ];
 const DRIVER_VEHICLE_IMAGE_MIME_TYPES = ["image/jpeg", "image/png"];
 
+
+export function getDriverStoredFileUrl(fileId: string): string {
+  const normalizedFileId = fileId.trim();
+
+  if (
+    !normalizedFileId ||
+    !config.endpoint ||
+    !config.projectId ||
+    !config.bucketId
+  ) {
+    return "";
+  }
+
+  const endpoint = config.endpoint.replace(/\/+$/, "");
+
+  return `${endpoint}/storage/buckets/${encodeURIComponent(
+    config.bucketId,
+  )}/files/${encodeURIComponent(
+    normalizedFileId,
+  )}/view?project=${encodeURIComponent(config.projectId)}`;
+}
+
+
 const mimeTypeFromName = (fileName: string): string => {
   const extension = fileName.split(".").pop()?.toLowerCase();
 
