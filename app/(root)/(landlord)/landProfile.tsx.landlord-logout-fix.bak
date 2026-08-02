@@ -4,6 +4,7 @@ import {
   getSavedAvatar,
   saveSelectedAvatar,
 } from "@/utils/avatarStorage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -26,7 +27,7 @@ import AvatarSuccessModal from "@/components/AvatarSuccessModal";
 import { Colors } from "@/constants/Colors";
 import { getAvatarSource } from "@/constants/data";
 import icons from "@/constants/icons";
-import { config, databases, uploadImage } from "@/lib/appwrite";
+import { config, databases, logout, uploadImage } from "@/lib/appwrite";
 import {
   mergeProfilePageCache,
   peekProfilePageCache,
@@ -59,7 +60,7 @@ const LANDLORD_PROFILE_CACHE_KEY =
   "landlord-profile";
 
 const LandLordProfile = () => {
-  const { user, fetchAuthenticatedUser, signOut } = useAuthStore();
+  const { user, fetchAuthenticatedUser } = useAuthStore();
   const accountId = user?.accountId || "";
   const initialProfileSnapshot =
     peekProfilePageCache<LandlordProfilePageSnapshot>(
@@ -280,54 +281,43 @@ const LandLordProfile = () => {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to logout?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            setLogoutLoading(true);
+  const handleLogout = async () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          setLogoutLoading(true);
+          try {
+            // Clear local avatar storage
+            await clearSavedAvatar();
 
-            try {
-              // Prevent a locally selected avatar from leaking into
-              // another account on the same device.
-              await clearSavedAvatar();
+            // Clear local storage data
+            await AsyncStorage.multiRemove([
+              "user_applications",
+              "user_viewed_properties",
+              "user_likes_given",
+              "user_reviews",
+            ]);
 
-              const result = await signOut();
+            // Use the logout function from appwrite
+            const result = await logout();
 
-              if (!result.success) {
-                throw new Error(
-                  result.error || "Failed to logout",
-                );
-              }
-
+            if (result.success) {
               router.replace("/sign-in");
-            } catch (error) {
-              console.error(
-                "Landlord logout error:",
-                error,
-              );
-
-              Alert.alert(
-                "Error",
-                error instanceof Error
-                  ? error.message
-                  : "Failed to logout. Please try again.",
-              );
-            } finally {
-              setLogoutLoading(false);
+            } else {
+              Alert.alert("Error", "Failed to logout");
             }
-          },
+          } catch (error) {
+            console.error("Logout error:", error);
+            Alert.alert("Error", "Failed to logout. Please try again.");
+          } finally {
+            setLogoutLoading(false);
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const profileOptions = [

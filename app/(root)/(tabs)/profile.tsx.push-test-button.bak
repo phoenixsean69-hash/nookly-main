@@ -1,6 +1,5 @@
 // app/(root)/profile.tsx (Tenant Profile - Using Local Storage)
 import AvatarSuccessModal from "@/components/AvatarSuccessModal";
-import StudentProfileHighlights from "@/components/StudentProfileHighlights";
 import icons from "@/constants/icons";
 import {
   config,
@@ -16,7 +15,6 @@ import {
   peekProfilePageCache,
   readProfilePageCache,
 } from "@/lib/profilePageCache";
-import pushFunctionService from "@/services/push-function.service";
 import useAuthStore from "@/store/auth.store";
 import { clearSavedAvatar } from "@/utils/avatarStorage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -78,7 +76,7 @@ const EMPTY_TENANT_STATS: TenantStats = {
   viewedProperties: 0,
 };
 
-const PROFILE_PAGE_CACHE_KEY = "student-profile";
+const PROFILE_PAGE_CACHE_KEY = "tenant-profile";
 
 const Profile = () => {
   const { signOut, setUser } = useAuthStore();
@@ -92,7 +90,6 @@ const Profile = () => {
 
   const [showSuccess, setShowSuccess] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
-  const [testingPush, setTestingPush] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [stats, setStats] = useState<TenantStats>(
     () =>
@@ -306,61 +303,6 @@ const Profile = () => {
     }
   };
 
-  const handleTestPush = async () => {
-    if (!user?.accountId) {
-      Alert.alert(
-        "Push Test",
-        "No authenticated student account is available.",
-      );
-      return;
-    }
-
-    setTestingPush(true);
-
-    try {
-      const result =
-        await pushFunctionService.testCurrentUser();
-
-      const requested = Number(
-        result.requested ?? 0,
-      );
-      const accepted = Number(
-        result.accepted ?? 0,
-      );
-      const failed = Number(
-        result.failed ?? 0,
-      );
-
-      if (accepted > 0) {
-        Alert.alert(
-          "Test Push Accepted",
-          `Expo accepted ${accepted} of ${requested || accepted} push ticket(s). Failed: ${failed}. Watch this device for the notification.`,
-        );
-        return;
-      }
-
-      Alert.alert(
-        "Test Push Failed",
-        result.message ||
-          `No push ticket was accepted. Requested: ${requested}. Failed: ${failed}.`,
-      );
-    } catch (error) {
-      console.error(
-        "Student test push error:",
-        error,
-      );
-
-      Alert.alert(
-        "Test Push Error",
-        error instanceof Error
-          ? error.message
-          : "Could not send the student test push.",
-      );
-    } finally {
-      setTestingPush(false);
-    }
-  };
-
   // Logout
   const handleLogout = async () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
@@ -406,31 +348,31 @@ const Profile = () => {
     {
       icon: icons.heart,
       label: "My Favorites",
-      route: "/s-my-favorites",
+      route: "/my-favorites",
       color: "#EF4444",
     },
     {
       icon: icons.chat,
       label: "Nookly Assistant",
-      route: "/s-message",
+      route: "/message",
       color: "#10B981",
     },
     {
       icon: icons.calendar,
       label: "Calendar",
-      route: "/s-calendar",
+      route: "/calendar",
       color: "#F59E0B",
     },
     {
       icon: icons.settings,
       label: "Settings",
-      route: "/s-settings",
+      route: "/settings",
       color: "#6B7280",
     },
     {
       icon: icons.info,
       label: "Help Center",
-      route: "/s-help",
+      route: "/help",
       color: "#6B7280",
     },
   ];
@@ -466,7 +408,7 @@ const Profile = () => {
             My Profile
           </Text>
           <TouchableOpacity
-            onPress={() => router.push("/s-notifications")}
+            onPress={() => router.push("/notifications")}
             className="p-2 rounded-full"
             style={{ backgroundColor: theme.surface }}
           >
@@ -541,19 +483,11 @@ const Profile = () => {
                 className="text-xs font-rubik-medium"
                 style={{ color: theme.primary[300] }}
               >
-                Student
+                Tenant
               </Text>
             </View>
           </View>
         </View>
-
-        <StudentProfileHighlights
-          user={user}
-          favorites={stats.totalFavorites}
-          applications={stats.totalApplications}
-          viewed={stats.viewedProperties}
-          loading={loadingStats}
-        />
 
         {/* ✅ Tenant Score Section - INTEGERS ONLY */}
         {(user?.userMode === "tenant" || user?.userMode === "student") && (
@@ -570,7 +504,7 @@ const Profile = () => {
                 className="text-lg font-rubik-bold"
                 style={{ color: theme.title }}
               >
-                🛡️ Student Rental Score
+                🛡️ Tenant Score
               </Text>
               {!loadingScore && tenantScore && (
                 <View
@@ -734,14 +668,13 @@ const Profile = () => {
             ) : (
               <View className="py-4 items-center">
                 <Text className="text-sm" style={{ color: theme.muted }}>
-                  No rental score available yet
+                  No tenant score available yet
                 </Text>
                 <Text
                   className="text-xs mt-1"
                   style={{ color: theme.muted + "80" }}
                 >
-                  Complete rentals and receive reviews to build your student
-                  rental reputation
+                  Start renting to build your reputation
                 </Text>
               </View>
             )}
@@ -761,7 +694,7 @@ const Profile = () => {
             className="text-lg font-rubik-bold mb-3"
             style={{ color: theme.title }}
           >
-            My Student Housing Activity
+            My Activity
           </Text>
 
           {loadingStats ? (
@@ -880,50 +813,6 @@ const Profile = () => {
             </TouchableOpacity>
           ))}
         </View>
-
-        {/* Student Push Delivery Test */}
-        <TouchableOpacity
-          onPress={handleTestPush}
-          disabled={testingPush}
-          className="flex-row items-center justify-center mb-4 py-4 rounded-2xl"
-          style={{
-            backgroundColor:
-              theme.primary[300] + "18",
-            borderWidth: 1,
-            borderColor:
-              theme.primary[300] + "55",
-            opacity: testingPush ? 0.7 : 1,
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Send student test push notification"
-        >
-          {testingPush ? (
-            <ActivityIndicator
-              size="small"
-              color={theme.primary[300]}
-            />
-          ) : (
-            <>
-              <Image
-                source={icons.bell}
-                className="w-5 h-5 mr-2"
-                style={{
-                  tintColor:
-                    theme.primary[300],
-                }}
-              />
-              <Text
-                className="font-rubik-medium"
-                style={{
-                  color:
-                    theme.primary[300],
-                }}
-              >
-                Send Test Push
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
 
         {/* Logout Button */}
         <TouchableOpacity

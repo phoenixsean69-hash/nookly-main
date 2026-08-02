@@ -3,15 +3,6 @@ const { withNativeWind } = require("nativewind/metro");
 
 const config = getDefaultConfig(__dirname);
 
-/**
- * expo-sqlite uses a WebAssembly database engine on web.
- * Metro does not resolve .wasm files unless the extension is
- * explicitly registered as an asset.
- */
-if (!config.resolver.assetExts.includes("wasm")) {
-  config.resolver.assetExts.push("wasm");
-}
-
 // react-native-appwrite (up to and including v0.34.0) uses the legacy
 // expo-file-system API (readAsStringAsync, EncodingType.Base64, etc.) for
 // chunked uploads of files larger than 5MB. In expo-file-system v19 (Expo

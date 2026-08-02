@@ -1,6 +1,7 @@
 import { warmPersistentQueryCache } from "@/lib/persistentQueryCache";
 ﻿import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
 import { ID, Query } from "react-native-appwrite";
 import { create } from "zustand";
 
@@ -11,10 +12,6 @@ import {
   getDefaultAvatarUrl,
 } from "@/lib/appwrite";
 import { getData, removeData, storeData } from "@/lib/cache";
-import {
-  deleteSecureValue,
-  setSecureValue,
-} from "@/lib/secureStorage";
 import { clearPersistentQueryCache } from "@/lib/persistentQueryCache";
 import {
   clearProfilePageCache,
@@ -495,7 +492,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       await removeData("organization");
       await removeData("last_sync");
 
-      await deleteSecureValue(STORAGE_KEYS.AUTH_TOKEN);
+      await SecureStore.deleteItemAsync(STORAGE_KEYS.AUTH_TOKEN);
 
       if (accountId) {
         await Promise.all([
@@ -635,7 +632,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
-      await setSecureValue(
+      await SecureStore.setItemAsync(
         STORAGE_KEYS.AUTH_TOKEN,
         currentAccount.$id,
       );
@@ -756,7 +753,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
-      await setSecureValue(
+      await SecureStore.setItemAsync(
         STORAGE_KEYS.AUTH_TOKEN,
         currentAccount.$id,
       );
@@ -888,7 +885,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       const user = normalizeUserRecord(userDocument as unknown as User);
 
-      await setSecureValue(
+      await SecureStore.setItemAsync(
         STORAGE_KEYS.AUTH_TOKEN,
         newAccount.$id,
       );
