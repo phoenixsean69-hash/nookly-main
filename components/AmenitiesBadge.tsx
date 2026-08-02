@@ -54,6 +54,8 @@ interface AmenityCategoryItem {
   places: POI[];
 }
 
+const MAX_DISPLAY_DISTANCE_KM = 2;
+
 const CATEGORY_ICONS: Record<POICategoryId, ImageSourcePropType> = {
   schools: icons.openBook,
   universities: icons.mortarboard,
@@ -139,20 +141,33 @@ export const AmenitiesBadge = ({
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
 
-  const allPOIs = pois.length > 0 ? pois : amenities?.nearbyPOIs ?? [];
+  const allPOIs = useMemo(
+    () =>
+      (pois.length > 0 ? pois : amenities?.nearbyPOIs ?? [])
+        .filter(
+          (poi) =>
+            Number.isFinite(poi.distanceKm) &&
+            poi.distanceKm <= MAX_DISPLAY_DISTANCE_KM,
+        )
+        .sort((first, second) => first.distanceKm - second.distanceKm),
+    [amenities, pois],
+  );
+
+  const filteredTotal = allPOIs.length;
+  const filteredNearestDistanceKm = allPOIs[0]?.distanceKm ?? null;
 
   const categories = useMemo<AmenityCategoryItem[]>(() => {
     if (!amenities) return [];
 
     return POI_CATEGORIES.map((category) => {
-      const places = allPOIs
-        .filter((poi) => poi.categoryId === category.id)
-        .sort((first, second) => first.distanceKm - second.distanceKm);
+      const places = allPOIs.filter(
+        (poi) => poi.categoryId === category.id,
+      );
 
       return {
         key: category.id,
         label: category.label,
-        count: places.length || amenities.byCategory[category.id] || 0,
+        count: places.length,
         icon: CATEGORY_ICONS[category.id],
         color: category.color,
         places,
@@ -290,7 +305,7 @@ export const AmenitiesBadge = ({
 
   if (!amenities) return null;
 
-  if (amenities.total === 0) {
+  if (filteredTotal === 0) {
     return (
       <View
         className="flex-row items-center rounded-xl px-3 py-3"
@@ -302,7 +317,7 @@ export const AmenitiesBadge = ({
           color={theme.muted}
         />
         <Text className="ml-2 flex-1 text-xs" style={{ color: theme.muted }}>
-          No mapped amenities were found near this property.
+          No mapped amenities were found within 2 km of this property.
         </Text>
       </View>
     );
@@ -370,7 +385,7 @@ export const AmenitiesBadge = ({
                 className="font-rubik-bold text-base"
                 style={{ color: theme.title }}
               >
-                Nearby amenities
+                Nearby amenities within 2 km
               </Text>
               <Text className="text-[11px]" style={{ color: theme.muted }}>
                 Tap a category to view places and routes
@@ -385,7 +400,7 @@ export const AmenitiesBadge = ({
               className="text-xs font-rubik-bold"
               style={{ color: theme.primary[300] }}
             >
-              {amenities.total}
+              {filteredTotal}
             </Text>
           </View>
         </View>
@@ -505,10 +520,10 @@ export const AmenitiesBadge = ({
           })}
         </View>
 
-        {amenities.nearestDistanceKm !== null && (
+        {filteredNearestDistanceKm !== null && (
           <Text className="mt-1 text-[11px]" style={{ color: theme.muted }}>
             Closest mapped place is about{" "}
-            {amenities.nearestDistanceKm.toFixed(1)} km away.
+            {filteredNearestDistanceKm.toFixed(1)} km away.
           </Text>
         )}
       </View>

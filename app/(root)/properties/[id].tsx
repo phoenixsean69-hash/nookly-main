@@ -245,6 +245,8 @@ const Property = () => {
   // OTHER STATE
   // ============================================================================
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [nearbyAmenitiesExpanded, setNearbyAmenitiesExpanded] =
+    useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmationModalVisible, setConfirmationModalVisible] =
     useState(false);
@@ -1150,7 +1152,99 @@ const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     loading: amenitiesLoading,
     error: amenitiesError,
     refetch: refetchAmenities,
-  } = usePOIs(property?.latitude, property?.longitude, 3);
+  } = usePOIs(property?.latitude, property?.longitude, 2);
+
+  const renderNearbyAmenities = () => {
+    const poisWithinOneKm = pois.filter(
+      (poi) =>
+        Number.isFinite(poi.distanceKm) &&
+        poi.distanceKm <= 2,
+    );
+
+    return (
+      <View
+        className="mt-3 overflow-hidden rounded-2xl border"
+        style={{
+          backgroundColor: theme.surface,
+          borderColor: `${theme.muted}25`,
+        }}
+      >
+        <TouchableOpacity
+          onPress={() =>
+            setNearbyAmenitiesExpanded((current) => !current)
+          }
+          activeOpacity={0.78}
+          className="flex-row items-center px-4 py-4"
+          accessibilityRole="button"
+          accessibilityLabel={
+            nearbyAmenitiesExpanded
+              ? "Collapse nearby amenities"
+              : "Expand nearby amenities"
+          }
+        >
+          <View
+            className="h-10 w-10 items-center justify-center rounded-xl"
+            style={{ backgroundColor: theme.primary[100] }}
+          >
+            <Ionicons
+              name="navigate-circle-outline"
+              size={22}
+              color={theme.primary[300]}
+            />
+          </View>
+
+          <View className="ml-3 flex-1">
+            <Text
+              className="text-base font-rubik-bold"
+              style={{ color: theme.title }}
+            >
+              Nearby Amenities
+            </Text>
+            <Text
+              className="mt-0.5 text-xs"
+              style={{ color: theme.muted }}
+            >
+              {amenitiesLoading
+                ? "Finding places within 2 km..."
+                : amenitiesError && !amenities
+                  ? "Could not load nearby places"
+                  : `${poisWithinOneKm.length} mapped place${
+                      poisWithinOneKm.length === 1 ? "" : "s"
+                    } within 2 km`}
+            </Text>
+          </View>
+
+          <Ionicons
+            name={
+              nearbyAmenitiesExpanded
+                ? "chevron-up"
+                : "chevron-down"
+            }
+            size={20}
+            color={theme.muted}
+          />
+        </TouchableOpacity>
+
+        {nearbyAmenitiesExpanded && (
+          <View
+            className="border-t px-3 pb-3 pt-3"
+            style={{ borderTopColor: `${theme.muted}20` }}
+          >
+            <AmenitiesBadge
+              amenities={amenities}
+              pois={poisWithinOneKm}
+              loading={amenitiesLoading}
+              error={amenitiesError}
+              onRetry={() => void refetchAmenities(2)}
+              propertyLatitude={property?.latitude}
+              propertyLongitude={property?.longitude}
+              propertyName={property?.propertyName || "Property"}
+            />
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const handleImageNavigation = (direction: "prev" | "next") => {
     const images = getPropertyImages();
@@ -1992,18 +2086,7 @@ const creator =
                   initialMapType="hybrid"
                   allowMapTypeToggle={true}
                 />
-                <View className="mt-3">
-                  <AmenitiesBadge
-                    amenities={amenities}
-                    pois={pois}
-                    loading={amenitiesLoading}
-                    error={amenitiesError}
-                    onRetry={() => void refetchAmenities()}
-                    propertyLatitude={property.latitude}
-                    propertyLongitude={property.longitude}
-                    propertyName={property.propertyName || "Property"}
-                  />
-                </View>
+                {renderNearbyAmenities()}
               </View>
             ) : (
               <View
@@ -2837,18 +2920,7 @@ const creator =
                   initialMapType="hybrid"
                   allowMapTypeToggle={true}
                 />
-                <View className="mt-3">
-                  <AmenitiesBadge
-                    amenities={amenities}
-                    pois={pois}
-                    loading={amenitiesLoading}
-                    error={amenitiesError}
-                    onRetry={() => void refetchAmenities()}
-                    propertyLatitude={property.latitude}
-                    propertyLongitude={property.longitude}
-                    propertyName={property.propertyName || "Property"}
-                  />
-                </View>
+                {renderNearbyAmenities()}
               </View>
             ) : (
               <View
