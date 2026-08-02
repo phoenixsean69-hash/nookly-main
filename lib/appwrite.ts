@@ -2302,10 +2302,9 @@ export async function trackPropertyView(propertyId: string) {
       ID.unique(),
       {
         propertyId,
-        type: "view",
+        activityType: "view",
         message: "Property was viewed",
         count: 1,
-        createdAt: new Date().toISOString(),
       },
     );
     return activity;
@@ -2327,13 +2326,13 @@ export async function trackLikeActivity(
       ID.unique(),
       {
         propertyId,
-        type: "like",
+        userId,
+        activityType: "like",
         message:
           action === "liked"
             ? "Someone liked your property"
             : "Someone unliked your property",
         count: 1,
-        createdAt: new Date().toISOString(),
       },
     );
     return activity;
@@ -2354,10 +2353,9 @@ export async function trackReviewActivity(
       ID.unique(),
       {
         propertyId,
-        type: "review",
+        activityType: "review",
         message: "New review received",
         count: 1,
-        createdAt: new Date().toISOString(),
       },
     );
     return activity;
@@ -2405,9 +2403,9 @@ export async function getRecentActivities(
 
         return {
           id: activity.$id,
-          type: activity.type,
+          type: activity.activityType,
           message: `${activity.message} - ${property.propertyName}`,
-          time: formatTimeAgo(new Date(activity.createdAt)),
+          time: formatTimeAgo(new Date(activity.$createdAt)),
           propertyName: property.propertyName,
         };
       }),
