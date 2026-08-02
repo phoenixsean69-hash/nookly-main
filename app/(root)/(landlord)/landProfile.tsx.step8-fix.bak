@@ -42,7 +42,8 @@ interface ProfileStats {
 const LandLordProfile = () => {
   const { user, fetchAuthenticatedUser } = useAuthStore();
   const [modalVisible, setModalVisible] = useState(false);
-  const [avatarId, setAvatarId] = useState<string | null>("human-1");
+  const [avatarId, setAvatarId] = useState<string | null>(null);
+  const [loadingAvatar, setLoadingAvatar] = useState(true);
   const [showSuccess, setShowSuccess] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -58,19 +59,14 @@ const LandLordProfile = () => {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
 
-  // Render immediately and refresh the saved default avatar quietly.
+  // Load avatar on mount
   useEffect(() => {
-    let active = true;
-
-    void getSavedAvatar().then((saved) => {
-      if (active && saved) {
-        setAvatarId(saved);
-      }
-    });
-
-    return () => {
-      active = false;
+    const loadAvatar = async () => {
+      const saved = await getSavedAvatar();
+      setAvatarId(saved || "human-1");
+      setLoadingAvatar(false);
     };
+    loadAvatar();
   }, []);
 
   const fetchLandlordStats = React.useCallback(async () => {
@@ -335,20 +331,19 @@ const LandLordProfile = () => {
         {/* Avatar Section */}
         <View className="flex items-center mb-8">
           <View className="relative">
-            <Image
-              source={getAvatarSourceImage()}
-              className="w-32 h-32 rounded-full border-4 border-white shadow-lg"
-              style={{ borderColor: theme.surface }}
-            />
-
-            {uploadingAvatar && (
+            {loadingAvatar || uploadingAvatar ? (
               <View
-                className="absolute inset-0 rounded-full items-center justify-center"
-                style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
-                pointerEvents="none"
+                className="w-32 h-32 rounded-full items-center justify-center"
+                style={{ backgroundColor: theme.surface }}
               >
-                <ActivityIndicator size="large" color="#FFFFFF" />
+                <ActivityIndicator size="large" color={theme.primary[300]} />
               </View>
+            ) : (
+              <Image
+                source={getAvatarSourceImage()}
+                className="w-32 h-32 rounded-full border-4 border-white shadow-lg"
+                style={{ borderColor: theme.surface }}
+              />
             )}
 
             {/* Edit Avatar Button */}

@@ -23,6 +23,7 @@ import { Card, FeaturedCard } from "@/components/Cards";
 import Filters from "@/components/Filters";
 import NoResults from "@/components/NoResults";
 import PopularLocations from "@/components/popularLocations";
+import { getAvatarSource } from "@/constants/data";
 import icons from "@/constants/icons";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -176,7 +177,7 @@ const HomeHeader = React.memo(
 
 const Home = () => {
   const { user } = useAuthStore();
-  const [loadingAvatar, setLoadingAvatar] = useState(true);
+  const [avatarId, setAvatarId] = useState<string | null>("human-1");
   const [featuredModalVisible, setFeaturedModalVisible] = useState(false);
   const [greeting, setGreeting] = useState(getGreeting());
   const [searchModalVisible, setSearchModalVisible] = useState(false);
@@ -230,9 +231,13 @@ const Home = () => {
 
   useEffect(() => {
     let active = true;
-    getSavedAvatar().then((saved) => {
-      if (active) setLoadingAvatar(false);
+
+    void getSavedAvatar().then((saved) => {
+      if (active && saved) {
+        setAvatarId(saved);
+      }
     });
+
     return () => {
       active = false;
     };
@@ -321,18 +326,16 @@ const Home = () => {
         />
         <View className="absolute inset-0 flex-row items-center justify-between px-6 pt-2">
           <View className="flex-row items-center">
-            {!loadingAvatar ? (
-              <TouchableOpacity onPress={() => router.push("/profile")}>
-                <Image
-                  source={user?.avatar ? { uri: user.avatar } : icons.person}
-                  className="w-14 h-14 rounded-full border-2 border-white"
-                />
-              </TouchableOpacity>
-            ) : (
-              <View className="w-14 h-14 rounded-full bg-white/20 items-center justify-center">
-                <ActivityIndicator size="small" color="#fff" />
-              </View>
-            )}
+            <TouchableOpacity onPress={() => router.push("/profile")}>
+              <Image
+                source={
+                  user?.avatar
+                    ? { uri: user.avatar }
+                    : getAvatarSource(avatarId)
+                }
+                className="w-14 h-14 rounded-full border-2 border-white"
+              />
+            </TouchableOpacity>
             <View className="ml-3">
               <Text className="text-xs font-rubik text-white/90">
                 {greeting}

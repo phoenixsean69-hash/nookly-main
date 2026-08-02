@@ -20,7 +20,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Card, FeaturedCard } from "@/components/Cards";
 import { Colors } from "@/constants/Colors";
-import { getAvatarSource } from "@/constants/data";
 import icons from "@/constants/icons";
 import {
   config,
@@ -55,7 +54,8 @@ const getHeaderImage = () => {
 
 export default function LandLordHome() {
   const { user } = useAuthStore();
-  const [avatarId, setAvatarId] = useState<string | null>("human-1");
+  const [avatarId, setAvatarId] = useState<string | null>(null);
+  const [loadingAvatar, setLoadingAvatar] = useState(true);
   const [greeting, setGreeting] = useState(getGreeting());
   const [refreshing, setRefreshing] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
@@ -115,19 +115,14 @@ export default function LandLordHome() {
     return () => clearInterval(interval);
   }, []);
 
-  // Render the current/default avatar immediately, then refresh quietly.
+  // Load avatar only once
   useEffect(() => {
-    let active = true;
-
-    void getSavedAvatar().then((saved) => {
-      if (active && saved) {
-        setAvatarId(saved);
-      }
-    });
-
-    return () => {
-      active = false;
+    const loadAvatar = async () => {
+      const saved = await getSavedAvatar();
+      setAvatarId(saved || "human-1");
+      setLoadingAvatar(false);
     };
+    loadAvatar();
   }, []);
 
   // Get latest properties
@@ -245,19 +240,21 @@ export default function LandLordHome() {
         {/* User info overlay */}
         <View className="absolute inset-0 flex-row items-center justify-between px-6 pt-2">
           <View className="flex-row items-center flex-1 mr-2">
-            <TouchableOpacity
-              onPress={() => router.push("/landProfile")}
-              className="shadow-lg"
-            >
-              <Image
-                source={
-                  user?.avatar
-                    ? { uri: user.avatar }
-                    : getAvatarSource(avatarId)
-                }
-                className="w-14 h-14 rounded-full border-2 border-white"
-              />
-            </TouchableOpacity>
+            {!loadingAvatar ? (
+              <TouchableOpacity
+                onPress={() => router.push("/landProfile")}
+                className="shadow-lg"
+              >
+                <Image
+                  source={user?.avatar ? { uri: user.avatar } : icons.person}
+                  className="w-14 h-14 rounded-full border-2 border-white"
+                />
+              </TouchableOpacity>
+            ) : (
+              <View className="w-14 h-14 rounded-full bg-white/20 items-center justify-center">
+                <ActivityIndicator size="small" color="#ffffff" />
+              </View>
+            )}
             <View className="ml-3 flex-1">
               <Text
                 className="text-xs font-rubik text-white/90"

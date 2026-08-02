@@ -1,29 +1,30 @@
-NOOKLY STEP 7 — TENANT TYPESCRIPT FIX
+NOOKLY STEP 8 — CORRECTED INSTANT AVATAR PATCH
 
-Run from the project root:
+The first Step 8 script stopped before writing because its validation rejected
+any occurrence of the word loadingAvatar, including harmless leftover text.
 
-node .\apply-step7-tenant-types-fix.mjs
+Run this corrected version from the project root:
 
-FIXED ERRORS
-- TS2322: null values not assignable to TenantWithProfile[]
-- TS2677: invalid type predicate for TenantWithProfile
+node .\apply-step-8-fix.mjs
 
-CAUSE
-The Step 7 code used map(...), returned null for missing users, then used a
-custom type predicate. TypeScript inferred required fields such as phone,
-which conflicted with the optional fields in TenantWithProfile.
-
-FIX
-- Replaces map(...).filter(...) with reduce<TenantWithProfile[]>.
-- Missing user records are skipped without returning null.
-- Optional fields explicitly use undefined.
-- The returned array is always TenantWithProfile[].
+WHAT IT DOES
+- Shows user.avatar immediately when available.
+- Otherwise shows the built-in/default avatar immediately.
+- Stores the selected built-in avatar in AsyncStorage.
+- Refreshes Appwrite preferences quietly in the background.
+- Removes only actual blocking loadingAvatar state/render gates.
+- During image upload, keeps the old avatar visible with a progress overlay.
+- Uses tolerant pattern matching for locally modified files.
+- Writes nothing until all targeted validations pass.
 
 UPDATED
-- app/(root)/properties/[id].tsx
+- utils/avatarStorage.ts
+- app/(root)/(tabs)/tenantHome.tsx
+- app/(root)/(landlord)/landHome.tsx
+- app/(root)/(landlord)/landProfile.tsx
 
-BACKUP
-- app/(root)/properties/[id].tsx.step7-types-fix.bak
+BACKUPS
+Each updated file receives a .step8-fix.bak copy.
 
 After applying:
 
