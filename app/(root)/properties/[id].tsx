@@ -1989,6 +1989,8 @@ const creator =
                   bedrooms={property.bedrooms}
                   bathrooms={property.bathrooms}
                   isInline={true}
+                  initialMapType="hybrid"
+                  allowMapTypeToggle={true}
                 />
                 <View className="mt-3">
                   <AmenitiesBadge
@@ -2832,6 +2834,8 @@ const creator =
                   bedrooms={property.bedrooms}
                   bathrooms={property.bathrooms}
                   isInline={true}
+                  initialMapType="hybrid"
+                  allowMapTypeToggle={true}
                 />
                 <View className="mt-3">
                   <AmenitiesBadge

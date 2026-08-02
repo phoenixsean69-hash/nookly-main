@@ -19,7 +19,6 @@ import {
   Linking,
   Modal,
   Platform,
-  SafeAreaView,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -27,6 +26,7 @@ import {
   useColorScheme,
   type ImageSourcePropType,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   WebView,
   type WebViewMessageEvent,
@@ -128,6 +128,8 @@ export const AmenitiesBadge = ({
 }: AmenitiesBadgeProps) => {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
+  const amenityIconTint =
+    colorScheme === "dark" ? "#F8FAFC" : "#111827";
 
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] =
@@ -320,6 +322,7 @@ export const AmenitiesBadge = ({
               source={item.icon}
               className="h-3.5 w-3.5"
               resizeMode="contain"
+              style={{ tintColor: amenityIconTint }}
             />
             <Text className="ml-1 text-[10px]" style={{ color: item.color }}>
               {item.count}
@@ -341,6 +344,8 @@ export const AmenitiesBadge = ({
           route,
           categoryColor: selectedCategory.color,
           initialZoom: 14,
+          initialMapType: "hybrid",
+          showMapTypeToggle: true,
         })
       : "";
 
@@ -395,11 +400,14 @@ export const AmenitiesBadge = ({
                 <TouchableOpacity
                   onPress={() => openCategory(item.key)}
                   activeOpacity={0.78}
-                  className="min-h-[132px] rounded-2xl border p-3"
+                  className="overflow-hidden rounded-2xl border p-3"
                   style={{
+                    height: 174,
                     backgroundColor: `${item.color}0D`,
                     borderColor: `${item.color}30`,
                   }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View ${item.label} on map`}
                 >
                   <View className="flex-row items-start justify-between">
                     <View
@@ -410,16 +418,18 @@ export const AmenitiesBadge = ({
                         source={item.icon}
                         className="h-7 w-7"
                         resizeMode="contain"
+                        style={{ tintColor: amenityIconTint }}
                       />
                     </View>
 
                     <View
-                      className="rounded-full px-2 py-1"
+                      className="min-w-[28px] items-center rounded-full px-2 py-1"
                       style={{ backgroundColor: `${item.color}18` }}
                     >
                       <Text
                         className="text-[11px] font-rubik-bold"
                         style={{ color: item.color }}
+                        numberOfLines={1}
                       >
                         {item.count}
                       </Text>
@@ -430,18 +440,23 @@ export const AmenitiesBadge = ({
                     className="mt-2 text-sm font-rubik-bold"
                     style={{ color: theme.title }}
                     numberOfLines={1}
+                    ellipsizeMode="tail"
                   >
                     {item.label}
                   </Text>
 
-                  <View className="mt-1 flex-1">
+                  <View
+                    className="mt-1 overflow-hidden"
+                    style={{ height: 43 }}
+                  >
                     {names.length > 0 ? (
-                      names.map((name) => (
+                      names.map((name, index) => (
                         <Text
-                          key={`${item.key}-${name}`}
+                          key={`${item.key}-${index}-${name}`}
                           className="text-[11px] leading-4"
                           style={{ color: theme.muted }}
                           numberOfLines={1}
+                          ellipsizeMode="tail"
                         >
                           • {name}
                         </Text>
@@ -450,6 +465,7 @@ export const AmenitiesBadge = ({
                       <Text
                         className="text-[11px]"
                         style={{ color: theme.muted }}
+                        numberOfLines={2}
                       >
                         Mapped places nearby
                       </Text>
@@ -457,18 +473,23 @@ export const AmenitiesBadge = ({
 
                     {remaining > 0 && (
                       <Text
-                        className="mt-0.5 text-[10px] font-rubik-medium"
+                        className="text-[10px] font-rubik-medium"
                         style={{ color: item.color }}
+                        numberOfLines={1}
                       >
                         +{remaining} more
                       </Text>
                     )}
                   </View>
 
-                  <View className="mt-2 flex-row items-center">
+                  <View
+                    className="mt-auto flex-row items-center"
+                    style={{ minHeight: 18 }}
+                  >
                     <Text
                       className="text-[11px] font-rubik-bold"
                       style={{ color: item.color }}
+                      numberOfLines={1}
                     >
                       View on map
                     </Text>
@@ -495,10 +516,14 @@ export const AmenitiesBadge = ({
       <Modal
         visible={modalVisible}
         animationType="slide"
+        presentationStyle="fullScreen"
+        statusBarTranslucent={false}
+        navigationBarTranslucent={false}
         onRequestClose={closeModal}
       >
         <SafeAreaView
           className="flex-1"
+          edges={["top", "right", "bottom", "left"]}
           style={{ backgroundColor: theme.background }}
         >
           <View
@@ -528,6 +553,7 @@ export const AmenitiesBadge = ({
                     source={selectedCategory.icon}
                     className="h-6 w-6"
                     resizeMode="contain"
+                    style={{ tintColor: amenityIconTint }}
                   />
                 </View>
 

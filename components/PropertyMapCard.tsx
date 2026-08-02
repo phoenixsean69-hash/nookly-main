@@ -1,5 +1,8 @@
 import { Colors } from "@/constants/Colors";
-import { buildPropertyMapHtml } from "@/lib/propertyMapHtml";
+import {
+  buildPropertyMapHtml,
+  type PropertyMapType,
+} from "@/lib/propertyMapHtml";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useState } from "react";
 import {
@@ -26,6 +29,8 @@ interface PropertyMapCardProps {
   bathrooms?: number;
   isInline?: boolean;
   isFullScreen?: boolean;
+  initialMapType?: PropertyMapType;
+  allowMapTypeToggle?: boolean;
   onClose?: () => void;
 }
 
@@ -86,6 +91,8 @@ const PropertyMapCard = ({
   bedrooms,
   bathrooms,
   isFullScreen = false,
+  initialMapType = "street",
+  allowMapTypeToggle = true,
   onClose,
 }: PropertyMapCardProps) => {
   const colorScheme = useColorScheme();
@@ -101,8 +108,16 @@ const PropertyMapCard = ({
       propertyLongitude: coordinates.longitude,
       propertyName: propertyName || address || "Property",
       initialZoom: 16,
+      initialMapType,
+      showMapTypeToggle: allowMapTypeToggle,
     });
-  }, [address, coordinates, propertyName]);
+  }, [
+    address,
+    allowMapTypeToggle,
+    coordinates,
+    initialMapType,
+    propertyName,
+  ]);
 
   const openMaps = async () => {
     if (!coordinates || opening) return;

@@ -1,5 +1,7 @@
 import type { POI } from "@/lib/poiService";
 
+export type PropertyMapType = "street" | "hybrid";
+
 export interface PropertyMapRoute {
   coordinates: [number, number][];
   distanceKm?: number;
@@ -15,6 +17,8 @@ interface BuildPropertyMapHtmlOptions {
   route?: PropertyMapRoute | null;
   categoryColor?: string;
   initialZoom?: number;
+  initialMapType?: PropertyMapType;
+  showMapTypeToggle?: boolean;
 }
 
 const serializeForHtml = (value: unknown): string =>
@@ -29,6 +33,8 @@ export const buildPropertyMapHtml = ({
   route = null,
   categoryColor = "#2563EB",
   initialZoom = 15,
+  initialMapType = "street",
+  showMapTypeToggle = true,
 }: BuildPropertyMapHtmlOptions): string => {
   const property = {
     latitude: propertyLatitude,
@@ -71,6 +77,37 @@ export const buildPropertyMapHtml = ({
 
     .leaflet-control-attribution {
       font-size: 9px;
+    }
+
+    .map-type-control {
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      padding: 3px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid rgba(17, 24, 39, 0.13);
+      box-shadow: 0 2px 9px rgba(0, 0, 0, 0.2);
+      font-family: Arial, sans-serif;
+    }
+
+    .map-type-button {
+      appearance: none;
+      border: 0;
+      outline: none;
+      min-width: 58px;
+      height: 31px;
+      padding: 0 9px;
+      border-radius: 7px;
+      background: transparent;
+      color: #374151;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .map-type-button.active {
+      background: #FF4B33;
+      color: #FFFFFF;
     }
 
     .property-marker {
@@ -140,16 +177,123 @@ export const buildPropertyMapHtml = ({
     const routeCoordinates = ${serializeForHtml(routeCoordinates)};
     const categoryColor = ${serializeForHtml(categoryColor)};
     const initialZoom = ${serializeForHtml(initialZoom)};
+    const requestedMapType = ${serializeForHtml(initialMapType)};
+    const showMapTypeToggle = ${serializeForHtml(showMapTypeToggle)};
 
     const map = L.map("map", {
       zoomControl: true,
       attributionControl: true,
     });
 
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 19,
-      attribution: "&copy; OpenStreetMap contributors",
-    }).addTo(map);
+    const streetLayer = L.tileLayer(
+      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap contributors",
+      }
+    );
+
+    const hybridImageryLayer = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      {
+        maxZoom: 19,
+        attribution: "Tiles &copy; Esri",
+      }
+    );
+
+    const hybridLabelsLayer = L.tileLayer(
+      "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+      {
+        maxZoom: 19,
+        pane: "overlayPane",
+      }
+    );
+
+    let activeMapType =
+      requestedMapType === "hybrid" ? "hybrid" : "street";
+    let streetButton = null;
+    let hybridButton = null;
+
+    function updateMapTypeButtons() {
+      if (!streetButton || !hybridButton) return;
+
+      streetButton.classList.toggle(
+        "active",
+        activeMapType === "street"
+      );
+      hybridButton.classList.toggle(
+        "active",
+        activeMapType === "hybrid"
+      );
+    }
+
+    function applyMapType(nextType) {
+      activeMapType = nextType === "hybrid" ? "hybrid" : "street";
+
+      [streetLayer, hybridImageryLayer, hybridLabelsLayer].forEach(
+        (layer) => {
+          if (map.hasLayer(layer)) map.removeLayer(layer);
+        }
+      );
+
+      if (activeMapType === "hybrid") {
+        hybridImageryLayer.addTo(map);
+        hybridLabelsLayer.addTo(map);
+      } else {
+        streetLayer.addTo(map);
+      }
+
+      updateMapTypeButtons();
+    }
+
+    applyMapType(activeMapType);
+
+    if (showMapTypeToggle) {
+      const MapTypeControl = L.Control.extend({
+        options: { position: "topright" },
+
+        onAdd: function () {
+          const container = L.DomUtil.create(
+            "div",
+            "map-type-control"
+          );
+
+          streetButton = L.DomUtil.create(
+            "button",
+            "map-type-button",
+            container
+          );
+          streetButton.type = "button";
+          streetButton.textContent = "Street";
+
+          hybridButton = L.DomUtil.create(
+            "button",
+            "map-type-button",
+            container
+          );
+          hybridButton.type = "button";
+          hybridButton.textContent = "Hybrid";
+
+          L.DomEvent.disableClickPropagation(container);
+          L.DomEvent.disableScrollPropagation(container);
+
+          L.DomEvent.on(streetButton, "click", function (event) {
+            L.DomEvent.stop(event);
+            applyMapType("street");
+          });
+
+          L.DomEvent.on(hybridButton, "click", function (event) {
+            L.DomEvent.stop(event);
+            applyMapType("hybrid");
+          });
+
+          updateMapTypeButtons();
+          return container;
+        },
+      });
+
+      map.addControl(new MapTypeControl());
+    }
 
     const propertyIcon = L.divIcon({
       className: "",
