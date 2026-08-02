@@ -16,7 +16,6 @@ import {
   peekProfilePageCache,
   readProfilePageCache,
 } from "@/lib/profilePageCache";
-import pushFunctionService from "@/services/push-function.service";
 import useAuthStore from "@/store/auth.store";
 import { clearSavedAvatar } from "@/utils/avatarStorage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -92,7 +91,6 @@ const Profile = () => {
 
   const [showSuccess, setShowSuccess] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
-  const [testingPush, setTestingPush] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [stats, setStats] = useState<TenantStats>(
     () =>
@@ -303,61 +301,6 @@ const Profile = () => {
       Alert.alert("Error", "Could not upload image.");
     } finally {
       setUploadingAvatar(false);
-    }
-  };
-
-  const handleTestPush = async () => {
-    if (!user?.accountId) {
-      Alert.alert(
-        "Push Test",
-        "No authenticated student account is available.",
-      );
-      return;
-    }
-
-    setTestingPush(true);
-
-    try {
-      const result =
-        await pushFunctionService.testCurrentUser();
-
-      const requested = Number(
-        result.requested ?? 0,
-      );
-      const accepted = Number(
-        result.accepted ?? 0,
-      );
-      const failed = Number(
-        result.failed ?? 0,
-      );
-
-      if (accepted > 0) {
-        Alert.alert(
-          "Test Push Accepted",
-          `Expo accepted ${accepted} of ${requested || accepted} push ticket(s). Failed: ${failed}. Watch this device for the notification.`,
-        );
-        return;
-      }
-
-      Alert.alert(
-        "Test Push Failed",
-        result.message ||
-          `No push ticket was accepted. Requested: ${requested}. Failed: ${failed}.`,
-      );
-    } catch (error) {
-      console.error(
-        "Student test push error:",
-        error,
-      );
-
-      Alert.alert(
-        "Test Push Error",
-        error instanceof Error
-          ? error.message
-          : "Could not send the student test push.",
-      );
-    } finally {
-      setTestingPush(false);
     }
   };
 
@@ -880,50 +823,6 @@ const Profile = () => {
             </TouchableOpacity>
           ))}
         </View>
-
-        {/* Student Push Delivery Test */}
-        <TouchableOpacity
-          onPress={handleTestPush}
-          disabled={testingPush}
-          className="flex-row items-center justify-center mb-4 py-4 rounded-2xl"
-          style={{
-            backgroundColor:
-              theme.primary[300] + "18",
-            borderWidth: 1,
-            borderColor:
-              theme.primary[300] + "55",
-            opacity: testingPush ? 0.7 : 1,
-          }}
-          accessibilityRole="button"
-          accessibilityLabel="Send student test push notification"
-        >
-          {testingPush ? (
-            <ActivityIndicator
-              size="small"
-              color={theme.primary[300]}
-            />
-          ) : (
-            <>
-              <Image
-                source={icons.bell}
-                className="w-5 h-5 mr-2"
-                style={{
-                  tintColor:
-                    theme.primary[300],
-                }}
-              />
-              <Text
-                className="font-rubik-medium"
-                style={{
-                  color:
-                    theme.primary[300],
-                }}
-              >
-                Send Test Push
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
 
         {/* Logout Button */}
         <TouchableOpacity
