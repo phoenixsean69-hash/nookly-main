@@ -1,7 +1,6 @@
 // components/AIChatModal.tsx
 import { Colors } from "@/constants/Colors";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import React, { useRef, useState } from "react";
 import {
   FlatList,
@@ -174,7 +173,7 @@ class NLPEngine {
     });
 
     if (positiveScore > negativeScore) return "positive";
-    if (negativeScore > negativeScore) return "negative";
+    if (negativeScore > positiveScore) return "negative";
     return "neutral";
   }
 
@@ -330,7 +329,7 @@ class IntelligentResponseGenerator {
   }
 
   private getFavoritesResponse(): string {
-    return `💖 **Your Favorites**\n\n• Tap Save,on each property to save it for offline view\n• View all in 'My Favorites'\n• Get notified when price drops\n• Share favorites with friends\n• Remove by tapping ❤️ again\n\n💡 **Pro Tip:** Enable notifications to never miss updates on your favorite properties!`;
+    return `💖 **Your Favorites**\n\n• Tap Save on each property to save it for offline view\n• View all in 'My Favorites'\n• Get notified when price drops\n• Share favorites with friends\n• Remove by tapping ❤️ again\n\n💡 **Pro Tip:** Enable notifications to never miss updates on your favorite properties!`;
   }
 
   private getContactResponse(): string {
@@ -398,11 +397,11 @@ class IntelligentResponseGenerator {
   }
 
   private getFarewellResponse(): string {
-    return `👋 Thanks for chatting! Here's how to reach us:\n\n📧 Email: support@nookly.com\n📞 Phone: +263 77 114 4469\n\+263 77 600 6288\n\💬 Come back anytime!\n\nHave a great day! `;
+    return `👋 Thanks for chatting! Here's how to reach us:\n\n📧 Email: support@nookly.com\n📞 Phone: +263 77 114 4469\n📞 Phone: +263 77 600 6288\n\n💬 Come back anytime!\n\nHave a great day! 🌟`;
   }
 
   private getHelpResponse(): string {
-    return ` **I can help with:**\n\n **Properties**\n• List, find, favorite\n• Contact landlords\n• Compare options\n\n **Account**\n• Profile management\n• Password reset\n• Settings\n\n **Support**\n• Technical issues\n• Safety tips\n• FAQs\n\n **Pricing**\n• Free features\n• Premium plans\n\nWhat would you like to know? Type a topic or ask anything!`;
+    return `🤖 **I can help with:**\n\n🏠 **Properties**\n• List, find, favorite\n• Contact landlords\n• Compare options\n\n👤 **Account**\n• Profile management\n• Password reset\n• Settings\n\n🔧 **Support**\n• Technical issues\n• Safety tips\n• FAQs\n\n💰 **Pricing**\n• Free features\n• Premium plans\n\nWhat would you like to know? Type a topic or ask anything!`;
   }
 
   private getGeneralResponse(userMessage: string, sentiment: string): string {
@@ -435,7 +434,7 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ visible, onClose }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
-      text: "👋 Hi there! I'm your intelligent Nookly assistant.\n\nI can help you with:\n Finding or listing properties\n Account & security\n Technical support\n Pricing & features\n Reviews & ratings\n\nWhat can I help you with today?",
+      text: "👋 Hi there! I'm your intelligent Nookly assistant.\n\nI can help you with:\n• Finding or listing properties\n• Account & security\n• Technical support\n• Pricing & features\n• Reviews & ratings\n\nWhat can I help you with today?",
       isUser: false,
       timestamp: new Date(),
       sentiment: "positive",
@@ -554,10 +553,6 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ visible, onClose }) => {
     </View>
   );
 
-  // components/AIChatModal.tsx (updated suggestions section)
-
-  // ... keep all your existing code until the suggestions part
-
   const renderSuggestion = ({ item }: { item: string }) => (
     <TouchableOpacity
       onPress={() => {
@@ -588,18 +583,24 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ visible, onClose }) => {
       onRequestClose={onClose}
     >
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
-        {/* Header - Keep as is */}
-        <LinearGradient
-          colors={[theme.primary[100], theme.background]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          className="px-4 py-3 flex-row items-center"
+        {/* Header - FIXED */}
+        <View
+          className="flex-row items-center px-4 py-4 border-b"
+          style={{
+            borderBottomColor: theme.muted + "30",
+            backgroundColor: theme.background,
+          }}
         >
           <TouchableOpacity onPress={onClose} className="mr-3 p-1">
             <Ionicons name="close" size={24} color={theme.title} />
           </TouchableOpacity>
           <View className="flex-1 flex-row items-center">
-            <View className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 items-center justify-center mr-3">
+            <View
+              className="w-10 h-10 rounded-full items-center justify-center mr-3"
+              style={{
+                backgroundColor: theme.primary[300],
+              }}
+            >
               <Ionicons name="chatbubble-ellipses" size={20} color="#fff" />
             </View>
             <View>
@@ -607,17 +608,20 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ visible, onClose }) => {
                 className="text-lg font-rubik-bold"
                 style={{ color: theme.title }}
               >
-                Nookly AI Assistant
+                Nookly Assistant
               </Text>
               <View className="flex-row items-center">
-                <View className="w-2 h-2 rounded-full bg-blue-700500 mr-1" />
+                <View
+                  className="w-2 h-2 rounded-full mr-1"
+                  style={{ backgroundColor: theme.primary[300] }}
+                />
                 <Text className="text-xs" style={{ color: theme.muted }}>
                   Advanced AI • Always learning
                 </Text>
               </View>
             </View>
           </View>
-        </LinearGradient>
+        </View>
 
         {/* Messages */}
         <FlatList
@@ -645,7 +649,7 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ visible, onClose }) => {
           </View>
         )}
 
-        {/* Suggestions Section - REDESIGNED */}
+        {/* Suggestions Section */}
         {!isTyping && messages.length > 0 && (
           <View className="px-4 py-3">
             <Text
@@ -667,7 +671,7 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ visible, onClose }) => {
           </View>
         )}
 
-        {/* Input Area - Keep as is */}
+        {/* Input Area */}
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}

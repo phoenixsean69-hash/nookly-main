@@ -1,0 +1,7 @@
+﻿NOOKLY LEASE TEST LOG
+Started: 2026-08-02T19:22:20.8355131+02:00
+
+
+LEASE TEST FAILED
+-----------------
+Cannot bind argument to parameter 'Message' because it is an empty string.

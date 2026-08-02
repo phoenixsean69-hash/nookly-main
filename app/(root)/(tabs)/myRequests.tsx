@@ -2,22 +2,22 @@
 import { Colors } from "@/constants/Colors";
 import icons from "@/constants/icons";
 import { config, databases, uploadImage } from "@/lib/appwrite";
+import {
+  downloadLeaseDocument,
+  previewLeaseDocument,
+} from "@/lib/leaseDocumentClient";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system/legacy";
 import * as ImagePicker from "expo-image-picker";
 import { ImagePickerAsset } from "expo-image-picker";
 import { router } from "expo-router";
-import * as Sharing from "expo-sharing";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
-  Linking,
   Modal,
-  Platform,
   RefreshControl,
   ScrollView,
   Text,
@@ -102,130 +102,63 @@ export default function TenantRequests() {
   >([]);
   const [selectedPropertyName, setSelectedPropertyName] = useState("");
 
-  // ✅ Get Appwrite file URL for preview
-  const getLeaseDocumentUrl = (fileId: string): string => {
-    return `${config.endpoint}/storage/buckets/${config.bucketId}/files/${fileId}/view?project=${config.projectId}`;
-  };
+  const [leaseActionRequestId, setLeaseActionRequestId] =
+    useState<string | null>(null);
 
-  // ✅ Preview - open in browser
-  const handlePreviewLease = async (fileId: string) => {
-    if (!fileId) {
-      Alert.alert("Error", "Document not found");
-      return;
-    }
+  const handlePreviewLease = async (
+    requestId: string,
+  ) => {
+    setLeaseActionRequestId(requestId);
 
     try {
-      const url = getLeaseDocumentUrl(fileId);
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert(
-          "Error",
-          "Cannot preview document. Try downloading instead.",
-        );
-      }
+      await previewLeaseDocument(requestId);
     } catch (error) {
-      console.error("Error previewing document:", error);
-      Alert.alert("Error", "Failed to preview document");
+      console.error(
+        "Error previewing lease:",
+        error,
+      );
+
+      Alert.alert(
+        "Preview unavailable",
+        error instanceof Error
+          ? error.message
+          : "The lease could not be opened.",
+      );
+    } finally {
+      setLeaseActionRequestId(null);
     }
   };
 
-  const handleDownloadLease = async (fileId: string, fileName: string) => {
+  const handleDownloadLease = async (
+    requestId: string,
+    fileName: string,
+  ) => {
+    setLeaseActionRequestId(requestId);
+
     try {
-      const downloadUrl = `${config.endpoint}/storage/buckets/${config.bucketId}/files/${fileId}/download?project=${config.projectId}`;
+      await downloadLeaseDocument(
+        requestId,
+        fileName,
+      );
 
-      Alert.alert("Downloading", "Please wait...");
-
-      // Download to cache first
-      const tempUri = FileSystem.cacheDirectory + fileName;
-
-      const permissions =
-        await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-
-      if (!permissions.granted) {
-        return;
-      }
-
-      const result = await FileSystem.downloadAsync(downloadUrl, tempUri);
-
-      if (result.status !== 200) {
-        throw new Error("Download failed");
-      }
-
-      // -----------------------------
-      // ANDROID
-      // -----------------------------
-      if (Platform.OS === "android") {
-        // Expo Go doesn't support SAF properly
-        if (!FileSystem.StorageAccessFramework) {
-          await Sharing.shareAsync(result.uri, {
-            mimeType: "application/pdf",
-            dialogTitle: "Save Lease Document",
-          });
-          return;
-        }
-
-        // Ask the user to choose a folder (first time only)
-        const permissions =
-          await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-
-        if (!permissions.granted) {
-          Alert.alert(
-            "Permission denied",
-            "Please allow access to save the file.",
-          );
-          return;
-        }
-
-        // Create a temporary file first
-        const tempFile = FileSystem.cacheDirectory + fileName;
-
-        const downloadResult = await FileSystem.downloadAsync(
-          downloadUrl,
-          tempFile,
-        );
-
-        if (downloadResult.status !== 200) {
-          Alert.alert("Error", "Download failed.");
-          return;
-        }
-
-        // Read the downloaded file
-        const fileData = await FileSystem.readAsStringAsync(
-          downloadResult.uri,
-          {
-            encoding: FileSystem.EncodingType.Base64,
-          },
-        );
-
-        // Create the file in the selected folder
-        const uri = await FileSystem.StorageAccessFramework.createFileAsync(
-          permissions.directoryUri,
-          fileName,
-          "application/pdf",
-        );
-
-        // Write it
-        await FileSystem.writeAsStringAsync(uri, fileData, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        Alert.alert("Success", `${fileName} saved successfully.`);
-        return;
-      }
-
-      // -----------------------------
-      // IOS
-      // -----------------------------
-      await Sharing.shareAsync(result.uri, {
-        mimeType: "application/pdf",
-        dialogTitle: "Save Lease Document",
-        UTI: "com.adobe.pdf",
-      });
+      Alert.alert(
+        "Lease saved",
+        `${fileName || "Lease document"} was saved successfully.`,
+      );
     } catch (error) {
-      console.error(error);
-      Alert.alert("Error", "Failed to download document.");
+      console.error(
+        "Error downloading lease:",
+        error,
+      );
+
+      Alert.alert(
+        "Download failed",
+        error instanceof Error
+          ? error.message
+          : "The lease could not be downloaded.",
+      );
+    } finally {
+      setLeaseActionRequestId(null);
     }
   };
 
@@ -596,7 +529,7 @@ export default function TenantRequests() {
         <View className="flex-row gap-3">
           {/* ✅ Fixed Preview Button */}
           <TouchableOpacity
-            onPress={() => handlePreviewLease(request.leaseDocumentId!)}
+            onPress={() => handlePreviewLease(request.$id)}
             className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
             style={{
               backgroundColor: theme.surface,
@@ -617,7 +550,7 @@ export default function TenantRequests() {
           <TouchableOpacity
             onPress={() =>
               handleDownloadLease(
-                request.leaseDocumentId!,
+                request.$id,
                 request.leaseDocumentName || "lease_document.pdf",
               )
             }

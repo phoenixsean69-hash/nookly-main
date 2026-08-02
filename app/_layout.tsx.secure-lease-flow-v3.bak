@@ -194,21 +194,6 @@ export default function RootLayout() {
           router.push(getModeAwareRoute("/explore", currentUser) as any);
           return;
 
-        case "lease":
-          router.push({
-            pathname: getModeAwareRoute(
-              "/myRequests",
-              currentUser,
-            ),
-            params: {
-              requestId:
-                typeof data.requestId === "string"
-                  ? data.requestId
-                  : "",
-            },
-          } as any);
-          return;
-
         case "request_response":
         case "alert":
           router.push(homeRoute as any);

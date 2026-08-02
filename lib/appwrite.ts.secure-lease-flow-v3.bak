@@ -142,10 +142,6 @@ export const config = {
     process.env.EXPO_PUBLIC_APPWRITE_GALLERIES_COLLECTION_ID,
   reviewsCollectionId: process.env.EXPO_PUBLIC_APPWRITE_REVIEWS_COLLECTION_ID,
   bucketId: process.env.EXPO_PUBLIC_APPWRITE_BUCKET_ID,
-  // The free Appwrite plan uses the existing public storage bucket.
-  leaseBucketId:
-    process.env.EXPO_PUBLIC_APPWRITE_BUCKET_ID ||
-    "69a20709002844cb4f69",
   favoritesCollectionId:
     process.env.EXPO_PUBLIC_APPWRITE_FAVORITES_COLLECTION_ID,
   likesCollectionId: process.env.EXPO_PUBLIC_APPWRITE_LIKES_COLLECTION,
@@ -283,138 +279,34 @@ async function getActivityRowPermissions(
 // lib/appwrite.ts
 // lib/appwrite.ts
 
-export interface LeaseUploadAsset {
-  name?: string;
-  uri: string;
-  mimeType?: string;
-  size?: number;
-}
+export const uploadLeaseDocument = async (fileAsset: any) => {
+  try {
+    console.log("📄 Uploading lease document...");
 
-export interface UploadedLeaseDocument {
-  fileId: string;
-  bucketId: string;
-  name: string;
-  size: number;
-  mimeType: "application/pdf";
-}
+    const file = {
+      name: fileAsset.name || `lease_${Date.now()}.pdf`,
+      type: fileAsset.mimeType || "application/pdf",
+      size: fileAsset.size || 0,
+      uri: fileAsset.uri,
+    };
 
-const MAX_LEASE_DOCUMENT_SIZE =
-  10485760;
-
-const sanitizeLeaseFileName = (
-  value?: string,
-): string => {
-  const cleaned = (value || "lease_document.pdf")
-    .trim()
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
-    .replace(/\s+/g, " ");
-
-  return cleaned.toLowerCase().endsWith(".pdf")
-    ? cleaned
-    : `${cleaned || "lease_document"}.pdf`;
-};
-
-export const uploadLeaseDocument = async (
-  fileAsset: LeaseUploadAsset,
-  _tenantAccountId: string,
-): Promise<UploadedLeaseDocument> => {
-  const fileName = sanitizeLeaseFileName(
-    fileAsset.name,
-  );
-
-  const mimeType =
-    fileAsset.mimeType || "application/pdf";
-
-  const fileSize = Number(
-    fileAsset.size || 0,
-  );
-
-  const isPdf =
-    mimeType === "application/pdf" ||
-    fileName
-      .toLowerCase()
-      .endsWith(".pdf");
-
-  if (!isPdf) {
-    throw new Error(
-      "Only PDF lease documents are supported.",
-    );
-  }
-
-  if (
-    !fileAsset.uri ||
-    !Number.isFinite(fileSize) ||
-    fileSize <= 0
-  ) {
-    throw new Error(
-      "The selected lease PDF is empty or invalid.",
-    );
-  }
-
-  if (
-    fileSize >
-    MAX_LEASE_DOCUMENT_SIZE
-  ) {
-    throw new Error(
-      "Lease documents must be 10 MB or smaller.",
-    );
-  }
-
-  const bucketId =
-    config.bucketId ||
-    config.leaseBucketId;
-
-  if (!bucketId) {
-    throw new Error(
-      "The Appwrite storage bucket is not configured.",
-    );
-  }
-
-  console.log(
-    "📄 Uploading lease to the existing public storage bucket...",
-  );
-
-  // The existing free-plan bucket has file security disabled.
-  // Do not pass file-level permissions because Appwrite ignores
-  // them when file security is off.
-  const response =
-    await storage.createFile(
-      bucketId,
+    const response = await storage.createFile(
+      config.bucketId!,
       ID.unique(),
-      {
-        name: fileName,
-        type: "application/pdf",
-        size: fileSize,
-        uri: fileAsset.uri,
-      },
+      file,
     );
 
-  console.log(
-    "✅ Lease document uploaded:",
-    response.$id,
-  );
+    console.log("✅ Lease document uploaded:", response.$id);
 
-  return {
-    fileId: response.$id,
-    bucketId,
-    name: fileName,
-    size: fileSize,
-    mimeType: "application/pdf",
-  };
-};
-
-export const deleteLeaseDocument = async (
-  fileId: string,
-): Promise<void> => {
-  const normalizedFileId = fileId.trim();
-
-  if (!normalizedFileId) return;
-
-  await storage.deleteFile(
-    config.bucketId ||
-      config.leaseBucketId!,
-    normalizedFileId,
-  );
+    // ✅ Return ONLY the file ID and name
+    return {
+      fileId: response.$id,
+      name: file.name,
+    };
+  } catch (error) {
+    console.error("Error uploading lease document:", error);
+    throw error;
+  }
 };
 
 export async function sendExpoPushToUser(

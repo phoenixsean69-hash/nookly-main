@@ -142,10 +142,9 @@ export const config = {
     process.env.EXPO_PUBLIC_APPWRITE_GALLERIES_COLLECTION_ID,
   reviewsCollectionId: process.env.EXPO_PUBLIC_APPWRITE_REVIEWS_COLLECTION_ID,
   bucketId: process.env.EXPO_PUBLIC_APPWRITE_BUCKET_ID,
-  // The free Appwrite plan uses the existing public storage bucket.
   leaseBucketId:
-    process.env.EXPO_PUBLIC_APPWRITE_BUCKET_ID ||
-    "69a20709002844cb4f69",
+    process.env.EXPO_PUBLIC_APPWRITE_LEASE_BUCKET_ID ||
+    "lease_documents",
   favoritesCollectionId:
     process.env.EXPO_PUBLIC_APPWRITE_FAVORITES_COLLECTION_ID,
   likesCollectionId: process.env.EXPO_PUBLIC_APPWRITE_LIKES_COLLECTION,
@@ -316,24 +315,27 @@ const sanitizeLeaseFileName = (
 
 export const uploadLeaseDocument = async (
   fileAsset: LeaseUploadAsset,
-  _tenantAccountId: string,
+  tenantAccountId: string,
 ): Promise<UploadedLeaseDocument> => {
+  const normalizedTenantId =
+    tenantAccountId.trim();
+
+  if (!normalizedTenantId) {
+    throw new Error(
+      "The tenant account ID is required for lease access.",
+    );
+  }
+
   const fileName = sanitizeLeaseFileName(
     fileAsset.name,
   );
-
   const mimeType =
     fileAsset.mimeType || "application/pdf";
-
-  const fileSize = Number(
-    fileAsset.size || 0,
-  );
+  const fileSize = Number(fileAsset.size || 0);
 
   const isPdf =
     mimeType === "application/pdf" ||
-    fileName
-      .toLowerCase()
-      .endsWith(".pdf");
+    fileName.toLowerCase().endsWith(".pdf");
 
   if (!isPdf) {
     throw new Error(
@@ -352,51 +354,58 @@ export const uploadLeaseDocument = async (
   }
 
   if (
-    fileSize >
-    MAX_LEASE_DOCUMENT_SIZE
+    fileSize > MAX_LEASE_DOCUMENT_SIZE
   ) {
     throw new Error(
       "Lease documents must be 10 MB or smaller.",
     );
   }
 
-  const bucketId =
-    config.bucketId ||
-    config.leaseBucketId;
+  const landlord = await account.get();
+  const leaseBucketId =
+    config.leaseBucketId!;
 
-  if (!bucketId) {
-    throw new Error(
-      "The Appwrite storage bucket is not configured.",
-    );
-  }
+  const permissions = [
+    Permission.read(
+      Role.user(landlord.$id),
+    ),
+    Permission.read(
+      Role.user(normalizedTenantId),
+    ),
+    Permission.update(
+      Role.user(landlord.$id),
+    ),
+    Permission.delete(
+      Role.user(landlord.$id),
+    ),
+  ];
+
+  const file = {
+    name: fileName,
+    type: "application/pdf",
+    size: fileSize,
+    uri: fileAsset.uri,
+  };
 
   console.log(
-    "📄 Uploading lease to the existing public storage bucket...",
+    "📄 Uploading private lease document...",
   );
 
-  // The existing free-plan bucket has file security disabled.
-  // Do not pass file-level permissions because Appwrite ignores
-  // them when file security is off.
-  const response =
-    await storage.createFile(
-      bucketId,
-      ID.unique(),
-      {
-        name: fileName,
-        type: "application/pdf",
-        size: fileSize,
-        uri: fileAsset.uri,
-      },
-    );
+  const response = await storage.createFile(
+    leaseBucketId,
+    ID.unique(),
+    file,
+    permissions,
+  );
 
   console.log(
-    "✅ Lease document uploaded:",
+    "✅ Private lease document uploaded:",
     response.$id,
   );
 
   return {
     fileId: response.$id,
-    bucketId,
+    bucketId: leaseBucketId,
     name: fileName,
     size: fileSize,
     mimeType: "application/pdf",
@@ -411,8 +420,7 @@ export const deleteLeaseDocument = async (
   if (!normalizedFileId) return;
 
   await storage.deleteFile(
-    config.bucketId ||
-      config.leaseBucketId!,
+    config.leaseBucketId!,
     normalizedFileId,
   );
 };

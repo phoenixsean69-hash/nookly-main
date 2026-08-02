@@ -176,49 +176,6 @@ export interface PropertyReviewNotificationResult {
   push?: PushTicketSummary;
 }
 
-export interface LeaseSentNotificationResult {
-  skipped: boolean;
-  duplicate?: boolean;
-  reason?: string;
-  notificationCreated?: boolean;
-  notificationRowId?: string;
-  recipientUserId: string;
-  requestId: string;
-  propertyId: string;
-  documentId: string;
-  data?: {
-    type: "lease";
-    screen: string;
-    requestId: string;
-    propertyId: string;
-    propertyName: string;
-    tenantId: string;
-    tenantName: string;
-    landlordId: string;
-    landlordName: string;
-    documentId: string;
-    documentName: string;
-    documentSize: number;
-    mimeType: string;
-    leaseMessage: string;
-    sentAt: string;
-  };
-  push?: PushTicketSummary;
-}
-
-export interface LeaseAccessResult {
-  requestId: string;
-  propertyId: string;
-  propertyName: string;
-  documentId: string;
-  documentName: string;
-  documentSize: number;
-  mimeType: string;
-  expiresAt: string;
-  viewUrl: string;
-  downloadUrl: string;
-}
-
 function requireFunctionId(): string {
   if (!PUSH_FUNCTION_ID) {
     throw new Error(
@@ -399,50 +356,6 @@ class PushFunctionService {
       {
         propertyId: normalizedPropertyId,
         reviewId: normalizedReviewId,
-      },
-    );
-  }
-
-  async notifyLeaseSent(
-    requestId: string,
-    leaseMessage = "",
-  ): Promise<LeaseSentNotificationResult> {
-    const normalizedRequestId =
-      requestId.trim();
-
-    if (!normalizedRequestId) {
-      throw new Error(
-        "A request ID is required to send a lease notification.",
-      );
-    }
-
-    return executePushRoute<LeaseSentNotificationResult>(
-      "/lease-sent",
-      {
-        requestId: normalizedRequestId,
-        leaseMessage: leaseMessage
-          .trim()
-          .slice(0, 500),
-      },
-    );
-  }
-
-  async getLeaseAccess(
-    requestId: string,
-  ): Promise<LeaseAccessResult> {
-    const normalizedRequestId =
-      requestId.trim();
-
-    if (!normalizedRequestId) {
-      throw new Error(
-        "A request ID is required to open a lease document.",
-      );
-    }
-
-    return executePushRoute<LeaseAccessResult>(
-      "/lease-access",
-      {
-        requestId: normalizedRequestId,
       },
     );
   }

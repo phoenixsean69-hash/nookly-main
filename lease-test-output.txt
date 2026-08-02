@@ -1,0 +1,48 @@
+﻿NOOKLY LEASE TEST LOG
+Started: 2026-08-02T19:35:53.4331787+02:00
+
+
+Nookly Lucan -> Beef lease test
+Windows PowerShell compatible runner v5
+
+Log file: C:\Users\work2\Desktop\nookly-with-students\lease-test-output-20260802-193553.txt
+
+Node version: v24.18.0
+Request ID: 6a6f65fc0001a95c5bc7
+PDF path: C:\Users\work2\Downloads\form4.pdf
+PDF size: 54059 bytes
+
+
+Starting Node lease simulation...
+
+
+Nookly landlord -> tenant lease test
+------------------------------------
+
+1. Signing in as Lucan...
+   Signed in: Lucan Muchayi
+   Account ID: 69c18e4400164e106828
+
+2. Request selected:
+   Request ID: 6a6f65fc0001a95c5bc7
+   Property: Yellow House
+   Tenant: Beef Spook
+   Status: pending
+   Status updated to accepted for this production test.
+
+3. Uploading private PDF...
+   File: form4.pdf
+   Size: 54059 bytes
+   Storage file ID: 6a6f80230026ea0ac5d0
+
+4. Sending verified lease notification...
+System.Management.Automation.RemoteException
+LEASE TEST FAILED
+-----------------
+/lease-sent returned invalid JSON: 
+
+Temporary Lucan terminal session closed.
+
+LEASE TEST FAILED
+-----------------
+Node lease simulation exited with code 1.

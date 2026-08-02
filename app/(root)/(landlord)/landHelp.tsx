@@ -266,37 +266,27 @@ export default function Help() {
         contentContainerStyle={{ paddingBottom: 40 }}
       >
         {/* Hero Section */}
-        <LinearGradient
-          colors={[theme.primary[100], theme.background]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          className="mx-4 mt-4 p-6 rounded-3xl"
-        >
-          <View className="items-center">
-            <View
-              className="w-16 h-16 rounded-full items-center justify-center mb-3"
-              style={{ backgroundColor: theme.primary[300] + "20" }}
-            >
-              <Ionicons
-                name="help-circle"
-                size={32}
-                color={theme.primary[300]}
-              />
-            </View>
-            <Text
-              className="text-xl font-rubik-bold text-center"
-              style={{ color: theme.title }}
-            >
-              How can we help you?
-            </Text>
-            <Text
-              className="text-sm text-center mt-2"
-              style={{ color: theme.muted }}
-            >
-              Find answers to common questions or contact our support team
-            </Text>
+
+        <View className="items-center">
+          <View
+            className="w-16 h-16 rounded-full items-center justify-center mb-3"
+            style={{ backgroundColor: theme.primary[300] + "20" }}
+          >
+            <Ionicons name="help-circle" size={32} color={theme.primary[300]} />
           </View>
-        </LinearGradient>
+          <Text
+            className="text-xl font-rubik-bold text-center"
+            style={{ color: theme.title }}
+          >
+            How can we help you?
+          </Text>
+          <Text
+            className="text-sm text-center mt-2"
+            style={{ color: theme.muted }}
+          >
+            Find answers to common questions or contact our support team
+          </Text>
+        </View>
 
         {/* Quick Stats */}
         <View className="mx-4 mt-6">
@@ -497,7 +487,7 @@ export default function Help() {
                 className="text-sm font-rubik-medium"
                 style={{ color: theme.primary[300] }}
               >
-                View All ({faqs.length})
+                View All
               </Text>
             </TouchableOpacity>
           </View>

@@ -8,11 +8,9 @@ import {
   config,
   createNotification,
   databases,
-  deleteLeaseDocument,
   uploadLeaseDocument,
 } from "@/lib/appwrite";
 import notificationService from "@/services/notification.service";
-import pushFunctionService from "@/services/push-function.service";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -662,138 +660,64 @@ export default function LandlordRequests() {
     }
   };
 
-  const handleSendLeaseDocument = async (
-    file: {
-      name: string;
-      uri: string;
-      mimeType: string;
-      size: number;
-    },
-    leaseMessage: string,
-  ) => {
+  const handleSendLeaseDocument = async (file: any) => {
     if (!selectedRequestForLease) return;
 
-    const request =
-      selectedRequestForLease;
-    let uploadedFileId: string | null = null;
-
     setSendingLease(true);
-
     try {
-      const uploaded =
-        await uploadLeaseDocument(
-          file,
-          request.tenantId,
-        );
+      // Upload the document
+      const result = await uploadLeaseDocument(file);
 
-      uploadedFileId = uploaded.fileId;
-      const leaseSentAt =
-        new Date().toISOString();
-
+      // ✅ Update ONLY the fields we want - NO leaseDocumentUrl
       await databases.updateDocument(
         config.databaseId!,
         config.requestsCollectionId!,
-        request.$id,
+        selectedRequestForLease.$id,
         {
-          leaseDocumentId:
-            uploaded.fileId,
-          leaseDocumentName:
-            uploaded.name,
-          leaseSentAt,
+          leaseDocumentId: result.fileId, // ✅ Store the file ID
+          leaseDocumentName: result.name,
+          leaseSentAt: new Date().toISOString(),
+          // ❌ DO NOT include leaseDocumentUrl here
         },
       );
 
-      let notificationWarning = "";
-
-      try {
-        const result =
-          await pushFunctionService.notifyLeaseSent(
-            request.$id,
-            leaseMessage,
-          );
-
-        if (result.skipped) {
-          notificationWarning =
-            result.reason ||
-            "The lease was saved, but the notification was skipped.";
-        } else {
-          console.log(
-            "✅ Secure lease notification processed:",
-            {
-              notificationRowId:
-                result.notificationRowId,
-              recipientUserId:
-                result.recipientUserId,
-              acceptedPushes:
-                result.push?.accepted ?? 0,
-              failedPushes:
-                result.push?.failed ?? 0,
-            },
-          );
-        }
-      } catch (notificationError) {
-        console.error(
-          "Lease notification failed:",
-          notificationError,
-        );
-
-        notificationWarning =
-          "The lease was saved, but the tenant notification could not be delivered.";
-      }
-
-      setRequests((current) =>
-        current.map((item) =>
-          item.$id === request.$id
-            ? {
-                ...item,
-                leaseDocumentId:
-                  uploaded.fileId,
-                leaseDocumentName:
-                  uploaded.name,
-                leaseSentAt,
-              }
-            : item,
-        ),
+      // Create notification for tenant
+      await createNotification(
+        selectedRequestForLease.tenantId,
+        "📄 Lease Document Sent",
+        `The landlord has sent you a lease document for "${selectedRequestForLease.propertyName}". Please check your requests.`,
+        "system",
+        {
+          requestId: selectedRequestForLease.$id,
+          propertyId: selectedRequestForLease.propertyId,
+          propertyName: selectedRequestForLease.propertyName,
+          documentId: result.fileId,
+        },
       );
 
+      // Send push notification
+      try {
+        await notificationService.sendNotificationToUser(
+          selectedRequestForLease.tenantId,
+          "📄 Lease Document Ready",
+          `A lease document for "${selectedRequestForLease.propertyName}" has been sent to you.`,
+          { type: "lease", requestId: selectedRequestForLease.$id },
+        );
+      } catch (pushError) {
+        console.error("Failed to send push notification:", pushError);
+      }
+
+      Alert.alert("Success", "Lease document sent successfully!");
       setLeaseModalVisible(false);
       setSelectedRequestForLease(null);
-
-      if (notificationWarning) {
-        Alert.alert(
-          "Lease saved",
-          notificationWarning,
-        );
-      } else {
-        Alert.alert(
-          "Lease sent",
-          `${uploaded.name} was securely sent to ${request.tenantName}.`,
-        );
-      }
+      fetchRequests(); // Refresh the list
     } catch (error) {
-      if (uploadedFileId) {
-        await deleteLeaseDocument(
-          uploadedFileId,
-        ).catch(() => undefined);
-      }
-
-      console.error(
-        "Error sending lease document:",
-        error,
-      );
-
-      Alert.alert(
-        "Lease not sent",
-        error instanceof Error
-          ? error.message
-          : "The lease document could not be sent.",
-      );
+      console.error("Error sending lease document:", error);
+      Alert.alert("Error", "Failed to send lease document");
     } finally {
       setSendingLease(false);
     }
   };
-
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString() + " at " + date.toLocaleTimeString();

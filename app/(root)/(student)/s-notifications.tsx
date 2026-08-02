@@ -29,7 +29,7 @@ interface NotificationItem {
   id: string;
   title: string;
   message: string;
-  type: "like" | "message" | "review" | "system" | "request" | "event";
+  type: "like" | "message" | "review" | "system" | "request" | "event" | "lease";
   read: boolean;
   createdAt: Date;
   data?: any;
@@ -287,6 +287,14 @@ export default function NotificationsScreen() {
         } else {
           router.push("/s-myRequests");
         }
+      } else if (notification.type === "lease") {
+        router.push({
+          pathname: "/s-myRequests",
+          params: {
+            requestId:
+              notification.data?.requestId || "",
+          },
+        } as any);
       } else if (notification.type === "message") {
         router.push("/s-message");
       }
@@ -306,6 +314,8 @@ export default function NotificationsScreen() {
         return icons.star;
       case "request":
         return icons.bell;
+      case "lease":
+        return icons.document;
       case "event":
         return icons.calendar;
       default:
@@ -323,6 +333,8 @@ export default function NotificationsScreen() {
         return "#F59E0B";
       case "request":
         return "#8B5CF6";
+      case "lease":
+        return "#0EA5E9";
       case "event":
         return "#10B981";
       default:
@@ -342,6 +354,74 @@ export default function NotificationsScreen() {
     if (hours < 24) return `${hours}h ago`;
     if (days < 7) return `${days}d ago`;
     return date.toLocaleDateString();
+  };
+
+  const renderLeaseDetails = (
+    item: NotificationItem,
+  ) => {
+    if (item.type !== "lease") {
+      return null;
+    }
+
+    const fileSize = Number(
+      item.data?.documentSize ?? 0,
+    );
+
+    const sizeText =
+      fileSize > 0
+        ? fileSize >= 1024 * 1024
+          ? `${(fileSize / (1024 * 1024)).toFixed(2)} MB`
+          : `${(fileSize / 1024).toFixed(1)} KB`
+        : "PDF document";
+
+    return (
+      <View
+        className="mt-3 rounded-xl p-3"
+        style={{
+          backgroundColor: "#0EA5E912",
+          borderWidth: 1,
+          borderColor: "#0EA5E935",
+        }}
+      >
+        <Text
+          className="font-rubik-medium"
+          style={{ color: theme.text }}
+        >
+          {item.data?.documentName ||
+            "Lease document"}
+        </Text>
+
+        <Text
+          className="text-xs mt-1"
+          style={{ color: theme.muted }}
+        >
+          {sizeText} · {item.data?.propertyName || "Property"}
+        </Text>
+
+        <Text
+          className="text-xs mt-1"
+          style={{ color: theme.muted }}
+        >
+          From: {item.data?.landlordName || "Landlord"}
+        </Text>
+
+        {item.data?.leaseMessage ? (
+          <Text
+            className="text-sm mt-2"
+            style={{ color: theme.text }}
+          >
+            “{item.data.leaseMessage}”
+          </Text>
+        ) : null}
+
+        <Text
+          className="text-xs mt-2 font-rubik-medium"
+          style={{ color: "#0EA5E9" }}
+        >
+          Tap to review the lease
+        </Text>
+      </View>
+    );
   };
 
   const renderNotification = ({ item }: { item: NotificationItem }) => {
@@ -386,6 +466,7 @@ export default function NotificationsScreen() {
           <Text className="text-sm mt-1" style={{ color: theme.muted }}>
             {item.message}
           </Text>
+          {renderLeaseDetails(item)}
           <Text className="text-xs mt-1" style={{ color: theme.muted }}>
             {formatTime(item.createdAt)}
           </Text>
@@ -418,7 +499,7 @@ export default function NotificationsScreen() {
     return {
       title: "No notifications yet",
       message:
-        "When you get likes, messages, or add calendar events, they'll appear here",
+        "Requests, leases, messages, and reminders will appear here",
     };
   };
 

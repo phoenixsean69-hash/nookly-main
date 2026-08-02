@@ -4,7 +4,9 @@ import {
   Permission,
   Query,
   Role,
+  Storage,
   TablesDB,
+  Tokens,
 } from "node-appwrite";
 
 const EXPO_SEND_URL = "https://exp.host/--/api/v2/push/send";
@@ -34,7 +36,7 @@ const REQUESTS_TABLE_ID = env(
 );
 const LEASE_BUCKET_ID = env(
   "NOOKLY_LEASE_BUCKET_ID",
-  "69a20709002844cb4f69",
+  "lease_documents",
 );
 const CONSOLE_TEST_SECRET = env(
   "NOOKLY_CONSOLE_TEST_SECRET",
@@ -1671,6 +1673,12 @@ const notifyPropertyReview = async (
   };
 };
 
+const createStorage = (req) =>
+  new Storage(createAdminClient(req));
+
+const createTokens = (req) =>
+  new Tokens(createAdminClient(req));
+
 const getUserRowByReference = async (
   tables,
   reference,
@@ -1737,12 +1745,11 @@ const notifyLeaseSent = async (
     );
   }
 
-  const requestRow =
-    await getRowOrNull(
-      tables,
-      requestsTableId,
-      requestId,
-    );
+  const requestRow = await getRowOrNull(
+    tables,
+    requestsTableId,
+    requestId,
+  );
 
   if (!requestRow) {
     throw statusError(
@@ -1774,8 +1781,7 @@ const notifyLeaseSent = async (
 
   if (
     !ownerAccountId ||
-    ownerAccountId !==
-      landlordAccountId
+    ownerAccountId !== landlordAccountId
   ) {
     throw statusError(
       403,
@@ -1803,7 +1809,7 @@ const notifyLeaseSent = async (
   if (!tenantAccountId) {
     throw statusError(
       409,
-      "The request does not contain a valid tenant account ID.",
+      "The rental request does not contain a valid tenant account ID.",
     );
   }
 
@@ -1828,14 +1834,48 @@ const notifyLeaseSent = async (
     );
   }
 
+  const storage = createStorage(req);
+
+  let file;
+
+  try {
+    file = await storage.getFile({
+      bucketId: LEASE_BUCKET_ID,
+      fileId: documentId,
+    });
+  } catch {
+    throw statusError(
+      404,
+      "The saved lease PDF could not be found in the private lease bucket.",
+    );
+  }
+
+  const mimeType = String(
+    file.mimeType ?? "",
+  ).trim();
+
+  const documentSize = Number(
+    file.sizeOriginal ?? 0,
+  );
+
   if (
-    !documentName
-      .toLowerCase()
-      .endsWith(".pdf")
+    mimeType !== "application/pdf" &&
+    !documentName.toLowerCase().endsWith(".pdf")
   ) {
     throw statusError(
       409,
-      "The saved lease document must be a PDF.",
+      "The saved lease file is not a PDF document.",
+    );
+  }
+
+  if (
+    !Number.isFinite(documentSize) ||
+    documentSize <= 0 ||
+    documentSize > 10 * 1024 * 1024
+  ) {
+    throw statusError(
+      409,
+      "The saved lease PDF is empty or larger than 10 MB.",
     );
   }
 
@@ -1852,8 +1892,7 @@ const notifyLeaseSent = async (
     );
 
   const landlordName = String(
-    landlordUser?.name ??
-      "Landlord",
+    landlordUser?.name ?? "Landlord",
   ).trim() || "Landlord";
 
   const tenantName = String(
@@ -1883,21 +1922,17 @@ const notifyLeaseSent = async (
     propertyName,
     tenantId: tenantAccountId,
     tenantName,
-    landlordId:
-      landlordAccountId,
+    landlordId: landlordAccountId,
     landlordName,
     documentId,
     documentName,
-    documentSize: 0,
-    mimeType:
-      "application/pdf",
+    documentSize,
+    mimeType: "application/pdf",
     leaseMessage,
     sentAt,
   };
 
-  const title =
-    "Lease Document Ready 📄";
-
+  const title = "Lease Document Ready 📄";
   const message =
     landlordName +
     ' sent "' +
@@ -1913,21 +1948,17 @@ const notifyLeaseSent = async (
     documentId.slice(0, 14)
   ).slice(0, 36);
 
-  const inApp =
-    await createInAppNotification(
-      tables,
-      {
-        rowId:
-          notificationRowId,
-        recipientUserId:
-          tenantAccountId,
-        title,
-        message,
-        type: "lease",
-        data:
-          notificationData,
-      },
-    );
+  const inApp = await createInAppNotification(
+    tables,
+    {
+      rowId: notificationRowId,
+      recipientUserId: tenantAccountId,
+      title,
+      message,
+      type: "lease",
+      data: notificationData,
+    },
+  );
 
   if (!inApp.created) {
     return {
@@ -1936,13 +1967,11 @@ const notifyLeaseSent = async (
       reason:
         "This lease notification was already processed.",
       notificationRowId,
-      recipientUserId:
-        tenantAccountId,
+      recipientUserId: tenantAccountId,
       requestId,
       propertyId,
       documentId,
-      data:
-        notificationData,
+      data: notificationData,
     };
   }
 
@@ -1952,8 +1981,7 @@ const notifyLeaseSent = async (
     validateNotification({
       title,
       body: message,
-      data:
-        notificationData,
+      data: notificationData,
     }),
     diagnosticLog,
   );
@@ -1961,16 +1989,13 @@ const notifyLeaseSent = async (
   return {
     skipped: false,
     duplicate: false,
-    notificationCreated:
-      true,
+    notificationCreated: true,
     notificationRowId,
-    recipientUserId:
-      tenantAccountId,
+    recipientUserId: tenantAccountId,
     requestId,
     propertyId,
     documentId,
-    data:
-      notificationData,
+    data: notificationData,
     push,
   };
 };
@@ -2000,12 +2025,11 @@ const issueLeaseAccess = async (
     );
   }
 
-  const requestRow =
-    await getRowOrNull(
-      tables,
-      requestsTableId,
-      requestId,
-    );
+  const requestRow = await getRowOrNull(
+    tables,
+    requestsTableId,
+    requestId,
+  );
 
   if (!requestRow) {
     throw statusError(
@@ -2018,13 +2042,10 @@ const issueLeaseAccess = async (
     requestRow.tenantId ?? "",
   ).trim();
 
-  if (
-    requestTenantId !==
-    tenantAccountId
-  ) {
+  if (requestTenantId !== tenantAccountId) {
     throw statusError(
       403,
-      "Only the tenant named on this request can open its lease from Nookly.",
+      "Only the tenant named on this request can access its lease.",
     );
   }
 
@@ -2039,10 +2060,34 @@ const issueLeaseAccess = async (
     );
   }
 
-  const documentName = String(
-    requestRow.leaseDocumentName ??
-      "lease_document.pdf",
-  ).trim() || "lease_document.pdf";
+  const storage = createStorage(req);
+  const file = await storage.getFile({
+    bucketId: LEASE_BUCKET_ID,
+    fileId: documentId,
+  });
+
+  const expiresAt = new Date(
+    Date.now() + 15 * 60 * 1000,
+  ).toISOString();
+
+  const tokens = createTokens(req);
+  const resourceToken =
+    await tokens.createFileToken({
+      bucketId: LEASE_BUCKET_ID,
+      fileId: documentId,
+      expire: expiresAt,
+    });
+
+  const secret = String(
+    resourceToken.secret ?? "",
+  ).trim();
+
+  if (!secret) {
+    throw statusError(
+      500,
+      "A temporary lease access token could not be created.",
+    );
+  }
 
   const endpoint =
     env("APPWRITE_FUNCTION_API_ENDPOINT") ||
@@ -2050,52 +2095,45 @@ const issueLeaseAccess = async (
     "https://fra.cloud.appwrite.io/v1";
 
   const projectId =
-    env(
-      "APPWRITE_FUNCTION_PROJECT_ID",
-    );
+    env("APPWRITE_FUNCTION_PROJECT_ID");
 
   const baseUrl =
     endpoint.replace(/\/$/, "") +
     "/storage/buckets/" +
-    encodeURIComponent(
-      LEASE_BUCKET_ID,
-    ) +
+    encodeURIComponent(LEASE_BUCKET_ID) +
     "/files/" +
-    encodeURIComponent(
-      documentId,
-    );
+    encodeURIComponent(documentId);
 
   const query =
     "?project=" +
-    encodeURIComponent(
-      projectId,
-    );
+    encodeURIComponent(projectId) +
+    "&token=" +
+    encodeURIComponent(secret);
 
-  // The existing storage bucket has public read access and
-  // file security disabled, so these URLs do not need tokens.
   return {
     requestId,
     propertyId: String(
       requestRow.propertyId ?? "",
     ).trim(),
     propertyName: String(
-      requestRow.propertyName ??
-        "Property",
+      requestRow.propertyName ?? "Property",
     ).trim() || "Property",
     documentId,
-    documentName,
-    documentSize: 0,
-    mimeType:
-      "application/pdf",
-    expiresAt: "",
-    viewUrl:
-      baseUrl +
-      "/view" +
-      query,
+    documentName: String(
+      requestRow.leaseDocumentName ??
+        file.name ??
+        "lease_document.pdf",
+    ).trim() || "lease_document.pdf",
+    documentSize: Number(
+      file.sizeOriginal ?? 0,
+    ),
+    mimeType: String(
+      file.mimeType ?? "application/pdf",
+    ),
+    expiresAt,
+    viewUrl: baseUrl + "/view" + query,
     downloadUrl:
-      baseUrl +
-      "/download" +
-      query,
+      baseUrl + "/download" + query,
   };
 };
 
@@ -2233,7 +2271,7 @@ export default async ({
     ) {
       return ok(res, {
         service: "nookly-push-api",
-        version: "1.4.1",
+        version: "1.4.0",
         status: "healthy",
         functionId:
           "6a31d988001bf962fb57",

@@ -147,8 +147,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 }
             ],
             "indexes": []
@@ -336,8 +336,8 @@
                     "required": true,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "area",
@@ -354,8 +354,8 @@
                     "required": true,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "bathrooms",
@@ -363,8 +363,8 @@
                     "required": true,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "rating",
@@ -433,8 +433,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "agent",
@@ -469,8 +469,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "curfew",
@@ -486,8 +486,8 @@
                     "required": false,
                     "array": false,
                     "default": 0,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "requests",
@@ -495,8 +495,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "priceThreshold",
@@ -504,8 +504,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "video1",
@@ -537,8 +537,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "occupiedSlots",
@@ -546,8 +546,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "availableSlots",
@@ -555,8 +555,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "latitude",
@@ -582,8 +582,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "price_change_date",
@@ -917,8 +917,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "propertyId",
@@ -1077,8 +1077,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "message",
@@ -1118,8 +1118,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "tenantPhone",
@@ -1365,8 +1365,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 }
             ],
             "indexes": [
@@ -1540,8 +1540,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "userId",
@@ -1678,8 +1678,8 @@
                     "required": true,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "leaseStartDate",
@@ -2058,8 +2058,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "isIdVerified",
@@ -2082,8 +2082,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "totalPayments",
@@ -2091,8 +2091,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "paymentReliability",
@@ -2100,8 +2100,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "previousLandlords",
@@ -2133,8 +2133,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "screeningStatus",
@@ -2172,8 +2172,8 @@
                     "required": false,
                     "array": false,
                     "default": 0,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "accepts",
@@ -2181,8 +2181,8 @@
                     "required": false,
                     "array": false,
                     "default": 0,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "declines",
@@ -2190,8 +2190,8 @@
                     "required": false,
                     "array": false,
                     "default": 0,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "propertiesRented",
@@ -2287,8 +2287,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "hasEnsuite_bathrooms",
@@ -2360,8 +2360,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "isAvailable",
@@ -2384,8 +2384,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "priceThreshold",
@@ -2393,8 +2393,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "video1",
@@ -2426,8 +2426,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "availableSlots",
@@ -2435,8 +2435,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "latitude",
@@ -2462,8 +2462,8 @@
                     "required": false,
                     "array": false,
                     "default": null,
-                    "min": -9223372036854776000,
-                    "max": 9223372036854776000
+                    "min": -9223372036854775808,
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "rooms_for_occupied",
@@ -2728,7 +2728,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "status",
@@ -3512,7 +3512,7 @@
                     "array": false,
                     "default": null,
                     "min": 1,
-                    "max": 9223372036854776000
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "estimatedDistanceKm",
@@ -3687,7 +3687,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "estimatedArrivalOffsetMinutes",
@@ -3696,7 +3696,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "isPickup",
@@ -4226,7 +4226,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 9223372036854775807
                 }
             ],
             "indexes": [
@@ -4831,7 +4831,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "batteryLevel",
@@ -5791,7 +5791,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "estimatedJourneyMinutes",
@@ -5800,7 +5800,7 @@
                     "array": false,
                     "default": null,
                     "min": 1,
-                    "max": 9223372036854776000
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "availableSeats",
@@ -6161,7 +6161,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "status",
@@ -6433,7 +6433,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 9223372036854775807
                 }
             ],
             "indexes": []
@@ -6525,7 +6525,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "routeCorridorMeters",
@@ -6764,7 +6764,7 @@
                     "array": false,
                     "default": null,
                     "min": 0,
-                    "max": 9223372036854776000
+                    "max": 9223372036854775807
                 },
                 {
                     "key": "latitude",

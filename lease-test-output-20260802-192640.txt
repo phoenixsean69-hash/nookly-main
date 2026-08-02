@@ -1,0 +1,21 @@
+﻿NOOKLY LEASE TEST LOG
+Started: 2026-08-02T19:26:40.2862034+02:00
+
+
+Nookly Lucan -> Beef lease test
+Paste-friendly runner v3
+
+Log file: C:\Users\work2\Desktop\nookly-with-students\lease-test-output-20260802-192640.txt
+
+Node version: v24.18.0
+Request ID: 6a6f65fc0001a95c5bc7
+PDF path: C:\Users\work2\Downloads\form4.pdf
+PDF size: 54059 bytes
+
+
+Starting Node lease simulation...
+
+
+LEASE TEST FAILED
+-----------------
+file:///C:/Users/work2/Desktop/nookly-with-students/scripts/lucan-send-lease-test.mjs:6

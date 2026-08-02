@@ -1,0 +1,14 @@
+﻿NOOKLY LEASE TEST LOG
+Started: 2026-08-02T19:24:09.8589466+02:00
+
+
+Nookly Lucan -> Beef lease test
+Paste-friendly runner v3
+
+Log file: C:\Users\work2\Desktop\nookly-with-students\lease-test-output-20260802-192409.txt
+
+Node version: v24.18.0
+
+LEASE TEST FAILED
+-----------------
+PDF not found: [C:\Users\work2\Downloads\form4.pdf

@@ -64,7 +64,9 @@
             "scopes": [
                 "users.read",
                 "rows.read",
-                "rows.write"
+                "rows.write",
+                "files.read",
+                "tokens.write"
             ],
             "buildSpecification": "s-2vcpu-2gb",
             "runtimeSpecification": "s-0.5vcpu-512mb",
@@ -6844,6 +6846,22 @@
                 "html",
                 "pdf",
                 "mp4"
+            ],
+            "compression": "none",
+            "encryption": true,
+            "antivirus": true
+        },
+        {
+            "$id": "lease_documents",
+            "$permissions": [
+                "create(\"users\")"
+            ],
+            "fileSecurity": true,
+            "name": "Lease Documents",
+            "enabled": true,
+            "maximumFileSize": 10485760,
+            "allowedFileExtensions": [
+                "pdf"
             ],
             "compression": "none",
             "encryption": true,

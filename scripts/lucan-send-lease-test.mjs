@@ -1,0 +1,664 @@
+import fs from "node:fs";
+import path from "node:path";
+import {
+  Client,
+  ID,
+  Query,
+  Storage,
+} from "node-appwrite";
+import { InputFile } from "node-appwrite/file";
+
+const EXPECTED_LUCAN_ACCOUNT_ID =
+  "69c18e4400164e106828";
+
+const BEEF_ACCOUNT_ID =
+  "6a6e3ba6000fb26e3dbc";
+
+const DEFAULT_PROPERTY_ID =
+  "69c50097001babcc3e7c";
+
+const DEFAULT_REQUEST_ID =
+  "6a6f65fc0001a95c5bc7";
+
+const root = process.cwd();
+
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return;
+
+  const content = fs.readFileSync(
+    filePath,
+    "utf8",
+  );
+
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+
+    if (
+      !line ||
+      line.startsWith("#") ||
+      !line.includes("=")
+    ) {
+      continue;
+    }
+
+    const separator = line.indexOf("=");
+    const key = line.slice(0, separator).trim();
+
+    let value = line
+      .slice(separator + 1)
+      .trim();
+
+    if (
+      (value.startsWith('"') &&
+        value.endsWith('"')) ||
+      (value.startsWith("'") &&
+        value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    if (
+      key &&
+      process.env[key] === undefined
+    ) {
+      process.env[key] = value;
+    }
+  }
+}
+
+for (const envName of [
+  ".env",
+  ".env.local",
+  ".env.development",
+  ".env.development.local",
+]) {
+  loadEnvFile(path.join(root, envName));
+}
+
+function required(name, fallback = "") {
+  const value = String(
+    process.env[name] ?? fallback,
+  ).trim();
+
+  if (!value) {
+    throw new Error(
+      `Missing ${name}. Add it to your .env file.`,
+    );
+  }
+
+  return value;
+}
+
+const endpoint = required(
+  "EXPO_PUBLIC_APPWRITE_ENDPOINT",
+).replace(/\/$/, "");
+
+const projectId = required(
+  "EXPO_PUBLIC_APPWRITE_PROJECT_ID",
+  "69904bec001b4d14cce2",
+);
+
+const databaseId = required(
+  "EXPO_PUBLIC_APPWRITE_DATABASE_ID",
+  "6990ba1f00247b886338",
+);
+
+const requestsCollectionId = required(
+  "EXPO_PUBLIC_APPWRITE_REQUESTS_COLLECTION",
+  "69c3a9f30004facf9a4d",
+);
+
+const functionId = required(
+  "EXPO_PUBLIC_APPWRITE_PUSH_FUNCTION_ID",
+  "6a31d988001bf962fb57",
+);
+
+const leaseBucketId = String(
+  process.env.EXPO_PUBLIC_APPWRITE_BUCKET_ID ||
+    process.env.EXPO_PUBLIC_APPWRITE_LEASE_BUCKET_ID ||
+    "69a20709002844cb4f69",
+).trim();
+
+const email = String(
+  process.env.NOOKLY_LUCAN_EMAIL ?? "",
+).trim();
+
+const password = String(
+  process.env.NOOKLY_LUCAN_PASSWORD ?? "",
+);
+
+const requestedRequestId = String(
+  process.env.NOOKLY_LEASE_REQUEST_ID ??
+    DEFAULT_REQUEST_ID,
+).trim();
+
+const requestedPdfPath = path.resolve(
+  String(
+    process.env.NOOKLY_LEASE_PDF_PATH ??
+      path.join(
+        root,
+        "sample",
+        "Nookly-Test-Lease.pdf",
+      ),
+  ).trim(),
+);
+
+if (!email) {
+  throw new Error(
+    "Lucan's email was not provided.",
+  );
+}
+
+if (!password) {
+  throw new Error(
+    "Lucan's password was not provided.",
+  );
+}
+
+if (!fs.existsSync(requestedPdfPath)) {
+  throw new Error(
+    `Lease PDF not found: ${requestedPdfPath}`,
+  );
+}
+
+const stat = fs.statSync(requestedPdfPath);
+
+if (
+  !requestedPdfPath.toLowerCase().endsWith(".pdf") ||
+  stat.size <= 0 ||
+  stat.size > 10 * 1024 * 1024
+) {
+  throw new Error(
+    "The lease must be a non-empty PDF no larger than 10 MB.",
+  );
+}
+
+let sessionSecret = "";
+let sessionCreated = false;
+
+function headers({
+  authenticated = true,
+  json = false,
+} = {}) {
+  const value = {
+    "X-Appwrite-Project": projectId,
+    "X-Appwrite-Response-Format": "1.9.5",
+  };
+
+  if (authenticated && sessionSecret) {
+    value["X-Appwrite-Session"] =
+      sessionSecret;
+  }
+
+  if (json) {
+    value["Content-Type"] =
+      "application/json";
+  }
+
+  return value;
+}
+
+async function parseResponse(
+  response,
+  label,
+) {
+  const text = await response.text();
+  let payload = {};
+
+  if (text.trim()) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      throw new Error(
+        `${label} returned invalid JSON: ` +
+          text.slice(0, 250),
+      );
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      payload?.message ||
+        `${label} failed with HTTP ${response.status}.`,
+    );
+  }
+
+  return payload;
+}
+
+function getSetCookies(responseHeaders) {
+  if (
+    typeof responseHeaders.getSetCookie ===
+    "function"
+  ) {
+    return responseHeaders.getSetCookie();
+  }
+
+  const combined =
+    responseHeaders.get("set-cookie");
+
+  return combined ? [combined] : [];
+}
+
+function extractSessionSecret(cookies) {
+  const names = new Set([
+    `a_session_${projectId}`,
+    `a_session_${projectId}_legacy`,
+  ]);
+
+  for (const cookie of cookies) {
+    const first = String(cookie)
+      .split(";")[0];
+
+    const separator = first.indexOf("=");
+
+    if (separator < 1) continue;
+
+    const name = first
+      .slice(0, separator)
+      .trim();
+
+    const value = first
+      .slice(separator + 1)
+      .trim();
+
+    if (names.has(name) && value) {
+      return decodeURIComponent(value);
+    }
+  }
+
+  return "";
+}
+
+async function login() {
+  const response = await fetch(
+    `${endpoint}/account/sessions/email`,
+    {
+      method: "POST",
+      headers: headers({
+        authenticated: false,
+        json: true,
+      }),
+      body: JSON.stringify({
+        email,
+        password,
+      }),
+    },
+  );
+
+  const payload = await parseResponse(
+    response,
+    "Lucan login",
+  );
+
+  sessionCreated = true;
+  sessionSecret =
+    extractSessionSecret(
+      getSetCookies(response.headers),
+    ) ||
+    String(payload?.secret ?? "").trim();
+
+  if (!sessionSecret) {
+    throw new Error(
+      "Login succeeded, but Node could not read the Appwrite session secret.",
+    );
+  }
+}
+
+async function api(
+  relativePath,
+  options = {},
+) {
+  const response = await fetch(
+    `${endpoint}${relativePath}`,
+    {
+      ...options,
+      headers: {
+        ...headers({
+          authenticated: true,
+          json: Boolean(options.body),
+        }),
+        ...(options.headers || {}),
+      },
+    },
+  );
+
+  return parseResponse(
+    response,
+    `${options.method || "GET"} ${relativePath}`,
+  );
+}
+
+async function getRequest(requestId) {
+  return api(
+    `/databases/${encodeURIComponent(databaseId)}` +
+      `/collections/${encodeURIComponent(requestsCollectionId)}` +
+      `/documents/${encodeURIComponent(requestId)}`,
+  );
+}
+
+async function findLatestRequest() {
+  const params = new URLSearchParams();
+
+  for (const query of [
+    Query.equal("propertyId", DEFAULT_PROPERTY_ID),
+    Query.equal("tenantId", BEEF_ACCOUNT_ID),
+    Query.orderDesc("$createdAt"),
+    Query.limit(1),
+  ]) {
+    params.append("queries[]", query);
+  }
+
+  const result = await api(
+    `/databases/${encodeURIComponent(databaseId)}` +
+      `/collections/${encodeURIComponent(requestsCollectionId)}` +
+      `/documents?${params.toString()}`,
+  );
+
+  return result.documents?.[0] ?? null;
+}
+
+async function updateRequest(
+  requestId,
+  data,
+) {
+  return api(
+    `/databases/${encodeURIComponent(databaseId)}` +
+      `/collections/${encodeURIComponent(requestsCollectionId)}` +
+      `/documents/${encodeURIComponent(requestId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ data }),
+    },
+  );
+}
+
+async function invokeRoute(
+  route,
+  body,
+) {
+  const execution = await api(
+    `/functions/${encodeURIComponent(functionId)}/executions`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        body: JSON.stringify(body),
+        async: false,
+        path: route,
+        method: "POST",
+        headers: {
+          "content-type":
+            "application/json",
+        },
+      }),
+    },
+  );
+
+  const status = Number(
+    execution.responseStatusCode ?? 0,
+  );
+
+  const raw = String(
+    execution.responseBody ?? "",
+  ).trim();
+
+  let response;
+
+  try {
+    response = JSON.parse(raw);
+  } catch {
+    throw new Error(
+      `${route} returned invalid JSON: ` +
+        raw.slice(0, 250),
+    );
+  }
+
+  if (
+    status < 200 ||
+    status >= 300 ||
+    !response?.ok
+  ) {
+    throw new Error(
+      response?.error ||
+        `${route} failed with HTTP ${status || "unknown"}.`,
+    );
+  }
+
+  return response.data;
+}
+
+async function closeSession() {
+  if (!sessionSecret) return;
+
+  const response = await fetch(
+    `${endpoint}/account/sessions/current`,
+    {
+      method: "DELETE",
+      headers: headers(),
+    },
+  );
+
+  if (
+    !response.ok &&
+    response.status !== 401
+  ) {
+    throw new Error(
+      `Session cleanup failed with HTTP ${response.status}.`,
+    );
+  }
+}
+
+async function main() {
+  console.log("");
+  console.log(
+    "Nookly landlord -> tenant lease test",
+  );
+  console.log(
+    "------------------------------------",
+  );
+
+  console.log("");
+  console.log("1. Signing in as Lucan...");
+  await login();
+
+  const account = await api("/account");
+
+  console.log(
+    `   Signed in: ${account.name || email}`,
+  );
+  console.log(
+    `   Account ID: ${account.$id}`,
+  );
+
+  if (
+    account.$id !==
+    EXPECTED_LUCAN_ACCOUNT_ID
+  ) {
+    throw new Error(
+      "Safety check failed. This login is not Lucan Muchayi.",
+    );
+  }
+
+  let request;
+
+  try {
+    request = await getRequest(
+      requestedRequestId,
+    );
+  } catch {
+    request = await findLatestRequest();
+  }
+
+  if (!request) {
+    throw new Error(
+      "No Beef request for Yellow House was found.",
+    );
+  }
+
+  if (
+    String(request.tenantId ?? "") !==
+      BEEF_ACCOUNT_ID ||
+    String(request.propertyId ?? "") !==
+      DEFAULT_PROPERTY_ID
+  ) {
+    throw new Error(
+      "Safety check failed. The request is not Beef -> Yellow House.",
+    );
+  }
+
+  console.log("");
+  console.log("2. Request selected:");
+  console.log(
+    `   Request ID: ${request.$id}`,
+  );
+  console.log(
+    `   Property: ${request.propertyName}`,
+  );
+  console.log(
+    `   Tenant: ${request.tenantName}`,
+  );
+  console.log(
+    `   Status: ${request.status}`,
+  );
+
+  if (
+    String(request.status ?? "")
+      .toLowerCase() !== "accepted"
+  ) {
+    request = await updateRequest(
+      request.$id,
+      { status: "accepted" },
+    );
+
+    console.log(
+      "   Status updated to accepted for this production test.",
+    );
+  }
+
+  console.log("");
+  console.log("3. Uploading private PDF...");
+  console.log(
+    `   File: ${path.basename(requestedPdfPath)}`,
+  );
+  console.log(
+    `   Size: ${stat.size} bytes`,
+  );
+
+  const client = new Client()
+    .setEndpoint(endpoint)
+    .setProject(projectId)
+    .setSession(sessionSecret);
+
+  const storage = new Storage(client);
+  const uploaded = await storage.createFile({
+    bucketId: leaseBucketId,
+    fileId: ID.unique(),
+    file: InputFile.fromPath(
+      requestedPdfPath,
+      path.basename(requestedPdfPath),
+    ),
+
+  });
+
+  const sentAt = new Date().toISOString();
+
+  await updateRequest(
+    request.$id,
+    {
+      leaseDocumentId: uploaded.$id,
+      leaseDocumentName:
+        path.basename(requestedPdfPath),
+      leaseSentAt: sentAt,
+    },
+  );
+
+  console.log(
+    `   Storage file ID: ${uploaded.$id}`,
+  );
+
+  console.log("");
+  console.log(
+    "4. Sending verified lease notification...",
+  );
+
+  const result = await invokeRoute(
+    "/lease-sent",
+    {
+      requestId: request.$id,
+      leaseMessage:
+        "Please review this lease carefully. Use Preview or Download from My Requests.",
+    },
+  );
+
+  console.log("");
+  console.log("LEASE NOTIFICATION RESULT");
+  console.log("-------------------------");
+  console.log(
+    `Skipped: ${Boolean(result.skipped)}`,
+  );
+  console.log(
+    `Duplicate: ${Boolean(result.duplicate)}`,
+  );
+  console.log(
+    `Recipient: ${result.recipientUserId}`,
+  );
+  console.log(
+    `Notification row: ${result.notificationRowId}`,
+  );
+  console.log(
+    `Push requested: ${result.push?.requested ?? 0}`,
+  );
+  console.log(
+    `Push accepted: ${result.push?.accepted ?? 0}`,
+  );
+  console.log(
+    `Push failed: ${result.push?.failed ?? 0}`,
+  );
+
+  console.log("");
+  console.log("Structured notification data:");
+  console.log(
+    JSON.stringify(result.data, null, 2),
+  );
+
+  console.log("");
+  console.log(
+    "Check Beef's phone. Tapping the push should open My Requests.",
+  );
+}
+
+try {
+  await main();
+} catch (error) {
+  console.error("");
+  console.error("LEASE TEST FAILED");
+  console.error("-----------------");
+  console.error(
+    error instanceof Error
+      ? error.message
+      : String(error),
+  );
+  process.exitCode = 1;
+} finally {
+  if (
+    sessionCreated &&
+    sessionSecret
+  ) {
+    try {
+      await closeSession();
+      console.log("");
+      console.log(
+        "Temporary Lucan terminal session closed.",
+      );
+    } catch (cleanupError) {
+      console.warn(
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : String(cleanupError),
+      );
+    }
+  }
+
+  sessionSecret = "";
+  delete process.env.NOOKLY_LUCAN_PASSWORD;
+}

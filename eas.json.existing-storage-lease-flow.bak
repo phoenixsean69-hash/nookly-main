@@ -43,7 +43,7 @@
         "EXPO_PUBLIC_APPWRITE_RIDES_DRIVER_FUNCTION_ID": "rides-driver-api",
         "EXPO_PUBLIC_APPWRITE_RIDES_MARKETPLACE_FUNCTION_ID": "rides-driver-api",
         "EXPO_PUBLIC_APPWRITE_PUSH_FUNCTION_ID": "6a31d988001bf962fb57",
-        "EXPO_PUBLIC_APPWRITE_LEASE_BUCKET_ID": "69a20709002844cb4f69"
+        "EXPO_PUBLIC_APPWRITE_LEASE_BUCKET_ID": "lease_documents"
       }
     },
     "preview": {
@@ -84,7 +84,7 @@
         "EXPO_PUBLIC_APPWRITE_RIDES_DRIVER_FUNCTION_ID": "rides-driver-api",
         "EXPO_PUBLIC_APPWRITE_RIDES_MARKETPLACE_FUNCTION_ID": "rides-driver-api",
         "EXPO_PUBLIC_APPWRITE_PUSH_FUNCTION_ID": "6a31d988001bf962fb57",
-        "EXPO_PUBLIC_APPWRITE_LEASE_BUCKET_ID": "69a20709002844cb4f69"
+        "EXPO_PUBLIC_APPWRITE_LEASE_BUCKET_ID": "lease_documents"
       }
     },
     "production": {
@@ -125,7 +125,7 @@
         "EXPO_PUBLIC_APPWRITE_RIDES_DRIVER_FUNCTION_ID": "rides-driver-api",
         "EXPO_PUBLIC_APPWRITE_RIDES_MARKETPLACE_FUNCTION_ID": "rides-driver-api",
         "EXPO_PUBLIC_APPWRITE_PUSH_FUNCTION_ID": "6a31d988001bf962fb57",
-        "EXPO_PUBLIC_APPWRITE_LEASE_BUCKET_ID": "69a20709002844cb4f69"
+        "EXPO_PUBLIC_APPWRITE_LEASE_BUCKET_ID": "lease_documents"
       }
     },
     "androidapk": {
@@ -165,7 +165,7 @@
         "EXPO_PUBLIC_APPWRITE_RIDES_DRIVER_FUNCTION_ID": "rides-driver-api",
         "EXPO_PUBLIC_APPWRITE_RIDES_MARKETPLACE_FUNCTION_ID": "rides-driver-api",
         "EXPO_PUBLIC_APPWRITE_PUSH_FUNCTION_ID": "6a31d988001bf962fb57",
-        "EXPO_PUBLIC_APPWRITE_LEASE_BUCKET_ID": "69a20709002844cb4f69"
+        "EXPO_PUBLIC_APPWRITE_LEASE_BUCKET_ID": "lease_documents"
       },
       "android": {
         "buildType": "apk",
