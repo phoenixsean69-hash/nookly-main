@@ -298,7 +298,7 @@ export default function LeaseViewerScreen() {
           minScale={1}
           maxScale={4}
           spacing={10}
-          renderActivityIndicator={() => <View />}
+          renderActivityIndicator={() => null}
           onLoadComplete={(pages) => {
             setNumberOfPages(pages);
             setErrorMessage("");

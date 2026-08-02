@@ -4,7 +4,9 @@ import icons from "@/constants/icons";
 import { config, databases, uploadImage } from "@/lib/appwrite";
 import {
   downloadLeaseDocument,
+  isLeaseDocumentDownloaded,
   previewLeaseDocument,
+  subscribeToLeaseDownloads,
 } from "@/lib/leaseDocumentClient";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
@@ -118,15 +120,94 @@ export default function TenantRequests() {
   >([]);
   const [selectedPropertyName, setSelectedPropertyName] = useState("");
 
-  const [leaseActionRequestId, setLeaseActionRequestId] = useState<
-    string | null
-  >(null);
+  const [leaseAction, setLeaseAction] = useState<{
+    requestId: string;
+    type: "preview" | "download";
+  } | null>(null);
 
-  const handlePreviewLease = async (requestId: string) => {
-    setLeaseActionRequestId(requestId);
+  const isLeaseActionRunning = (requestId: string): boolean =>
+    leaseAction?.requestId === requestId;
+
+  const isLeasePreviewing = (requestId: string): boolean =>
+    leaseAction?.requestId === requestId && leaseAction.type === "preview";
+
+  const isLeaseDownloading = (requestId: string): boolean =>
+    leaseAction?.requestId === requestId && leaseAction.type === "download";
+
+  const [downloadedLeaseDocumentIds, setDownloadedLeaseDocumentIds] = useState<
+    Set<string>
+  >(() => new Set());
+
+  const isLeaseDownloaded = (documentId?: string): boolean =>
+    Boolean(documentId && downloadedLeaseDocumentIds.has(documentId));
+
+  const rememberDownloadedLease = (documentId: string) => {
+    const normalizedDocumentId = documentId.trim();
+
+    if (!normalizedDocumentId) return;
+
+    setDownloadedLeaseDocumentIds((current) => {
+      if (current.has(normalizedDocumentId)) return current;
+
+      const next = new Set(current);
+      next.add(normalizedDocumentId);
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    return subscribeToLeaseDownloads((documentId: string) => {
+      rememberDownloadedLease(documentId);
+    });
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const documentIds = Array.from(
+      new Set(
+        requests
+          .map((request) => request.leaseDocumentId?.trim() || "")
+          .filter(Boolean),
+      ),
+    );
+
+    void Promise.all(
+      documentIds.map(async (documentId) => ({
+        documentId,
+        downloaded: await isLeaseDocumentDownloaded(documentId),
+      })),
+    ).then((results) => {
+      if (!active) return;
+
+      setDownloadedLeaseDocumentIds(
+        new Set(
+          results
+            .filter((result) => result.downloaded)
+            .map((result) => result.documentId),
+        ),
+      );
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [requests]);
+
+  const handlePreviewLease = async (
+    requestId: string,
+    documentId: string,
+    fileName: string,
+  ) => {
+    if (isLeaseActionRunning(requestId)) return;
+
+    setLeaseAction({
+      requestId,
+      type: "preview",
+    });
 
     try {
-      await previewLeaseDocument(requestId);
+      await previewLeaseDocument(requestId, documentId, fileName);
     } catch (error) {
       console.error("Error previewing lease:", error);
 
@@ -137,15 +218,24 @@ export default function TenantRequests() {
           : "The lease could not be opened.",
       );
     } finally {
-      setLeaseActionRequestId(null);
+      setLeaseAction(null);
     }
   };
 
-  const handleDownloadLease = async (requestId: string, fileName: string) => {
-    setLeaseActionRequestId(requestId);
+  const handleDownloadLease = async (
+    requestId: string,
+    documentId: string,
+    fileName: string,
+  ) => {
+    if (isLeaseActionRunning(requestId)) return;
+
+    setLeaseAction({
+      requestId,
+      type: "download",
+    });
 
     try {
-      await downloadLeaseDocument(requestId, fileName);
+      await downloadLeaseDocument(requestId, documentId, fileName);
 
       Alert.alert(
         "Lease saved",
@@ -161,7 +251,7 @@ export default function TenantRequests() {
           : "The lease could not be downloaded.",
       );
     } finally {
-      setLeaseActionRequestId(null);
+      setLeaseAction(null);
     }
   };
 
@@ -555,7 +645,13 @@ export default function TenantRequests() {
         <View className="flex-row gap-3">
           {/* ✅ Fixed Preview Button */}
           <TouchableOpacity
-            onPress={() => handlePreviewLease(request.$id)}
+            onPress={() =>
+              handlePreviewLease(
+                request.$id,
+                request.leaseDocumentId || "",
+                request.leaseDocumentName || "lease_document.pdf",
+              )
+            }
             className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
             style={{
               backgroundColor: theme.surface,
@@ -574,9 +670,11 @@ export default function TenantRequests() {
 
           {/* ✅ Download Button */}
           <TouchableOpacity
+            disabled={isLeaseDownloaded(request.leaseDocumentId)}
             onPress={() =>
               handleDownloadLease(
                 request.$id,
+                request.leaseDocumentId || "",
                 request.leaseDocumentName || "lease_document.pdf",
               )
             }
@@ -584,7 +682,11 @@ export default function TenantRequests() {
             style={{ backgroundColor: theme.primary[300] }}
           >
             <Ionicons name="download" size={20} color="white" />
-            <Text className="text-white font-rubik-bold ml-2">Download</Text>
+            <Text className="text-white font-rubik-bold ml-2">
+              {isLeaseDownloaded(request.leaseDocumentId)
+                ? "Downloaded"
+                : "Download"}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1721,21 +1823,24 @@ export default function TenantRequests() {
 
                       <View className="flex-row gap-2 mt-3">
                         <TouchableOpacity
-                          disabled={leaseActionRequestId === item.$id}
+                          disabled={isLeaseActionRunning(item.$id)}
                           onPress={(event) => {
                             event.stopPropagation();
-                            void handlePreviewLease(item.$id);
+                            void handlePreviewLease(
+                              item.$id,
+                              item.leaseDocumentId || "",
+                              item.leaseDocumentName || "lease_document.pdf",
+                            );
                           }}
                           className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
                           style={{
                             backgroundColor: theme.surface,
                             borderWidth: 1,
                             borderColor: theme.primary[300],
-                            opacity:
-                              leaseActionRequestId === item.$id ? 0.65 : 1,
+                            opacity: isLeaseActionRunning(item.$id) ? 0.65 : 1,
                           }}
                         >
-                          {leaseActionRequestId === item.$id ? (
+                          {isLeasePreviewing(item.$id) ? (
                             <ActivityIndicator
                               size="small"
                               color={theme.primary[300]}
@@ -1760,32 +1865,32 @@ export default function TenantRequests() {
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                          disabled={leaseActionRequestId === item.$id}
+                          disabled={
+                            isLeaseActionRunning(item.$id) ||
+                            isLeaseDownloaded(item.leaseDocumentId)
+                          }
                           onPress={(event) => {
                             event.stopPropagation();
                             void handleDownloadLease(
                               item.$id,
+                              item.leaseDocumentId || "",
                               item.leaseDocumentName || "lease_document.pdf",
                             );
                           }}
                           className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
                           style={{
                             backgroundColor: theme.primary[300],
-                            opacity:
-                              leaseActionRequestId === item.$id ? 0.65 : 1,
+                            opacity: isLeaseActionRunning(item.$id) ? 0.65 : 1,
                           }}
                         >
-                          {leaseActionRequestId === item.$id ? (
+                          {isLeaseDownloading(item.$id) ? (
                             <ActivityIndicator size="small" color="#FFFFFF" />
                           ) : (
                             <>
-                              <Ionicons
-                                name="download"
-                                size={19}
-                                color="#FFFFFF"
-                              />
                               <Text className="ml-2 text-sm font-rubik-bold text-white">
-                                Download
+                                {isLeaseDownloaded(item.leaseDocumentId)
+                                  ? "Downloaded"
+                                  : "Download"}
                               </Text>
                             </>
                           )}

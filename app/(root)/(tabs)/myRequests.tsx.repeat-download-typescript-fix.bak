@@ -1,18 +1,16 @@
 // app/(root)/tenant-requests.tsx
 import {
-  config,
+  Colors } from "@/constants/Colors";
+import icons from "@/constants/icons";
+import { config,
   databases,
-  uploadImage,
-} from "@/lib/appwrite";
-import {
-  downloadLeaseDocument,
   isLeaseDocumentDownloaded,
   previewLeaseDocument,
   subscribeToLeaseDownloads,
-} from "@/lib/leaseDocumentClient";
+  uploadImage } from "@/lib/appwrite";
 import {
-  Colors } from "@/constants/Colors";
-import icons from "@/constants/icons";
+  downloadLeaseDocument,
+} from "@/lib/leaseDocumentClient";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -137,7 +135,7 @@ export default function TenantRequests() {
   };
 
   useEffect(() => {
-    return subscribeToLeaseDownloads((documentId: string) => {
+    return subscribeToLeaseDownloads((documentId) => {
       rememberDownloadedLease(documentId);
     });
   }, []);

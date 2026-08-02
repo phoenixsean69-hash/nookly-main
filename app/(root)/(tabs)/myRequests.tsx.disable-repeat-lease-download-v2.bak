@@ -1,18 +1,11 @@
 // app/(root)/tenant-requests.tsx
-import {
-  config,
-  databases,
-  uploadImage,
-} from "@/lib/appwrite";
+import { Colors } from "@/constants/Colors";
+import icons from "@/constants/icons";
+import { config, databases, uploadImage } from "@/lib/appwrite";
 import {
   downloadLeaseDocument,
-  isLeaseDocumentDownloaded,
   previewLeaseDocument,
-  subscribeToLeaseDownloads,
 } from "@/lib/leaseDocumentClient";
-import {
-  Colors } from "@/constants/Colors";
-import icons from "@/constants/icons";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -111,70 +104,6 @@ export default function TenantRequests() {
 
   const [leaseActionRequestId, setLeaseActionRequestId] =
     useState<string | null>(null);
-
-
-  const [downloadedLeaseDocumentIds, setDownloadedLeaseDocumentIds] =
-    useState<Set<string>>(() => new Set());
-
-  const isLeaseDownloaded = (documentId?: string): boolean =>
-    Boolean(
-      documentId &&
-        downloadedLeaseDocumentIds.has(documentId),
-    );
-
-  const rememberDownloadedLease = (documentId: string) => {
-    const normalizedDocumentId = documentId.trim();
-
-    if (!normalizedDocumentId) return;
-
-    setDownloadedLeaseDocumentIds((current) => {
-      if (current.has(normalizedDocumentId)) return current;
-
-      const next = new Set(current);
-      next.add(normalizedDocumentId);
-      return next;
-    });
-  };
-
-  useEffect(() => {
-    return subscribeToLeaseDownloads((documentId: string) => {
-      rememberDownloadedLease(documentId);
-    });
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-
-    const documentIds = Array.from(
-      new Set(
-        requests
-          .map((request) => request.leaseDocumentId?.trim() || "")
-          .filter(Boolean),
-      ),
-    );
-
-    void Promise.all(
-      documentIds.map(async (documentId) => ({
-        documentId,
-        downloaded:
-          await isLeaseDocumentDownloaded(documentId),
-      })),
-    ).then((results) => {
-      if (!active) return;
-
-      setDownloadedLeaseDocumentIds(
-        new Set(
-          results
-            .filter((result) => result.downloaded)
-            .map((result) => result.documentId),
-        ),
-      );
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [requests]);
 
   const handlePreviewLease = async (
     requestId: string,
@@ -633,8 +562,7 @@ export default function TenantRequests() {
 
           {/* ✅ Download Button */}
           <TouchableOpacity
-            disabled={isLeaseDownloaded(request.leaseDocumentId)}
-          onPress={() =>
+            onPress={() =>
               handleDownloadLease(
                 request.$id,
                 request.leaseDocumentId || "",
@@ -645,7 +573,7 @@ export default function TenantRequests() {
             style={{ backgroundColor: theme.primary[300] }}
           >
             <Ionicons name="download" size={20} color="white" />
-            <Text className="text-white font-rubik-bold ml-2">{isLeaseDownloaded(request.leaseDocumentId) ? "Downloaded" : "Download"}</Text>
+            <Text className="text-white font-rubik-bold ml-2">Download</Text>
           </TouchableOpacity>
         </View>
       </View>

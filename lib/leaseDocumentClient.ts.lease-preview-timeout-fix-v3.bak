@@ -1,71 +1,9 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import ReactNativeBlobUtil from "react-native-blob-util";
 import { Platform } from "react-native";
 
 const PDF_MIME_TYPE = "application/pdf";
 const PREVIEW_ROUTE = "/lease-viewer";
-const LEASE_DOWNLOAD_STATE_PREFIX = "@nookly/lease-downloaded/";
-
-type LeaseDownloadListener = (documentId: string) => void;
-
-const downloadedLeaseDocumentIds = new Set<string>();
-const leaseDownloadListeners = new Set<LeaseDownloadListener>();
-
-const getLeaseDownloadStateKey = (documentId: string): string =>
-  `${LEASE_DOWNLOAD_STATE_PREFIX}${documentId.trim()}`;
-
-export const isLeaseDocumentDownloaded = async (
-  documentId: string,
-): Promise<boolean> => {
-  const normalizedDocumentId = documentId.trim();
-
-  if (!normalizedDocumentId) return false;
-
-  if (downloadedLeaseDocumentIds.has(normalizedDocumentId)) {
-    return true;
-  }
-
-  const stored = await AsyncStorage.getItem(
-    getLeaseDownloadStateKey(normalizedDocumentId),
-  );
-
-  if (stored === "true") {
-    downloadedLeaseDocumentIds.add(normalizedDocumentId);
-    return true;
-  }
-
-  return false;
-};
-
-export const subscribeToLeaseDownloads = (
-  listener: LeaseDownloadListener,
-): (() => void) => {
-  leaseDownloadListeners.add(listener);
-
-  return () => {
-    leaseDownloadListeners.delete(listener);
-  };
-};
-
-const markLeaseDocumentDownloaded = async (
-  documentId: string,
-): Promise<void> => {
-  const normalizedDocumentId = documentId.trim();
-
-  if (!normalizedDocumentId) return;
-
-  downloadedLeaseDocumentIds.add(normalizedDocumentId);
-
-  await AsyncStorage.setItem(
-    getLeaseDownloadStateKey(normalizedDocumentId),
-    "true",
-  );
-
-  leaseDownloadListeners.forEach((listener) => {
-    listener(normalizedDocumentId);
-  });
-};
 
 const APPWRITE_ENDPOINT =
   process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT?.trim() || "";
@@ -377,7 +315,6 @@ export const previewLeaseDocument = async (
       uri: localUri,
       name: access.documentName,
       requestId: access.requestId,
-      documentId: access.documentId,
     },
   } as never);
 };
@@ -386,25 +323,19 @@ export const downloadLeaseDocument = async (
   requestId: string,
   documentId: string,
   requestedFileName: string,
-): Promise<boolean> => {
+): Promise<void> => {
   const access = getDirectLeaseAccess(
     requestId,
     documentId,
     requestedFileName,
   );
 
-  if (await isLeaseDocumentDownloaded(access.documentId)) {
-    return false;
-  }
-
   if (Platform.OS === "android") {
     await saveAndroidLeaseToDownloads(
       access.downloadUrl,
       access.documentName,
     );
-
-    await markLeaseDocumentDownloaded(access.documentId);
-    return true;
+    return;
   }
 
   if (Platform.OS === "ios") {
@@ -412,9 +343,7 @@ export const downloadLeaseDocument = async (
       access.downloadUrl,
       access.documentName,
     );
-
-    await markLeaseDocumentDownloaded(access.documentId);
-    return true;
+    return;
   }
 
   throw new Error("Lease downloads are only supported on Android and iOS.");

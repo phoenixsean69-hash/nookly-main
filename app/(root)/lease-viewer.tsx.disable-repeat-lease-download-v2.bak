@@ -1,9 +1,5 @@
-import {
-  Colors } from "@/constants/Colors";
-import { downloadLeaseDocument,
-  isLeaseDocumentDownloaded,
-  subscribeToLeaseDownloads,
-} from "@/lib/leaseDocumentClient";
+import { Colors } from "@/constants/Colors";
+import { downloadLeaseDocument } from "@/lib/leaseDocumentClient";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -50,7 +46,6 @@ export default function LeaseViewerScreen() {
 
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
-  const [downloaded, setDownloaded] = useState(false);
   const [page, setPage] = useState(1);
   const [numberOfPages, setNumberOfPages] = useState(0);
   const [errorMessage, setErrorMessage] = useState("");
@@ -62,31 +57,6 @@ export default function LeaseViewerScreen() {
     }),
     [localUri],
   );
-
-  useEffect(() => {
-    let active = true;
-
-    if (documentId) {
-      void isLeaseDocumentDownloaded(documentId).then((value) => {
-        if (active) setDownloaded(value);
-      });
-    } else {
-      setDownloaded(false);
-    }
-
-    const unsubscribe = subscribeToLeaseDownloads(
-      (downloadedDocumentId) => {
-        if (downloadedDocumentId === documentId) {
-          setDownloaded(true);
-        }
-      },
-    );
-
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [documentId]);
 
   useEffect(() => {
     setLoading(true);
@@ -106,7 +76,7 @@ export default function LeaseViewerScreen() {
   }, [localUri]);
 
   const handleDownload = async () => {
-    if (!requestId || !documentId || downloaded || downloading) return;
+    if (!requestId || !documentId || downloading) return;
 
     setDownloading(true);
 
@@ -253,7 +223,7 @@ export default function LeaseViewerScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Download lease"
-          disabled={!requestId || !documentId || downloaded || downloading}
+          disabled={!requestId || !documentId || downloading}
           onPress={() => {
             void handleDownload();
           }}
@@ -261,7 +231,7 @@ export default function LeaseViewerScreen() {
             styles.headerButton,
             {
               opacity:
-                !requestId || !documentId || downloaded || downloading
+                !requestId || !documentId || downloading
                   ? 0.45
                   : 1,
             },
@@ -270,12 +240,6 @@ export default function LeaseViewerScreen() {
           {downloading ? (
             <ActivityIndicator
               size="small"
-              color={theme.primary[300]}
-            />
-          ) : downloaded ? (
-            <Ionicons
-              name="checkmark-circle"
-              size={24}
               color={theme.primary[300]}
             />
           ) : (
@@ -298,7 +262,7 @@ export default function LeaseViewerScreen() {
           minScale={1}
           maxScale={4}
           spacing={10}
-          renderActivityIndicator={() => <View />}
+          renderActivityIndicator={() => null}
           onLoadComplete={(pages) => {
             setNumberOfPages(pages);
             setErrorMessage("");
