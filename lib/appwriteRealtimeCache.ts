@@ -466,7 +466,7 @@ const runCollectionVersionCheck = async (
 
     await markCollectionChanged(
       collectionId,
-      namespace,
+      normalizeNamespace(namespace),
     );
     return "changed";
   } catch (error) {
