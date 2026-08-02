@@ -1,9 +1,9 @@
-// components/HotDeals.tsx - FIXED NO SCHEMA ERRORS
 import { Colors } from "@/constants/Colors";
 import icons from "@/constants/icons";
 import { config, databases } from "@/lib/appwrite";
+import { useAppwrite } from "@/lib/useAppwrite";
 import { router } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useMemo } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -23,158 +23,186 @@ interface HotDeal {
   type: string;
 }
 
-let cachedDeals: HotDeal[] | null = null;
-let lastFetchTime = 0;
-let isFetching = false;
-const CACHE_TTL = 5 * 60 * 1000;
+interface HotDealProperty {
+  $id: string;
+  $createdAt?: string;
+  type?: string;
+  isAvailable?: boolean;
+  likes?: number;
+  price?: number;
+}
 
-const HotDeals = () => {
-  const [deals, setDeals] = useState<HotDeal[]>(cachedDeals || []);
-  const [loading, setLoading] = useState(!cachedDeals);
+const HOT_DEALS_CACHE_KEY = "property_hot_deals_summary_v2";
+const HOT_DEALS_PROPERTY_LIMIT = 100;
+
+const loadHotDealProperties = async (): Promise<HotDealProperty[]> => {
+  const response = await databases.listDocuments(
+    config.databaseId!,
+    config.propertiesCollectionId!,
+    [
+      Query.limit(HOT_DEALS_PROPERTY_LIMIT),
+      Query.orderDesc("$createdAt"),
+      Query.select([
+        "$id",
+        "$createdAt",
+        "type",
+        "isAvailable",
+        "likes",
+        "price",
+      ]),
+    ],
+  );
+
+  return response.documents as unknown as HotDealProperty[];
+};
+
+const DealsAlerts = () => {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
-  const isMounted = useRef(true);
 
-  useEffect(() => {
-    isMounted.current = true;
-    if (cachedDeals) {
-      setDeals(cachedDeals);
-      setLoading(false);
-    }
-    const now = Date.now();
-    if ((!cachedDeals || now - lastFetchTime >= CACHE_TTL) && !isFetching) {
-      fetchHotDeals();
-    }
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
+  const {
+    data: properties,
+    loading,
+    error,
+    refetch,
+  } = useAppwrite({
+    fn: loadHotDealProperties,
+    params: {},
+    cacheKey: HOT_DEALS_CACHE_KEY,
+    watchCollections: [config.propertiesCollectionId],
+  });
 
-  const fetchHotDeals = async () => {
-    if (isFetching) return;
-    isFetching = true;
-    try {
-      if (isMounted.current) setLoading(true);
+  const deals = useMemo<HotDeal[]>(() => {
+    const documents = properties ?? [];
+    const fifteenDaysAgo = Date.now() - 15 * 24 * 60 * 60 * 1000;
 
-      const fifteenDaysAgo = new Date();
-      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+    const newListingsCount = documents.filter((property) => {
+      if (!property.$createdAt) return false;
 
-      // Only 3 queries, all using fields that EXIST in every schema
-      const [newListings, boarding, availableSample] = await Promise.all([
-        databases.listDocuments(
-          config.databaseId!,
-          config.propertiesCollectionId!,
-          [
-            Query.greaterThan("$createdAt", fifteenDaysAgo.toISOString()),
-            Query.limit(1),
-            Query.select(["$id"]), // FIX: must select at least $id, not []
-          ],
-        ),
-        databases.listDocuments(
-          config.databaseId!,
-          config.propertiesCollectionId!,
-          [
-            Query.equal("type", "Boarding"),
-            Query.equal("isAvailable", true),
-            Query.limit(1),
-            Query.select(["$id"]),
-          ],
-        ),
-        databases.listDocuments(
-          config.databaseId!,
-          config.propertiesCollectionId!,
-          [
-            Query.equal("isAvailable", true),
-            Query.limit(50),
-            // Only select fields we KNOW exist: $id, likes, price, type
-            Query.select(["$id", "likes", "price", "type"]),
-          ],
-        ),
-      ]);
+      const createdAt = new Date(property.$createdAt).getTime();
+      return Number.isFinite(createdAt) && createdAt >= fifteenDaysAgo;
+    }).length;
 
-      const realDeals: HotDeal[] = [];
+    const boardingCount = documents.filter(
+      (property) =>
+        property.isAvailable === true &&
+        property.type?.trim().toLowerCase() === "boarding",
+    ).length;
 
-      if (newListings.total > 0) {
-        realDeals.push({
-          title: "New Listings",
-          description: `${newListings.total} added recently`,
-          icon: icons.plus,
-          color: "#10B981",
-          count: newListings.total,
-          type: "new_listing",
-        });
-      }
+    const trendingCount = documents.filter(
+      (property) =>
+        property.isAvailable === true &&
+        Number(property.likes ?? 0) > 0,
+    ).length;
 
-      if (boarding.total > 0) {
-        realDeals.push({
-          title: "Student Deals",
-          description: `${boarding.total} boarding houses`,
-          icon: icons.house,
-          color: "#8B5CF6",
-          count: boarding.total,
-          type: "boarding",
-        });
-      }
+    const availableCount = documents.filter(
+      (property) => property.isAvailable === true,
+    ).length;
 
-      const trendingCount = availableSample.documents.filter(
-        (p: any) => (p.likes || 0) > 0,
-      ).length;
-      if (trendingCount > 0) {
-        realDeals.push({
-          title: "Trending",
-          description: `${trendingCount} most liked`,
-          icon: icons.like,
-          color: "#F59E0B",
-          count: trendingCount,
-          type: "trending",
-        });
-      }
+    const nextDeals: HotDeal[] = [];
 
-      // Always show available count
-      realDeals.push({
-        title: "Available Now",
-        description: `${availableSample.total} available now`,
-        icon: icons.house,
-        color: "#3B82F6",
-        count: availableSample.total,
-        type: "open_properties",
+    if (newListingsCount > 0) {
+      nextDeals.push({
+        title: "New Listings",
+        description: `${newListingsCount} added recently`,
+        icon: icons.plus,
+        color: "#10B981",
+        count: newListingsCount,
+        type: "new_listing",
       });
-
-      const finalDeals = realDeals.slice(0, 3);
-      if (isMounted.current) {
-        setDeals(finalDeals);
-        cachedDeals = finalDeals;
-        lastFetchTime = Date.now();
-      }
-    } catch (e) {
-      console.log("HotDeals error", e);
-    } finally {
-      if (isMounted.current) setLoading(false);
-      isFetching = false;
     }
-  };
+
+    if (boardingCount > 0) {
+      nextDeals.push({
+        title: "Student Deals",
+        description: `${boardingCount} boarding houses`,
+        icon: icons.house,
+        color: "#8B5CF6",
+        count: boardingCount,
+        type: "boarding",
+      });
+    }
+
+    if (trendingCount > 0) {
+      nextDeals.push({
+        title: "Trending",
+        description: `${trendingCount} most liked`,
+        icon: icons.like,
+        color: "#F59E0B",
+        count: trendingCount,
+        type: "trending",
+      });
+    }
+
+    nextDeals.push({
+      title: "Available Now",
+      description: `${availableCount} available now`,
+      icon: icons.house,
+      color: "#3B82F6",
+      count: availableCount,
+      type: "open_properties",
+    });
+
+    return nextDeals.slice(0, 3);
+  }, [properties]);
 
   const handlePress = (deal: HotDeal) => {
-    if (deal.type === "trending") router.push("/trending-properties" as any);
-    else
-      router.push({
-        pathname: "/filtered-properties" as any,
-        params: { type: deal.type },
-      });
+    if (deal.type === "trending") {
+      router.push("/trending-properties" as any);
+      return;
+    }
+
+    router.push({
+      pathname: "/filtered-properties" as any,
+      params: { type: deal.type },
+    });
   };
 
-  if (loading && !cachedDeals) {
+  if (loading && !properties) {
     return (
       <View className="py-4 flex-row gap-3">
-        {[1, 2, 3].map((i) => (
+        {[1, 2, 3].map((item) => (
           <View
-            key={i}
+            key={item}
             className="flex-1 rounded-xl p-3 items-center"
             style={{ backgroundColor: theme.navBackground }}
           >
-            <ActivityIndicator size="small" color={theme.primary[300]} />
+            <ActivityIndicator
+              size="small"
+              color={theme.primary[300]}
+            />
           </View>
         ))}
+      </View>
+    );
+  }
+
+  if (error && !properties) {
+    return (
+      <View className="py-4">
+        <TouchableOpacity
+          onPress={() => void refetch()}
+          activeOpacity={0.75}
+          className="rounded-xl px-4 py-4 items-center"
+          style={{
+            backgroundColor: theme.navBackground,
+            borderWidth: 1,
+            borderColor: `${theme.muted}30`,
+          }}
+        >
+          <Text
+            className="text-sm font-rubik-medium"
+            style={{ color: theme.text }}
+          >
+            Hot Deals could not load
+          </Text>
+          <Text
+            className="text-xs mt-1"
+            style={{ color: theme.primary[300] }}
+          >
+            Tap to retry
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -187,38 +215,52 @@ const HotDeals = () => {
       >
         Hot Deals
       </Text>
-      <Text className="text-sm text-gray-500 font-rubik mb-3">
-        Don't miss out
+
+      <Text
+        className="text-sm font-rubik mb-3"
+        style={{ color: theme.muted }}
+      >
+        Don&apos;t miss out
       </Text>
+
       <View className="flex-row justify-between gap-3">
-        {deals.map((deal, idx) => (
+        {deals.map((deal) => (
           <TouchableOpacity
-            key={idx}
+            key={deal.type}
             onPress={() => handlePress(deal)}
+            activeOpacity={0.78}
             className="flex-1 rounded-xl p-3 items-center"
             style={{
               backgroundColor: theme.navBackground,
               borderWidth: 1,
-              borderColor: "#E5E7EB",
+              borderColor: `${theme.muted}25`,
             }}
           >
             <View
               className="w-10 h-10 rounded-full items-center justify-center mb-2"
-              style={{ backgroundColor: deal.color + "20" }}
+              style={{ backgroundColor: `${deal.color}20` }}
             >
               <Image
                 source={deal.icon}
                 className="w-5 h-5"
                 style={{ tintColor: deal.color }}
+                resizeMode="contain"
               />
             </View>
+
             <Text
               className="text-sm font-rubik-medium text-center"
               style={{ color: theme.text }}
+              numberOfLines={1}
             >
               {deal.title}
             </Text>
-            <Text className="text-xs text-gray-500 text-center mt-1">
+
+            <Text
+              className="text-xs text-center mt-1"
+              style={{ color: theme.muted }}
+              numberOfLines={2}
+            >
               {deal.description}
             </Text>
           </TouchableOpacity>
@@ -228,4 +270,4 @@ const HotDeals = () => {
   );
 };
 
-export default HotDeals;
+export default React.memo(DealsAlerts);
