@@ -5,30 +5,18 @@ import StudentEmergencyPanel from "@/components/StudentEmergencyPanel";
 import StudentFilters from "@/components/StudentFilters";
 import { Colors } from "@/constants/Colors";
 import icons from "@/constants/icons";
-import { config } from "@/lib/appwrite";
 import {
-  getStudentExploreDiscovery,
-  normalizeDiscoveryKeyPart,
-  StudentExploreDiscoveryData,
-} from "@/lib/discoveryQueries";
-import {
+  ApprovedOrganization,
+  fetchStudentHousing,
   filterStudentHousing,
+  getUniversityApprovedBoardingProperties,
   StudentProperty,
   titleCaseStudentText,
 } from "@/lib/studentHousing";
-import { useAppwrite } from "@/lib/useAppwrite";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  router,
-  useLocalSearchParams,
-} from "expo-router";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -45,93 +33,92 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 const StudentExplore = () => {
   const { user } = useAuthStore();
-  const params = useLocalSearchParams<{
-    filter?: string;
-    query?: string;
-  }>();
-
+  const params = useLocalSearchParams<{ filter?: string; query?: string }>();
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
-  const schoolLocation =
-    user?.schoolLocation?.trim() || "";
+  const schoolLocation = user?.schoolLocation?.trim() || "";
 
-  const [selectedOrganizationId, setSelectedOrganizationId] =
-    useState("all");
-  const [query, setQuery] = useState(
-    String(params.query || ""),
+  const [allProperties, setAllProperties] = useState<StudentProperty[]>([]);
+  const [approvedProperties, setApprovedProperties] = useState<
+    StudentProperty[]
+  >([]);
+  const [organizations, setOrganizations] = useState<ApprovedOrganization[]>(
+    [],
   );
-  const [fullMapVisible, setFullMapVisible] =
-    useState(false);
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState("all");
+  const [query, setQuery] = useState(params.query || "");
+  const [fullMapVisible, setFullMapVisible] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const {
-    data: discoveryData,
-    loading,
-    error,
-    refetch,
-  } = useAppwrite<
-    StudentExploreDiscoveryData,
-    { schoolLocation: string }
-  >({
-    fn: getStudentExploreDiscovery,
-    params: { schoolLocation },
-    skip: !schoolLocation,
-    cacheKey: `student_explore_${normalizeDiscoveryKeyPart(
-      schoolLocation,
-    )}`,
-    watchCollections: [
-      config.propertiesCollectionId,
-      config.organizationsCollectionId,
-    ],
-  });
+  const loadExplore = useCallback(
+    async (force = false) => {
+      if (!schoolLocation) {
+        setAllProperties([]);
+        setApprovedProperties([]);
+        setOrganizations([]);
+        setLoading(false);
+        return;
+      }
 
-  const allProperties =
-    discoveryData?.allProperties ?? [];
-  const approvedProperties =
-    discoveryData?.approvedProperties ?? [];
-  const organizations =
-    discoveryData?.organizations ?? [];
+      setLoading(true);
+      try {
+        const studentProperties = await fetchStudentHousing(schoolLocation, {
+          force,
+        });
+        const approved = await getUniversityApprovedBoardingProperties(
+          schoolLocation,
+          studentProperties,
+          force,
+        );
+
+        setAllProperties(studentProperties);
+        setApprovedProperties(approved.properties);
+        setOrganizations(approved.organizations);
+      } catch (error) {
+        console.error("Error loading student explore:", error);
+        setAllProperties([]);
+        setApprovedProperties([]);
+        setOrganizations([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [schoolLocation],
+  );
 
   useEffect(() => {
-    setQuery(String(params.query || ""));
+    loadExplore();
+  }, [loadExplore]);
+
+  useEffect(() => {
+    setQuery(params.query || "");
   }, [params.query]);
 
   const properties = useMemo(
     () =>
       filterStudentHousing(allProperties, {
-        type: String(params.filter || ""),
+        type: params.filter || "",
         query,
       }),
     [allProperties, params.filter, query],
   );
 
   const approvedForOrganization = useMemo(() => {
-    if (selectedOrganizationId === "all") {
-      return approvedProperties;
-    }
-
+    if (selectedOrganizationId === "all") return approvedProperties;
     return approvedProperties.filter(
-      (property) =>
-        property.organizationId ===
-        selectedOrganizationId,
+      (property) => property.organizationId === selectedOrganizationId,
     );
   }, [approvedProperties, selectedOrganizationId]);
 
   const refresh = useCallback(async () => {
-    if (!schoolLocation) return;
-
     setRefreshing(true);
-
-    try {
-      await refetch({ schoolLocation });
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refetch, schoolLocation]);
+    await loadExplore(true);
+    setRefreshing(false);
+  }, [loadExplore]);
 
   const handlePropertyPress = useCallback(
-    (id: string) =>
-      router.push(`/properties/${id}` as any),
+    (id: string) => router.push(`/properties/${id}` as any),
     [],
   );
 
@@ -148,8 +135,7 @@ const StudentExplore = () => {
           className="text-sm text-center mb-4"
           style={{ color: theme.muted }}
         >
-          Boarding Houses, Houses, Studios and Luxury
-          properties within{" "}
+          Boarding Houses, Houses, Studios and Luxury properties within{" "}
           {schoolLocation
             ? titleCaseStudentText(schoolLocation)
             : "your school location"}
@@ -168,29 +154,17 @@ const StudentExplore = () => {
         >
           <View
             className="flex-1 p-4 items-center justify-center"
-            style={{
-              backgroundColor: theme.primary[100],
-            }}
+            style={{ backgroundColor: theme.primary[100] }}
           >
-            <Ionicons
-              name="map"
-              size={32}
-              color={theme.primary[300]}
-            />
+            <Ionicons name="map" size={32} color={theme.primary[300]} />
             <Text
               className="font-rubik-bold mt-1"
-              style={{
-                color: theme.primary[300],
-              }}
+              style={{ color: theme.primary[300] }}
             >
               {properties.length} supported properties on map
             </Text>
-            <Text
-              className="text-xs mt-1"
-              style={{ color: theme.muted }}
-            >
-              Map pins use the same student location and
-              property-type rules
+            <Text className="text-xs mt-1" style={{ color: theme.muted }}>
+              Map pins use the same student location and property-type rules
             </Text>
           </View>
         </TouchableOpacity>
@@ -217,14 +191,8 @@ const StudentExplore = () => {
             style={{ color: theme.text }}
           />
           {query.length > 0 && (
-            <TouchableOpacity
-              onPress={() => setQuery("")}
-            >
-              <Ionicons
-                name="close-circle"
-                size={19}
-                color={theme.muted}
-              />
+            <TouchableOpacity onPress={() => setQuery("")}>
+              <Ionicons name="close-circle" size={19} color={theme.muted} />
             </TouchableOpacity>
           )}
         </View>
@@ -235,9 +203,7 @@ const StudentExplore = () => {
           <View className="flex-row items-center">
             <View
               className="w-9 h-9 rounded-full items-center justify-center mr-3"
-              style={{
-                backgroundColor: "#10B98118",
-              }}
+              style={{ backgroundColor: "#10B98118" }}
             >
               <Ionicons
                 name="shield-checkmark-outline"
@@ -252,12 +218,8 @@ const StudentExplore = () => {
               >
                 Boarding Houses Approved by Universities
               </Text>
-              <Text
-                className="text-xs"
-                style={{ color: theme.muted }}
-              >
-                Posted by organizations whose city matches
-                your school location
+              <Text className="text-xs" style={{ color: theme.muted }}>
+                Posted by organizations whose city matches your school location
               </Text>
             </View>
           </View>
@@ -269,9 +231,7 @@ const StudentExplore = () => {
               className="my-3"
             >
               <TouchableOpacity
-                onPress={() =>
-                  setSelectedOrganizationId("all")
-                }
+                onPress={() => setSelectedOrganizationId("all")}
                 className="mr-2 px-4 py-2 rounded-full"
                 style={{
                   backgroundColor:
@@ -286,9 +246,7 @@ const StudentExplore = () => {
                   className="text-xs font-rubik-medium"
                   style={{
                     color:
-                      selectedOrganizationId === "all"
-                        ? "#FFFFFF"
-                        : theme.text,
+                      selectedOrganizationId === "all" ? "#FFFFFF" : theme.text,
                   }}
                 >
                   All Universities
@@ -298,16 +256,11 @@ const StudentExplore = () => {
               {organizations.map((organization) => (
                 <TouchableOpacity
                   key={organization.$id}
-                  onPress={() =>
-                    setSelectedOrganizationId(
-                      organization.$id,
-                    )
-                  }
+                  onPress={() => setSelectedOrganizationId(organization.$id)}
                   className="mr-2 px-4 py-2 rounded-full"
                   style={{
                     backgroundColor:
-                      selectedOrganizationId ===
-                      organization.$id
+                      selectedOrganizationId === organization.$id
                         ? theme.primary[300]
                         : theme.surface,
                     borderWidth: 1,
@@ -318,8 +271,7 @@ const StudentExplore = () => {
                     className="text-xs font-rubik-medium"
                     style={{
                       color:
-                        selectedOrganizationId ===
-                        organization.$id
+                        selectedOrganizationId === organization.$id
                           ? "#FFFFFF"
                           : theme.text,
                     }}
@@ -334,16 +286,14 @@ const StudentExplore = () => {
           {approvedForOrganization.length === 0 ? (
             <View
               className="rounded-xl p-4 mt-3"
-              style={{
-                backgroundColor: theme.surface,
-              }}
+              style={{ backgroundColor: theme.surface }}
             >
               <Text
                 className="text-sm text-center"
                 style={{ color: theme.muted }}
               >
-                No university-posted boarding houses are
-                available for this location yet.
+                No university-posted boarding houses are available for this
+                location yet.
               </Text>
             </View>
           ) : (
@@ -351,16 +301,12 @@ const StudentExplore = () => {
               data={approvedForOrganization}
               horizontal
               showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) =>
-                `approved-${item.$id}`
-              }
+              keyExtractor={(item) => `approved-${item.$id}`}
               renderItem={({ item }) => (
                 <View className="mr-4 mt-3">
                   <FeaturedCard
                     item={item}
-                    onPress={() =>
-                      handlePropertyPress(item.$id)
-                    }
+                    onPress={() => handlePropertyPress(item.$id)}
                   />
                   <View className="mt-1 flex-row items-center">
                     <Ionicons
@@ -391,10 +337,7 @@ const StudentExplore = () => {
             >
               All Student Properties
             </Text>
-            <Text
-              className="text-xs"
-              style={{ color: theme.muted }}
-            >
+            <Text className="text-xs" style={{ color: theme.muted }}>
               Ranked by ratings, engagement and demand
             </Text>
           </View>
@@ -419,33 +362,17 @@ const StudentExplore = () => {
     ],
   );
 
-  const isInitialLoading =
-    loading && allProperties.length === 0;
-
   return (
-    <SafeAreaView
-      style={{
-        flex: 1,
-        backgroundColor: theme.background,
-      }}
-    >
-      <FlatList<StudentProperty>
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
+      <FlatList
         data={properties}
         numColumns={2}
         renderItem={({ item }) => (
-          <Card
-            item={item}
-            onPress={() =>
-              handlePropertyPress(item.$id)
-            }
-          />
+          <Card item={item} onPress={() => handlePropertyPress(item.$id)} />
         )}
         keyExtractor={(item) => item.$id}
         contentContainerStyle={{ paddingBottom: 120 }}
-        columnWrapperStyle={{
-          gap: 20,
-          paddingHorizontal: 20,
-        }}
+        columnWrapperStyle={{ gap: 20, paddingHorizontal: 20 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -455,32 +382,9 @@ const StudentExplore = () => {
           />
         }
         ListEmptyComponent={
-          isInitialLoading ? (
+          loading ? (
             <View className="items-center justify-center py-20">
-              <ActivityIndicator
-                size="large"
-                color={theme.primary[300]}
-              />
-            </View>
-          ) : error ? (
-            <View className="items-center justify-center py-20 px-6">
-              <Text
-                className="text-center"
-                style={{ color: theme.muted }}
-              >
-                {error}
-              </Text>
-              <TouchableOpacity
-                onPress={() => void refresh()}
-                className="mt-4 rounded-full px-5 py-3"
-                style={{
-                  backgroundColor: theme.primary[300],
-                }}
-              >
-                <Text className="text-white font-rubik-medium">
-                  Try Again
-                </Text>
-              </TouchableOpacity>
+              <ActivityIndicator size="large" color={theme.primary[300]} />
             </View>
           ) : (
             <NoResults />

@@ -4,6 +4,7 @@ import icons from "@/constants/icons";
 import { isAccredited } from "@/lib/accreditation";
 import { isOrganizationApprovedBoardingHouse } from "@/lib/propertyApproval";
 import { LinearGradient } from "expo-linear-gradient";
+import { Image as ExpoImage } from "expo-image";
 import React from "react";
 import {
   Image,
@@ -96,24 +97,43 @@ const getPriceChangePercent = (item: PropertyDocument): number => {
   );
 };
 
-const PropertyImage = ({
-  uri,
-  className,
-}: {
-  uri: string;
-  className: string;
-}) =>
-  uri ? (
-    <Image source={{ uri }} className={className} resizeMode="cover" />
-  ) : (
-    <View className={`${className} items-center justify-center bg-gray-200`}>
-      <Image
-        source={icons.home}
-        className="h-10 w-10 opacity-40"
-        resizeMode="contain"
-      />
+const PropertyImage = React.memo(
+  ({
+    uri,
+    className,
+  }: {
+    uri: string;
+    className: string;
+  }) => (
+    <View
+      className={`${className} overflow-hidden bg-gray-200`}
+    >
+      {/* Always-visible static placeholder: never show an image spinner. */}
+      <View className="absolute inset-0 items-center justify-center">
+        <Image
+          source={icons.home}
+          className="h-10 w-10 opacity-30"
+          resizeMode="contain"
+        />
+      </View>
+
+      {uri ? (
+        <ExpoImage
+          source={{ uri }}
+          style={{ width: "100%", height: "100%" }}
+          contentFit="cover"
+          contentPosition="center"
+          cachePolicy="memory-disk"
+          recyclingKey={uri}
+          transition={0}
+          accessibilityLabel="Property image"
+        />
+      ) : null}
     </View>
-  );
+  ),
+);
+
+PropertyImage.displayName = "PropertyImage";
 
 export const FeaturedCard = ({
   item,

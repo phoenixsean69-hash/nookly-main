@@ -8,13 +8,6 @@ export interface PersistentCacheEntry<T> {
   savedAt: number;
 }
 
-const queryMemoryCache = new Map<
-  string,
-  PersistentCacheEntry<unknown>
->();
-
-const queryWarmPromises = new Map<string, Promise<void>>();
-
 const normalizeNamespace = (namespace?: string | null): string =>
   String(namespace || "anonymous").trim() || "anonymous";
 
@@ -32,35 +25,17 @@ const hashText = (value: string): string => {
 const namespaceHash = (namespace?: string | null): string =>
   hashText(normalizeNamespace(namespace));
 
-const getQueryStoragePrefix = (
-  namespace?: string | null,
-): string =>
-  `${CACHE_PREFIX}:${namespaceHash(namespace)}:`;
-
 const getQueryStorageKey = (
   logicalKey: string,
   namespace?: string | null,
 ): string =>
-  `${getQueryStoragePrefix(namespace)}${hashText(logicalKey)}`;
+  `${CACHE_PREFIX}:${namespaceHash(namespace)}:${hashText(logicalKey)}`;
 
 const getPropertyStorageKey = (
   propertyId: string,
   namespace?: string | null,
 ): string =>
   `${PROPERTY_ENTITY_PREFIX}:${namespaceHash(namespace)}:${propertyId}`;
-
-const isPersistentEntry = <T>(
-  value: unknown,
-): value is PersistentCacheEntry<T> => {
-  if (!value || typeof value !== "object") return false;
-
-  const candidate = value as Partial<PersistentCacheEntry<T>>;
-
-  return (
-    typeof candidate.savedAt === "number" &&
-    Object.prototype.hasOwnProperty.call(candidate, "data")
-  );
-};
 
 export const stableStringify = (value: unknown): string => {
   const seen = new WeakSet<object>();
@@ -95,96 +70,26 @@ export const stableStringify = (value: unknown): string => {
   }
 };
 
-export const peekPersistentQueryCache = <T>(
-  logicalKey: string,
-  namespace?: string | null,
-): PersistentCacheEntry<T> | null => {
-  const entry = queryMemoryCache.get(
-    getQueryStorageKey(logicalKey, namespace),
-  );
-
-  return entry
-    ? (entry as PersistentCacheEntry<T>)
-    : null;
-};
-
-export const warmPersistentQueryCache = async (
-  namespace?: string | null,
-): Promise<void> => {
-  const scope = namespaceHash(namespace);
-  const existing = queryWarmPromises.get(scope);
-
-  if (existing) return existing;
-
-  const promise = (async () => {
-    try {
-      const prefix = getQueryStoragePrefix(namespace);
-      const keys = await AsyncStorage.getAllKeys();
-      const queryKeys = keys.filter((key) =>
-        key.startsWith(prefix),
-      );
-
-      if (queryKeys.length === 0) return;
-
-      const rows = await AsyncStorage.multiGet(queryKeys);
-
-      rows.forEach(([key, raw]) => {
-        if (!raw) return;
-
-        try {
-          const parsed = JSON.parse(raw) as unknown;
-
-          if (isPersistentEntry(parsed)) {
-            queryMemoryCache.set(key, parsed);
-          }
-        } catch {
-          // Ignore one malformed entry without blocking the rest.
-        }
-      });
-    } catch (error) {
-      console.warn(
-        "Could not warm persistent query cache:",
-        error,
-      );
-    }
-  })().finally(() => {
-    queryWarmPromises.delete(scope);
-  });
-
-  queryWarmPromises.set(scope, promise);
-  return promise;
-};
-
 export const readPersistentQueryCache = async <T>(
   logicalKey: string,
   namespace?: string | null,
 ): Promise<PersistentCacheEntry<T> | null> => {
-  const storageKey = getQueryStorageKey(
-    logicalKey,
-    namespace,
-  );
-
-  const memoryEntry = queryMemoryCache.get(storageKey);
-
-  if (memoryEntry) {
-    return memoryEntry as PersistentCacheEntry<T>;
-  }
-
   try {
-    const raw = await AsyncStorage.getItem(storageKey);
+    const raw = await AsyncStorage.getItem(
+      getQueryStorageKey(logicalKey, namespace),
+    );
 
     if (!raw) return null;
 
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed = JSON.parse(raw) as PersistentCacheEntry<T>;
 
-    if (!isPersistentEntry<T>(parsed)) {
+    if (
+      !parsed ||
+      typeof parsed.savedAt !== "number" ||
+      !Object.prototype.hasOwnProperty.call(parsed, "data")
+    ) {
       return null;
     }
-
-    queryMemoryCache.set(
-      storageKey,
-      parsed as PersistentCacheEntry<unknown>,
-    );
 
     return parsed;
   } catch (error) {
@@ -223,7 +128,6 @@ const collectPropertyDocuments = (
 
   if (looksLikeProperty(value)) {
     const property = value as Record<string, unknown>;
-
     output.push({
       ...property,
       $id: String(property.$id ?? property.id),
@@ -280,24 +184,14 @@ export const writePersistentQueryCache = async <T>(
   data: T,
   namespace?: string | null,
 ): Promise<void> => {
-  const entry: PersistentCacheEntry<T> = {
-    data,
-    savedAt: Date.now(),
-  };
-
-  const storageKey = getQueryStorageKey(
-    logicalKey,
-    namespace,
-  );
-
-  queryMemoryCache.set(
-    storageKey,
-    entry as PersistentCacheEntry<unknown>,
-  );
-
   try {
+    const entry: PersistentCacheEntry<T> = {
+      data,
+      savedAt: Date.now(),
+    };
+
     await AsyncStorage.setItem(
-      storageKey,
+      getQueryStorageKey(logicalKey, namespace),
       JSON.stringify(entry),
     );
 
@@ -320,9 +214,13 @@ export const readCachedPropertyEntity = async <T>(
 
     if (!raw) return null;
 
-    const parsed = JSON.parse(raw) as unknown;
+    const parsed = JSON.parse(raw) as PersistentCacheEntry<T>;
 
-    if (!isPersistentEntry<T>(parsed)) {
+    if (
+      !parsed ||
+      typeof parsed.savedAt !== "number" ||
+      !Object.prototype.hasOwnProperty.call(parsed, "data")
+    ) {
       return null;
     }
 
@@ -340,18 +238,9 @@ export const clearPersistentQueryCache = async (
     const scope = namespaceHash(namespace);
     const queryPrefix = `${CACHE_PREFIX}:${scope}:`;
     const propertyPrefix = `${PROPERTY_ENTITY_PREFIX}:${scope}:`;
-
-    Array.from(queryMemoryCache.keys())
-      .filter((key) => key.startsWith(queryPrefix))
-      .forEach((key) => queryMemoryCache.delete(key));
-
-    queryWarmPromises.delete(scope);
-
     const keys = await AsyncStorage.getAllKeys();
     const scopedKeys = keys.filter(
-      (key) =>
-        key.startsWith(queryPrefix) ||
-        key.startsWith(propertyPrefix),
+      (key) => key.startsWith(queryPrefix) || key.startsWith(propertyPrefix),
     );
 
     if (scopedKeys.length > 0) {

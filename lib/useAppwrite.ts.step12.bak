@@ -1,4 +1,3 @@
-import { peekPersistentQueryCache } from "@/lib/persistentQueryCache";
 import NetInfo from "@react-native-community/netinfo";
 import {
   useCallback,
@@ -71,38 +70,6 @@ const inFlightRequests = new Map<
   string,
   Promise<unknown>
 >();
-
-const getSynchronousCacheEntry = <T,>(
-  memoryKey: string,
-  logicalKey: string,
-  namespace: string,
-): MemoryCacheEntry<T> | undefined => {
-  const memoryEntry = memoryCache.get(
-    memoryKey,
-  ) as MemoryCacheEntry<T> | undefined;
-
-  if (memoryEntry) {
-    return memoryEntry;
-  }
-
-  const persistentEntry =
-    peekPersistentQueryCache<T>(
-      logicalKey,
-      namespace,
-    );
-
-  if (!persistentEntry) {
-    return undefined;
-  }
-
-  const hydratedEntry: MemoryCacheEntry<T> = {
-    data: persistentEntry.data,
-    timestamp: persistentEntry.savedAt,
-  };
-
-  memoryCache.set(memoryKey, hydratedEntry);
-  return hydratedEntry;
-};
 
 const isConnectedState = (state: {
   isConnected: boolean | null;
@@ -305,12 +272,10 @@ export const useAppwrite = <
 
   const initialMemoryEntry = useMemo(
     () =>
-      getSynchronousCacheEntry<T>(
-        memoryKey,
-        logicalKey,
-        namespace,
-      ),
-    [logicalKey, memoryKey, namespace],
+      memoryCache.get(memoryKey) as
+        | MemoryCacheEntry<T>
+        | undefined,
+    [memoryKey],
   );
 
   const dataRef = useRef<T | null>(
@@ -360,12 +325,9 @@ export const useAppwrite = <
 
     activeMemoryKeyRef.current = memoryKey;
 
-    const nextMemoryEntry =
-      getSynchronousCacheEntry<T>(
-        memoryKey,
-        logicalKey,
-        namespace,
-      );
+    const nextMemoryEntry = memoryCache.get(
+      memoryKey,
+    ) as MemoryCacheEntry<T> | undefined;
 
     if (nextMemoryEntry) {
       dataRef.current = nextMemoryEntry.data;
@@ -380,7 +342,7 @@ export const useAppwrite = <
     setData(null);
     setFromCache(false);
     setLoading(!skip);
-  }, [logicalKey, memoryKey, namespace, skip]);
+  }, [memoryKey, skip]);
 
   const safelySetData = useCallback(
     (nextData: T, cached: boolean) => {

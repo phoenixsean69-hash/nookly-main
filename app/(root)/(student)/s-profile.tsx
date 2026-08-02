@@ -11,6 +11,11 @@ import {
 } from "@/lib/appwrite";
 import { getFavorites } from "@/lib/localFavorites";
 import { getTenantScore } from "@/lib/tenantProfile";
+import {
+  mergeProfilePageCache,
+  peekProfilePageCache,
+  readProfilePageCache,
+} from "@/lib/profilePageCache";
 import useAuthStore from "@/store/auth.store";
 import { clearSavedAvatar } from "@/utils/avatarStorage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -59,33 +64,90 @@ interface TenantScoreData {
   };
 }
 
+interface TenantProfilePageSnapshot {
+  stats: TenantStats;
+  tenantScore: TenantScoreData | null;
+}
+
+const EMPTY_TENANT_STATS: TenantStats = {
+  totalFavorites: 0,
+  totalLikes: 0,
+  totalReviews: 0,
+  totalApplications: 0,
+  viewedProperties: 0,
+};
+
+const PROFILE_PAGE_CACHE_KEY = "student-profile";
+
 const Profile = () => {
   const { signOut, setUser } = useAuthStore();
   const { user, fetchAuthenticatedUser } = useAuthStore();
+  const accountId = user?.accountId || "";
+  const initialProfileSnapshot =
+    peekProfilePageCache<TenantProfilePageSnapshot>(
+      accountId,
+      PROFILE_PAGE_CACHE_KEY,
+    );
+
   const [showSuccess, setShowSuccess] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [stats, setStats] = useState<TenantStats>({
-    totalFavorites: 0,
-    totalLikes: 0,
-    totalReviews: 0,
-    totalApplications: 0,
-    viewedProperties: 0,
-  });
-  const [loadingStats, setLoadingStats] = useState(true);
+  const [stats, setStats] = useState<TenantStats>(
+    () =>
+      initialProfileSnapshot?.stats ??
+      EMPTY_TENANT_STATS,
+  );
+  const [loadingStats, setLoadingStats] = useState(false);
 
   // ✅ Tenant Score State
-  const [tenantScore, setTenantScore] = useState<TenantScoreData | null>(null);
-  const [loadingScore, setLoadingScore] = useState(true);
+  const [tenantScore, setTenantScore] =
+    useState<TenantScoreData | null>(
+      () =>
+        initialProfileSnapshot?.tenantScore ??
+        null,
+    );
+  const [loadingScore, setLoadingScore] = useState(false);
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
 
+  useEffect(() => {
+    let active = true;
+
+    if (!accountId) {
+      return () => {
+        active = false;
+      };
+    }
+
+    void readProfilePageCache<TenantProfilePageSnapshot>(
+      accountId,
+      PROFILE_PAGE_CACHE_KEY,
+    ).then((snapshot) => {
+      if (!active || !snapshot) return;
+
+      if (snapshot.stats) {
+        setStats(snapshot.stats);
+      }
+
+      if (
+        Object.prototype.hasOwnProperty.call(
+          snapshot,
+          "tenantScore",
+        )
+      ) {
+        setTenantScore(snapshot.tenantScore);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [accountId]);
+
   // Fetch tenant stats from local AsyncStorage
   const fetchTenantStats = useCallback(async () => {
     try {
-      setLoadingStats(true);
-
       // 1. Get favorites from localFavorites
       const favorites = await getFavorites();
       const totalFavorites = favorites.length;
@@ -109,22 +171,26 @@ const Profile = () => {
       const reviewsGiven = await getUserReviewsGiven(user?.accountId || "");
       const totalReviews = reviewsGiven.length;
 
-      setStats({
+      const nextStats: TenantStats = {
         totalFavorites,
         totalLikes,
         totalReviews,
         totalApplications,
         viewedProperties: viewedPropertiesCount,
-      });
+      };
+
+      setStats(nextStats);
+
+      if (accountId) {
+        void mergeProfilePageCache<TenantProfilePageSnapshot>(
+          accountId,
+          PROFILE_PAGE_CACHE_KEY,
+          { stats: nextStats },
+        );
+      }
     } catch (error) {
       console.error("Error fetching tenant stats:", error);
-      setStats({
-        totalFavorites: 0,
-        totalLikes: 0,
-        totalReviews: 0,
-        totalApplications: 0,
-        viewedProperties: 0,
-      });
+      // Keep the last cached activity values on refresh failure.
     } finally {
       setLoadingStats(false);
     }
@@ -141,13 +207,23 @@ const Profile = () => {
     }
 
     try {
-      setLoadingScore(true);
       const score = await getTenantScore(user.accountId);
-      setTenantScore(score as TenantScoreData | null);
+      const nextScore =
+        score as TenantScoreData | null;
+
+      setTenantScore(nextScore);
+
+      if (accountId) {
+        void mergeProfilePageCache<TenantProfilePageSnapshot>(
+          accountId,
+          PROFILE_PAGE_CACHE_KEY,
+          { tenantScore: nextScore },
+        );
+      }
     } catch (error) {
       console.error("Error fetching tenant score:", error);
-      setTenantScore(null);
-    } finally {
+      // Keep the last cached score on refresh failure.
+} finally {
       setLoadingScore(false);
     }
   }, [user?.accountId, user?.userMode]);
@@ -348,19 +424,20 @@ const Profile = () => {
         {/* Avatar Section */}
         <View className="flex items-center mb-8">
           <View className="relative">
-            {uploadingAvatar ? (
+            <Image
+              source={user?.avatar ? { uri: user.avatar } : icons.person}
+              className="w-32 h-32 rounded-full border-4 border-white shadow-lg"
+              style={{ borderColor: theme.surface }}
+            />
+
+            {uploadingAvatar && (
               <View
-                className="w-32 h-32 rounded-full items-center justify-center"
-                style={{ backgroundColor: theme.surface }}
+                className="absolute inset-0 rounded-full items-center justify-center"
+                style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
+                pointerEvents="none"
               >
-                <ActivityIndicator size="large" color={theme.primary[300]} />
+                <ActivityIndicator size="large" color="#FFFFFF" />
               </View>
-            ) : (
-              <Image
-                source={user?.avatar ? { uri: user.avatar } : icons.person}
-                className="w-32 h-32 rounded-full border-4 border-white shadow-lg"
-                style={{ borderColor: theme.surface }}
-              />
             )}
 
             {/* Edit Avatar Button */}

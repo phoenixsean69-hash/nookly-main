@@ -31,7 +31,7 @@ import SearchModal from "@/components/SearchModal";
 import { Colors } from "@/constants/Colors";
 import icons from "@/constants/icons";
 import { isAccredited } from "@/lib/accreditation";
-import { config, getPropertiesWithFilters, PriceRange } from "@/lib/appwrite";
+import { getPropertiesWithFilters, PriceRange } from "@/lib/appwrite";
 import { useAppwrite } from "@/lib/useAppwrite";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -107,7 +107,6 @@ const Explore = () => {
       return res;
     },
     cacheKey: "map_pins_full",
-    watchCollections: [config.propertiesCollectionId],
   });
 
   const filterParams = useMemo(
@@ -140,7 +139,6 @@ const Explore = () => {
     fn: (p: any) => getPropertiesWithFilters(p),
     params: filterParams,
     cacheKey,
-    watchCollections: [config.propertiesCollectionId],
   });
 
   const filteredProperties = useMemo(() => {

@@ -1,4 +1,3 @@
-import { warmPersistentQueryCache } from "@/lib/persistentQueryCache";
 ﻿import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
@@ -13,10 +12,6 @@ import {
 } from "@/lib/appwrite";
 import { getData, removeData, storeData } from "@/lib/cache";
 import { clearPersistentQueryCache } from "@/lib/persistentQueryCache";
-import {
-  clearProfilePageCache,
-  warmProfilePageCache,
-} from "@/lib/profilePageCache";
 import pushFunctionService from "@/services/push-function.service";
 
 const createValidAppwriteId = (): string => {
@@ -284,16 +279,6 @@ const useAuthStore = create<AuthState>((set, get) => ({
   setUser: async (user: User | null) => {
     if (user) {
       const normalizedUser = normalizeUserRecord(user, get().user);
-
-      await Promise.all([
-        warmProfilePageCache(
-          normalizedUser.accountId,
-        ),
-        warmPersistentQueryCache(
-          normalizedUser.accountId,
-        ),
-      ]);
-
       await get().saveUserToStorage(normalizedUser);
       await storeData("user", normalizedUser);
 
@@ -434,15 +419,6 @@ const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       if (storedUser) {
-        await Promise.all([
-          warmProfilePageCache(
-            storedUser.accountId,
-          ),
-          warmPersistentQueryCache(
-            storedUser.accountId,
-          ),
-        ]);
-
         await get().saveUserToStorage(storedUser);
 
         if (storedOrganization) {
@@ -495,10 +471,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       await SecureStore.deleteItemAsync(STORAGE_KEYS.AUTH_TOKEN);
 
       if (accountId) {
-        await Promise.all([
-          clearPersistentQueryCache(accountId),
-          clearProfilePageCache(accountId),
-        ]);
+        await clearPersistentQueryCache(accountId);
       }
 
       const keys = await AsyncStorage.getAllKeys();

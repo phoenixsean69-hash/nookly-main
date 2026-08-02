@@ -1,5 +1,6 @@
 // app/(root)/profile.tsx (Tenant Profile - Using Local Storage)
 import AvatarSuccessModal from "@/components/AvatarSuccessModal";
+import StudentProfileHighlights from "@/components/StudentProfileHighlights";
 import icons from "@/constants/icons";
 import {
   config,
@@ -10,11 +11,6 @@ import {
 } from "@/lib/appwrite";
 import { getFavorites } from "@/lib/localFavorites";
 import { getTenantScore } from "@/lib/tenantProfile";
-import {
-  mergeProfilePageCache,
-  peekProfilePageCache,
-  readProfilePageCache,
-} from "@/lib/profilePageCache";
 import useAuthStore from "@/store/auth.store";
 import { clearSavedAvatar } from "@/utils/avatarStorage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -63,90 +59,33 @@ interface TenantScoreData {
   };
 }
 
-interface TenantProfilePageSnapshot {
-  stats: TenantStats;
-  tenantScore: TenantScoreData | null;
-}
-
-const EMPTY_TENANT_STATS: TenantStats = {
-  totalFavorites: 0,
-  totalLikes: 0,
-  totalReviews: 0,
-  totalApplications: 0,
-  viewedProperties: 0,
-};
-
-const PROFILE_PAGE_CACHE_KEY = "tenant-profile";
-
 const Profile = () => {
   const { signOut, setUser } = useAuthStore();
   const { user, fetchAuthenticatedUser } = useAuthStore();
-  const accountId = user?.accountId || "";
-  const initialProfileSnapshot =
-    peekProfilePageCache<TenantProfilePageSnapshot>(
-      accountId,
-      PROFILE_PAGE_CACHE_KEY,
-    );
-
   const [showSuccess, setShowSuccess] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [stats, setStats] = useState<TenantStats>(
-    () =>
-      initialProfileSnapshot?.stats ??
-      EMPTY_TENANT_STATS,
-  );
-  const [loadingStats, setLoadingStats] = useState(false);
+  const [stats, setStats] = useState<TenantStats>({
+    totalFavorites: 0,
+    totalLikes: 0,
+    totalReviews: 0,
+    totalApplications: 0,
+    viewedProperties: 0,
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
 
   // ✅ Tenant Score State
-  const [tenantScore, setTenantScore] =
-    useState<TenantScoreData | null>(
-      () =>
-        initialProfileSnapshot?.tenantScore ??
-        null,
-    );
-  const [loadingScore, setLoadingScore] = useState(false);
+  const [tenantScore, setTenantScore] = useState<TenantScoreData | null>(null);
+  const [loadingScore, setLoadingScore] = useState(true);
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
 
-  useEffect(() => {
-    let active = true;
-
-    if (!accountId) {
-      return () => {
-        active = false;
-      };
-    }
-
-    void readProfilePageCache<TenantProfilePageSnapshot>(
-      accountId,
-      PROFILE_PAGE_CACHE_KEY,
-    ).then((snapshot) => {
-      if (!active || !snapshot) return;
-
-      if (snapshot.stats) {
-        setStats(snapshot.stats);
-      }
-
-      if (
-        Object.prototype.hasOwnProperty.call(
-          snapshot,
-          "tenantScore",
-        )
-      ) {
-        setTenantScore(snapshot.tenantScore);
-      }
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [accountId]);
-
   // Fetch tenant stats from local AsyncStorage
   const fetchTenantStats = useCallback(async () => {
     try {
+      setLoadingStats(true);
+
       // 1. Get favorites from localFavorites
       const favorites = await getFavorites();
       const totalFavorites = favorites.length;
@@ -170,26 +109,22 @@ const Profile = () => {
       const reviewsGiven = await getUserReviewsGiven(user?.accountId || "");
       const totalReviews = reviewsGiven.length;
 
-      const nextStats: TenantStats = {
+      setStats({
         totalFavorites,
         totalLikes,
         totalReviews,
         totalApplications,
         viewedProperties: viewedPropertiesCount,
-      };
-
-      setStats(nextStats);
-
-      if (accountId) {
-        void mergeProfilePageCache<TenantProfilePageSnapshot>(
-          accountId,
-          PROFILE_PAGE_CACHE_KEY,
-          { stats: nextStats },
-        );
-      }
+      });
     } catch (error) {
       console.error("Error fetching tenant stats:", error);
-      // Keep the last cached activity values on refresh failure.
+      setStats({
+        totalFavorites: 0,
+        totalLikes: 0,
+        totalReviews: 0,
+        totalApplications: 0,
+        viewedProperties: 0,
+      });
     } finally {
       setLoadingStats(false);
     }
@@ -206,23 +141,13 @@ const Profile = () => {
     }
 
     try {
+      setLoadingScore(true);
       const score = await getTenantScore(user.accountId);
-      const nextScore =
-        score as TenantScoreData | null;
-
-      setTenantScore(nextScore);
-
-      if (accountId) {
-        void mergeProfilePageCache<TenantProfilePageSnapshot>(
-          accountId,
-          PROFILE_PAGE_CACHE_KEY,
-          { tenantScore: nextScore },
-        );
-      }
+      setTenantScore(score as TenantScoreData | null);
     } catch (error) {
       console.error("Error fetching tenant score:", error);
-      // Keep the last cached score on refresh failure.
-} finally {
+      setTenantScore(null);
+    } finally {
       setLoadingScore(false);
     }
   }, [user?.accountId, user?.userMode]);
@@ -348,31 +273,31 @@ const Profile = () => {
     {
       icon: icons.heart,
       label: "My Favorites",
-      route: "/my-favorites",
+      route: "/s-my-favorites",
       color: "#EF4444",
     },
     {
       icon: icons.chat,
       label: "Nookly Assistant",
-      route: "/message",
+      route: "/s-message",
       color: "#10B981",
     },
     {
       icon: icons.calendar,
       label: "Calendar",
-      route: "/calendar",
+      route: "/s-calendar",
       color: "#F59E0B",
     },
     {
       icon: icons.settings,
       label: "Settings",
-      route: "/settings",
+      route: "/s-settings",
       color: "#6B7280",
     },
     {
       icon: icons.info,
       label: "Help Center",
-      route: "/help",
+      route: "/s-help",
       color: "#6B7280",
     },
   ];
@@ -408,7 +333,7 @@ const Profile = () => {
             My Profile
           </Text>
           <TouchableOpacity
-            onPress={() => router.push("/notifications")}
+            onPress={() => router.push("/s-notifications")}
             className="p-2 rounded-full"
             style={{ backgroundColor: theme.surface }}
           >
@@ -423,20 +348,19 @@ const Profile = () => {
         {/* Avatar Section */}
         <View className="flex items-center mb-8">
           <View className="relative">
-            <Image
-              source={user?.avatar ? { uri: user.avatar } : icons.person}
-              className="w-32 h-32 rounded-full border-4 border-white shadow-lg"
-              style={{ borderColor: theme.surface }}
-            />
-
-            {uploadingAvatar && (
+            {uploadingAvatar ? (
               <View
-                className="absolute inset-0 rounded-full items-center justify-center"
-                style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
-                pointerEvents="none"
+                className="w-32 h-32 rounded-full items-center justify-center"
+                style={{ backgroundColor: theme.surface }}
               >
-                <ActivityIndicator size="large" color="#FFFFFF" />
+                <ActivityIndicator size="large" color={theme.primary[300]} />
               </View>
+            ) : (
+              <Image
+                source={user?.avatar ? { uri: user.avatar } : icons.person}
+                className="w-32 h-32 rounded-full border-4 border-white shadow-lg"
+                style={{ borderColor: theme.surface }}
+              />
             )}
 
             {/* Edit Avatar Button */}
@@ -483,11 +407,19 @@ const Profile = () => {
                 className="text-xs font-rubik-medium"
                 style={{ color: theme.primary[300] }}
               >
-                Tenant
+                Student
               </Text>
             </View>
           </View>
         </View>
+
+        <StudentProfileHighlights
+          user={user}
+          favorites={stats.totalFavorites}
+          applications={stats.totalApplications}
+          viewed={stats.viewedProperties}
+          loading={loadingStats}
+        />
 
         {/* ✅ Tenant Score Section - INTEGERS ONLY */}
         {(user?.userMode === "tenant" || user?.userMode === "student") && (
@@ -504,7 +436,7 @@ const Profile = () => {
                 className="text-lg font-rubik-bold"
                 style={{ color: theme.title }}
               >
-                🛡️ Tenant Score
+                🛡️ Student Rental Score
               </Text>
               {!loadingScore && tenantScore && (
                 <View
@@ -668,13 +600,14 @@ const Profile = () => {
             ) : (
               <View className="py-4 items-center">
                 <Text className="text-sm" style={{ color: theme.muted }}>
-                  No tenant score available yet
+                  No rental score available yet
                 </Text>
                 <Text
                   className="text-xs mt-1"
                   style={{ color: theme.muted + "80" }}
                 >
-                  Start renting to build your reputation
+                  Complete rentals and receive reviews to build your student
+                  rental reputation
                 </Text>
               </View>
             )}
@@ -694,7 +627,7 @@ const Profile = () => {
             className="text-lg font-rubik-bold mb-3"
             style={{ color: theme.title }}
           >
-            My Activity
+            My Student Housing Activity
           </Text>
 
           {loadingStats ? (

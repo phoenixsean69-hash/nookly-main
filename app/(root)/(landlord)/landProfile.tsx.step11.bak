@@ -28,11 +28,6 @@ import { Colors } from "@/constants/Colors";
 import { getAvatarSource } from "@/constants/data";
 import icons from "@/constants/icons";
 import { config, databases, logout, uploadImage } from "@/lib/appwrite";
-import {
-  mergeProfilePageCache,
-  peekProfilePageCache,
-  readProfilePageCache,
-} from "@/lib/profilePageCache";
 import useAuthStore from "@/store/auth.store";
 
 interface ProfileStats {
@@ -44,67 +39,24 @@ interface ProfileStats {
   occupancyRate?: number;
 }
 
-interface LandlordProfilePageSnapshot {
-  stats: ProfileStats;
-}
-
-const EMPTY_LANDLORD_STATS: ProfileStats = {
-  totalProperties: 0,
-  totalLikes: 0,
-  totalViews: 0,
-  totalReviews: 0,
-  averageRating: 0,
-};
-
-const LANDLORD_PROFILE_CACHE_KEY =
-  "landlord-profile";
-
 const LandLordProfile = () => {
   const { user, fetchAuthenticatedUser } = useAuthStore();
-  const accountId = user?.accountId || "";
-  const initialProfileSnapshot =
-    peekProfilePageCache<LandlordProfilePageSnapshot>(
-      accountId,
-      LANDLORD_PROFILE_CACHE_KEY,
-    );
-
   const [modalVisible, setModalVisible] = useState(false);
   const [avatarId, setAvatarId] = useState<string | null>("human-1");
   const [showSuccess, setShowSuccess] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [stats, setStats] = useState<ProfileStats>(
-    () =>
-      initialProfileSnapshot?.stats ??
-      EMPTY_LANDLORD_STATS,
-  );
-  const [loadingStats, setLoadingStats] = useState(false);
+  const [stats, setStats] = useState<ProfileStats>({
+    totalProperties: 0,
+    totalLikes: 0,
+    totalViews: 0,
+    totalReviews: 0,
+    averageRating: 0,
+  });
+  const [loadingStats, setLoadingStats] = useState(true);
 
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
-
-  useEffect(() => {
-    let active = true;
-
-    if (!accountId) {
-      return () => {
-        active = false;
-      };
-    }
-
-    void readProfilePageCache<LandlordProfilePageSnapshot>(
-      accountId,
-      LANDLORD_PROFILE_CACHE_KEY,
-    ).then((snapshot) => {
-      if (active && snapshot?.stats) {
-        setStats(snapshot.stats);
-      }
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [accountId]);
 
   // Render immediately and refresh the saved default avatar quietly.
   useEffect(() => {
@@ -123,6 +75,8 @@ const LandLordProfile = () => {
 
   const fetchLandlordStats = React.useCallback(async () => {
     try {
+      setLoadingStats(true);
+
       const propertiesResult = await databases.listDocuments(
         config.databaseId!,
         config.propertiesCollectionId!,
@@ -171,26 +125,14 @@ const LandLordProfile = () => {
             100
           : 0;
 
-      const nextStats: ProfileStats = {
+      setStats({
         totalProperties: properties.length,
         totalLikes,
         totalViews,
         totalReviews,
         occupancyRate,
-        averageRating: Number(
-          averageRating.toFixed(1),
-        ),
-      };
-
-      setStats(nextStats);
-
-      if (accountId) {
-        void mergeProfilePageCache<LandlordProfilePageSnapshot>(
-          accountId,
-          LANDLORD_PROFILE_CACHE_KEY,
-          { stats: nextStats },
-        );
-      }
+        averageRating: Number(averageRating.toFixed(1)),
+      });
     } catch (error) {
       console.error("Error fetching landlord stats:", error);
     } finally {

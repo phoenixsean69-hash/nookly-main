@@ -1,4 +1,3 @@
-import { warmPersistentQueryCache } from "@/lib/persistentQueryCache";
 ﻿import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
@@ -285,14 +284,9 @@ const useAuthStore = create<AuthState>((set, get) => ({
     if (user) {
       const normalizedUser = normalizeUserRecord(user, get().user);
 
-      await Promise.all([
-        warmProfilePageCache(
-          normalizedUser.accountId,
-        ),
-        warmPersistentQueryCache(
-          normalizedUser.accountId,
-        ),
-      ]);
+      await warmProfilePageCache(
+        normalizedUser.accountId,
+      );
 
       await get().saveUserToStorage(normalizedUser);
       await storeData("user", normalizedUser);
@@ -434,14 +428,9 @@ const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       if (storedUser) {
-        await Promise.all([
-          warmProfilePageCache(
-            storedUser.accountId,
-          ),
-          warmPersistentQueryCache(
-            storedUser.accountId,
-          ),
-        ]);
+        await warmProfilePageCache(
+          storedUser.accountId,
+        );
 
         await get().saveUserToStorage(storedUser);
 

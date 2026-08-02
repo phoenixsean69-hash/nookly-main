@@ -1,8 +1,9 @@
-// app/all-locations.tsx
 import { Colors } from "@/constants/Colors";
+import { config } from "@/lib/appwrite";
+import { useAppwrite } from "@/lib/useAppwrite";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -16,27 +17,32 @@ import locationService, {
   PopularLocation,
 } from "../../../services/location.service";
 
+const LOCATION_LIMIT = 20;
+const LOCATIONS_CACHE_KEY = "discovery_all_locations_20";
+
 const AllLocations = () => {
   const router = useRouter();
-  const [locations, setLocations] = useState<PopularLocation[]>([]);
-  const [loading, setLoading] = useState(true);
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
 
-  useEffect(() => {
-    loadAllLocations();
-  }, []);
+  const {
+    data: locationData,
+    loading,
+    error,
+    refetch,
+  } = useAppwrite<PopularLocation[], { limit: number }>({
+    fn: ({ limit }) =>
+      locationService.getPopularLocations(limit),
+    params: { limit: LOCATION_LIMIT },
+    cacheKey: LOCATIONS_CACHE_KEY,
+    watchCollections: [config.propertiesCollectionId],
+  });
 
-  const loadAllLocations = async () => {
-    setLoading(true);
-    const data = await locationService.getPopularLocations(20);
-    setLocations(data);
-    setLoading(false);
-  };
+  const locations = locationData ?? [];
+  const isInitialLoading = loading && locations.length === 0;
 
-  // Helper to get location-specific emoji or icon
   const getLocationIcon = (name: string) => {
-    const icons: { [key: string]: string } = {
+    const icons: Record<string, string> = {
       Harare: "🏙️",
       Bulawayo: "🏛️",
       Mutare: "⛰️",
@@ -53,10 +59,10 @@ const AllLocations = () => {
       Chiredzi: "🌴",
       Rusape: "🍎",
     };
+
     return icons[name] || "📍";
   };
 
-  // Get a vibrant color based on location name
   const getLocationColor = (name: string) => {
     const colors = [
       "#FF6B6B",
@@ -80,20 +86,28 @@ const AllLocations = () => {
       "#FD79A8",
       "#E84393",
     ];
+
     let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-      hash = name.charCodeAt(i) + ((hash << 5) - hash);
+
+    for (let index = 0; index < name.length; index += 1) {
+      hash =
+        name.charCodeAt(index) +
+        ((hash << 5) - hash);
     }
+
     return colors[Math.abs(hash) % colors.length];
   };
 
-  if (loading) {
+  if (isInitialLoading) {
     return (
       <View
         className="flex-1 items-center justify-center"
         style={{ backgroundColor: theme.background }}
       >
-        <ActivityIndicator size="large" color={theme.primary[300]} />
+        <ActivityIndicator
+          size="large"
+          color={theme.primary[300]}
+        />
         <Text className="mt-3" style={{ color: theme.muted }}>
           Loading locations...
         </Text>
@@ -106,14 +120,21 @@ const AllLocations = () => {
       className="flex-1"
       style={{ backgroundColor: theme.background }}
     >
-      {/* Header */}
       <View
         className="flex-row items-center px-5 py-4 border-b"
         style={{ borderBottomColor: theme.muted + "30" }}
       >
-        <TouchableOpacity onPress={() => router.back()} className="mr-4 p-2">
-          <Ionicons name="arrow-back" size={24} color={theme.title} />
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="mr-4 p-2"
+        >
+          <Ionicons
+            name="arrow-back"
+            size={24}
+            color={theme.title}
+          />
         </TouchableOpacity>
+
         <View className="flex-1">
           <Text
             className="text-2xl font-rubik-bold"
@@ -125,7 +146,14 @@ const AllLocations = () => {
             Find properties in these amazing areas
           </Text>
         </View>
-        <TouchableOpacity onPress={loadAllLocations} className="p-2">
+
+        <TouchableOpacity
+          onPress={() =>
+            void refetch({ limit: LOCATION_LIMIT })
+          }
+          className="p-2"
+          accessibilityLabel="Refresh locations"
+        >
           <Ionicons
             name="refresh-outline"
             size={22}
@@ -134,164 +162,200 @@ const AllLocations = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Stats Banner */}
-      <View
-        className="mx-5 mt-4 p-4 rounded-2xl flex-row justify-between items-center"
-        style={{ backgroundColor: theme.surface }}
-      >
-        <View>
-          <Text
-            className="text-2xl text-center font-rubik-bold"
-            style={{ color: theme.primary[300] }}
+      {error && locations.length === 0 ? (
+        <View className="flex-1 items-center justify-center px-6">
+          <Text className="text-center" style={{ color: theme.muted }}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            onPress={() =>
+              void refetch({ limit: LOCATION_LIMIT })
+            }
+            className="mt-4 rounded-full px-5 py-3"
+            style={{ backgroundColor: theme.primary[300] }}
           >
-            {locations.length}
-          </Text>
-          <Text className="text-sm" style={{ color: theme.muted }}>
-            Locations Available
-          </Text>
+            <Text className="text-white font-rubik-medium">
+              Try Again
+            </Text>
+          </TouchableOpacity>
         </View>
-        <View
-          className="w-px h-10"
-          style={{ backgroundColor: theme.muted + "30" }}
-        />
-        <View>
-          <Text
-            className="text-2xl text-center font-rubik-bold"
-            style={{ color: theme.primary[300] }}
+      ) : (
+        <>
+          <View
+            className="mx-5 mt-4 p-4 rounded-2xl flex-row justify-between items-center"
+            style={{ backgroundColor: theme.surface }}
           >
-            {locations.reduce((sum, loc) => sum + (loc.propertyCount || 0), 0)}
-          </Text>
-          <Text className="text-sm" style={{ color: theme.muted }}>
-            Total Properties
-          </Text>
-        </View>
-        <View
-          className="w-px h-10"
-          style={{ backgroundColor: theme.muted + "30" }}
-        />
-        <View className="items-center">
-          <Ionicons
-            name="location-outline"
-            size={28}
-            color={theme.primary[300]}
-          />
-          <Text
-            className="text-sm text-center mt-1"
-            style={{ color: theme.muted }}
-          >
-            Zimbabwe Wide
-          </Text>
-        </View>
-      </View>
-
-      {/* Subtitle */}
-      <View className="px-5 mt-5 mb-2">
-        <Text
-          className="text-base font-rubik-medium"
-          style={{ color: theme.muted }}
-        >
-          Popular Cities & Towns
-        </Text>
-        <Text className="text-xs mt-1" style={{ color: theme.muted + "80" }}>
-          Tap on any location to see available properties
-        </Text>
-      </View>
-
-      {/* Locations Grid */}
-      <FlatList
-        data={locations}
-        numColumns={2}
-        renderItem={({ item }) => {
-          const locationColor = getLocationColor(item.name);
-          return (
-            <TouchableOpacity
-              onPress={() =>
-                router.push({
-                  pathname: "/properties-by-location" as any,
-                  params: { city: item.name },
-                })
-              }
-              className="flex-1 m-2 p-4 rounded-2xl"
-              style={{
-                backgroundColor: theme.surface,
-                borderWidth: 1,
-                borderColor: theme.muted + "20",
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 4,
-                elevation: 2,
-              }}
-              activeOpacity={0.8}
-            >
-              {/* Icon and Emoji Row */}
-              <View className="flex-row justify-between items-start mb-3">
-                <View
-                  className="w-12 h-12 rounded-2xl items-center justify-center"
-                  style={{ backgroundColor: locationColor + "20" }}
-                >
-                  <Text className="text-2xl">{getLocationIcon(item.name)}</Text>
-                </View>
-                <View
-                  className="px-2 py-1 rounded-full"
-                  style={{ backgroundColor: locationColor + "15" }}
-                >
-                  <Text
-                    className="text-xs font-rubik-medium"
-                    style={{ color: locationColor }}
-                  >
-                    {item.propertyCount || 0} listings
-                  </Text>
-                </View>
-              </View>
-
-              {/* Location Name */}
+            <View>
               <Text
-                className="text-lg font-rubik-bold mt-1"
-                style={{ color: theme.title }}
-                numberOfLines={1}
+                className="text-2xl text-center font-rubik-bold"
+                style={{ color: theme.primary[300] }}
               >
-                {item.name}
+                {locations.length}
               </Text>
+              <Text className="text-sm" style={{ color: theme.muted }}>
+                Locations Available
+              </Text>
+            </View>
 
-              {/* Location Description */}
+            <View
+              className="w-px h-10"
+              style={{ backgroundColor: theme.muted + "30" }}
+            />
+
+            <View>
               <Text
-                className="text-xs mt-1"
+                className="text-2xl text-center font-rubik-bold"
+                style={{ color: theme.primary[300] }}
+              >
+                {locations.reduce(
+                  (sum, location) =>
+                    sum + (location.propertyCount || 0),
+                  0,
+                )}
+              </Text>
+              <Text className="text-sm" style={{ color: theme.muted }}>
+                Total Properties
+              </Text>
+            </View>
+
+            <View
+              className="w-px h-10"
+              style={{ backgroundColor: theme.muted + "30" }}
+            />
+
+            <View className="items-center">
+              <Ionicons
+                name="location-outline"
+                size={28}
+                color={theme.primary[300]}
+              />
+              <Text
+                className="text-sm text-center mt-1"
                 style={{ color: theme.muted }}
-                numberOfLines={2}
               >
-                {getLocationDescription(item.name)}
+                Zimbabwe Wide
               </Text>
+            </View>
+          </View>
 
-              {/* Explore Button */}
-              <View className="flex-row items-center mt-3">
-                <Text
-                  className="text-xs font-rubik-medium"
-                  style={{ color: locationColor }}
+          <View className="px-5 mt-5 mb-2">
+            <Text
+              className="text-base font-rubik-medium"
+              style={{ color: theme.muted }}
+            >
+              Popular Cities & Towns
+            </Text>
+            <Text
+              className="text-xs mt-1"
+              style={{ color: theme.muted + "80" }}
+            >
+              Tap on any location to see available properties
+            </Text>
+          </View>
+
+          <FlatList
+            data={locations}
+            numColumns={2}
+            renderItem={({ item }) => {
+              const locationColor =
+                getLocationColor(item.name);
+
+              return (
+                <TouchableOpacity
+                  onPress={() =>
+                    router.push({
+                      pathname:
+                        "/properties-by-location" as any,
+                      params: { city: item.name },
+                    })
+                  }
+                  className="flex-1 m-2 p-4 rounded-2xl"
+                  style={{
+                    backgroundColor: theme.surface,
+                    borderWidth: 1,
+                    borderColor: theme.muted + "20",
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 4,
+                    elevation: 2,
+                  }}
+                  activeOpacity={0.8}
                 >
-                  Explore
-                </Text>
-                <Ionicons
-                  name="arrow-forward"
-                  size={14}
-                  color={locationColor}
-                  style={{ marginLeft: 4 }}
-                />
-              </View>
-            </TouchableOpacity>
-          );
-        }}
-        keyExtractor={(item) => item.id}
-        contentContainerClassName="p-2 pb-10"
-        showsVerticalScrollIndicator={false}
-      />
+                  <View className="flex-row justify-between items-start mb-3">
+                    <View
+                      className="w-12 h-12 rounded-2xl items-center justify-center"
+                      style={{
+                        backgroundColor:
+                          locationColor + "20",
+                      }}
+                    >
+                      <Text className="text-2xl">
+                        {getLocationIcon(item.name)}
+                      </Text>
+                    </View>
+
+                    <View
+                      className="px-2 py-1 rounded-full"
+                      style={{
+                        backgroundColor:
+                          locationColor + "15",
+                      }}
+                    >
+                      <Text
+                        className="text-xs font-rubik-medium"
+                        style={{ color: locationColor }}
+                      >
+                        {item.propertyCount || 0} listings
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text
+                    className="text-lg font-rubik-bold mt-1"
+                    style={{ color: theme.title }}
+                    numberOfLines={1}
+                  >
+                    {item.name}
+                  </Text>
+
+                  <Text
+                    className="text-xs mt-1"
+                    style={{ color: theme.muted }}
+                    numberOfLines={2}
+                  >
+                    {getLocationDescription(item.name)}
+                  </Text>
+
+                  <View className="flex-row items-center mt-3">
+                    <Text
+                      className="text-xs font-rubik-medium"
+                      style={{ color: locationColor }}
+                    >
+                      Explore
+                    </Text>
+                    <Ionicons
+                      name="arrow-forward"
+                      size={14}
+                      color={locationColor}
+                      style={{ marginLeft: 4 }}
+                    />
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+            keyExtractor={(item) => item.id}
+            contentContainerClassName="p-2 pb-10"
+            showsVerticalScrollIndicator={false}
+          />
+        </>
+      )}
     </SafeAreaView>
   );
 };
 
-// Helper function to get location descriptions
 const getLocationDescription = (name: string): string => {
-  const descriptions: { [key: string]: string } = {
+  const descriptions: Record<string, string> = {
     Harare: "Capital city with vibrant culture",
     Bulawayo: "City of kings and heritage",
     Mutare: "Gateway to the Eastern Highlands",
@@ -308,6 +372,7 @@ const getLocationDescription = (name: string): string => {
     Chiredzi: "Sugar estate region",
     Rusape: "Fruit growing area",
   };
+
   return descriptions[name] || "Find great properties here";
 };
 
