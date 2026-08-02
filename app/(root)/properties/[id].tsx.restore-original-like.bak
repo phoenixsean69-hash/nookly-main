@@ -463,35 +463,33 @@ const handleContactLandlord = () => {
         ]),
       );
 
-      return tenantProfiles.documents.reduce<TenantWithProfile[]>(
-        (tenants, profile) => {
+      return tenantProfiles.documents
+        .map((profile) => {
           const userDocument = usersByAccountId.get(
             String(profile.userId || ""),
           );
 
-          if (!userDocument) {
-            return tenants;
-          }
+          if (!userDocument) return null;
 
-          tenants.push({
+          return {
             userId: String(profile.userId || ""),
             name: userDocument.name || "Tenant",
             email: userDocument.email || "",
-            phone: userDocument.phone || undefined,
+            phone: userDocument.phone || "",
             avatar:
               userDocument.avatar ||
               userDocument.customAvatar ||
               undefined,
             tenantScore: Number(profile.tenantScore || 0),
             isIdVerified: Boolean(profile.isIdVerified),
-            currentProperty: profile.currentProperty || undefined,
+            currentProperty: profile.currentProperty,
             tenantProfileId: profile.$id,
-          });
-
-          return tenants;
-        },
-        [],
-      );
+          } satisfies TenantWithProfile;
+        })
+        .filter(
+          (tenant): tenant is TenantWithProfile =>
+            tenant !== null,
+        );
     },
     params: {
       propertyId: property?.$id || "",
@@ -1534,6 +1532,42 @@ const creator =
                   {avgRating}
                 </Text>
               </View>
+
+              <TouchableOpacity
+                onPress={handleLike}
+                activeOpacity={0.75}
+                className="flex-row items-center px-3 py-2 rounded-full"
+                style={{
+                  backgroundColor: liked
+                    ? "rgba(236, 72, 153, 0.14)"
+                    : theme.surface,
+                  borderWidth: 1,
+                  borderColor: liked
+                    ? "#EC4899"
+                    : `${theme.muted}35`,
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  liked
+                    ? `Unlike property. ${likeCount} likes`
+                    : `Like property. ${likeCount} likes`
+                }
+                accessibilityState={{ selected: liked }}
+              >
+                <Ionicons
+                  name={liked ? "heart" : "heart-outline"}
+                  size={20}
+                  color={liked ? "#EC4899" : theme.muted}
+                />
+                <Text
+                  className="text-sm font-rubik-bold ml-1.5"
+                  style={{
+                    color: liked ? "#EC4899" : theme.text,
+                  }}
+                >
+                  {likeCount}
+                </Text>
+              </TouchableOpacity>
             </View>
 
             <TouchableOpacity
@@ -3593,44 +3627,6 @@ const creator =
             </View>
 
             <View className="flex-row items-center gap-2">
-              <TouchableOpacity
-                onPress={handleLike}
-                activeOpacity={0.75}
-                className="flex-row items-center px-3 py-2 rounded-full"
-                style={{
-                  backgroundColor: liked
-                    ? "rgba(236, 72, 153, 0.14)"
-                    : theme.surface,
-                  borderWidth: 1,
-                  borderColor: liked
-                    ? "#EC4899"
-                    : `${theme.muted}35`,
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  liked
-                    ? `Unlike property. ${likeCount} total likes`
-                    : `Like property. ${likeCount} total likes`
-                }
-                accessibilityState={{ selected: liked }}
-              >
-                <Image
-                  source={icons.like}
-                  className="size-5 mr-1.5"
-                  style={{
-                    tintColor: liked ? "#EC4899" : "#6B7280",
-                  }}
-                />
-                <Text
-                  className="text-base font-rubik-bold"
-                  style={{
-                    color: liked ? "#EC4899" : "#6B7280",
-                  }}
-                >
-                  {likeCount}
-                </Text>
-              </TouchableOpacity>
-
               <TouchableOpacity
                 onPress={handleFavoriteToggle}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}

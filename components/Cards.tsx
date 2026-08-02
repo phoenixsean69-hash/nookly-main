@@ -91,8 +91,7 @@ const getPriceChangePercent = (item: PropertyDocument): number => {
   if (!hasPriceDrop(item) || !item.price) return 0;
 
   return Math.round(
-    ((Number(item.price) - Number(item.new_price ?? 0)) /
-      Number(item.price)) *
+    ((Number(item.price) - Number(item.new_price ?? 0)) / Number(item.price)) *
       100,
   );
 };
@@ -107,9 +106,7 @@ const PropertyImage = ({
   uri ? (
     <Image source={{ uri }} className={className} resizeMode="cover" />
   ) : (
-    <View
-      className={`${className} items-center justify-center bg-gray-200`}
-    >
+    <View className={`${className} items-center justify-center bg-gray-200`}>
       <Image
         source={icons.home}
         className="h-10 w-10 opacity-40"
@@ -130,8 +127,7 @@ export const FeaturedCard = ({
   const views = Number(item.views ?? 0);
   const propertyType = getPropertyType(item);
   const suffix = getPriceSuffix(propertyType);
-  const approvedByOrganization =
-    isOrganizationApprovedBoardingHouse(item);
+  const approvedByOrganization = isOrganizationApprovedBoardingHouse(item);
 
   const accredited = isAccredited(
     item.reviews,
@@ -158,7 +154,9 @@ export const FeaturedCard = ({
       {showPriceChange && priceDropped ? (
         <View className="absolute left-4 top-4 z-20">
           <View className="flex-row items-center rounded-full bg-red-500 px-3 py-1.5">
-            <Text className="mr-1 text-xs font-rubik-bold text-white">ðŸ”¥</Text>
+            <Text className="mr-1 text-xs font-rubik-bold text-white">
+              ðŸ”¥
+            </Text>
             <Text className="text-xs font-rubik-bold text-white">
               -${getPriceDropAmount(item)}
             </Text>
@@ -198,9 +196,7 @@ export const FeaturedCard = ({
             </Text>
           </View>
 
-          {approvedByOrganization && (
-            <OrganizationApprovedBadge size="small" />
-          )}
+          {approvedByOrganization && <OrganizationApprovedBadge size="small" />}
         </View>
 
         <Text
@@ -210,10 +206,7 @@ export const FeaturedCard = ({
           {title}
         </Text>
 
-        <Text
-          className="text-sm font-rubik text-white/90"
-          numberOfLines={1}
-        >
+        <Text className="text-sm font-rubik text-white/90" numberOfLines={1}>
           {item.address || "Unknown address"}
         </Text>
 
@@ -261,11 +254,7 @@ export const FeaturedCard = ({
   );
 };
 
-export const Card = ({
-  item,
-  onPress,
-  showPriceChange = true,
-}: Props) => {
+export const Card = ({ item, onPress, showPriceChange = true }: Props) => {
   const imageUri = getImageUri(item);
   const title = getTitle(item);
   const rating = Number(item.rating ?? 0);
@@ -275,8 +264,7 @@ export const Card = ({
   const suffix = getPriceSuffix(propertyType);
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
-  const approvedByOrganization =
-    isOrganizationApprovedBoardingHouse(item);
+  const approvedByOrganization = isOrganizationApprovedBoardingHouse(item);
 
   const accredited = isAccredited(
     item.reviews,
@@ -354,14 +342,6 @@ export const Card = ({
           >
             {title}
           </Text>
-
-          {accredited && (
-            <View className="ml-2 flex-shrink-0 rounded-full bg-green-500 px-1.5 py-0.5">
-              <Text className="text-[8px] font-rubik-bold text-white">
-                âœ“ accredited
-              </Text>
-            </View>
-          )}
         </View>
 
         {approvedByOrganization && (

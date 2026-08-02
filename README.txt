@@ -1,43 +1,30 @@
-NOOKLY PUSH REGISTRATION — ASYNC EXECUTION FIX
+NOOKLY STEP 7 — TENANT TYPESCRIPT FIX
 
-RUN FROM THE PROJECT ROOT:
+Run from the project root:
 
-powershell -ExecutionPolicy Bypass -File .\apply-push-registration-async-fix.ps1
+node .\apply-step7-tenant-types-fix.mjs
 
-UPDATED:
-- services/push-function.service.ts
-- app/_layout.tsx
+FIXED ERRORS
+- TS2322: null values not assignable to TenantWithProfile[]
+- TS2677: invalid type predicate for TenantWithProfile
 
-BACKUPS:
-- services/push-function.service.ts.async-register.bak
-- app/_layout.tsx.async-register.bak
+CAUSE
+The Step 7 code used map(...), returned null for missing users, then used a
+custom type predicate. TypeScript inferred required fields such as phone,
+which conflicted with the optional fields in TenantWithProfile.
 
-WHY THE ERROR OCCURRED
+FIX
+- Replaces map(...).filter(...) with reduce<TenantWithProfile[]>.
+- Missing user records are skipped without returning null.
+- Optional fields explicitly use undefined.
+- The returned array is always TenantWithProfile[].
 
-The mobile service invoked /register-device using:
+UPDATED
+- app/(root)/properties/[id].tsx
 
-async: false
+BACKUP
+- app/(root)/properties/[id].tsx.step7-types-fix.bak
 
-That makes Appwrite wait for the function to finish. Synchronous function
-executions have a hard 30-second limit. Registration may take longer while
-the function starts, searches existing token rows, updates the primary row
-and deactivates duplicate rows.
-
-WHAT CHANGES
-
-- /register-device is submitted with async: true.
-- Appwrite immediately queues the registration execution.
-- The mobile app stores the Expo token after Appwrite accepts the job.
-- The mobile app no longer waits for token cleanup and row updates.
-- The execution ID and initial queue status are logged for diagnosis.
-- The backend function code does not need to be redeployed.
-- /test and notification-producing routes remain synchronous for now.
-
-EXPECTED LOG
-
-✅ Push device registration queued through Nookly Push API
-   (<execution ID>, waiting)
-
-AFTER APPLYING:
+After applying:
 
 npx tsc --noEmit

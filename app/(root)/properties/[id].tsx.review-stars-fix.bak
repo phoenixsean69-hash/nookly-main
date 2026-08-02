@@ -306,6 +306,10 @@ const Property = () => {
   // ============================================================================
   // TENANTS STATE
   // ============================================================================
+  const [tenantsForProperty, setTenantsForProperty] = useState<
+    TenantWithProfile[]
+  >([]);
+  const [loadingTenants, setLoadingTenants] = useState(false);
 
   // ============================================================================
   // HELPER FUNCTIONS FOR SCORES
@@ -415,104 +419,6 @@ const handleContactLandlord = () => {
   const isLandlordOwner =
     user?.userMode === "landlord" && property?.creatorId === user?.accountId;
 
-  const {
-    data: cachedTenantsForProperty,
-    loading: cachedTenantsLoading,
-  } = useAppwrite({
-    fn: async (params: {
-      propertyId: string;
-    }): Promise<TenantWithProfile[]> => {
-      const tenantProfiles = await databases.listDocuments(
-        config.databaseId!,
-        config.tenantProfilesCollectionId!,
-        [
-          Query.equal("currentProperty", params.propertyId),
-          Query.limit(100),
-        ],
-      );
-
-      if (tenantProfiles.documents.length === 0) {
-        return [];
-      }
-
-      const userIds = [
-        ...new Set(
-          tenantProfiles.documents
-            .map((profile) => String(profile.userId || "").trim())
-            .filter(Boolean),
-        ),
-      ];
-
-      if (userIds.length === 0) {
-        return [];
-      }
-
-      const usersResult = await databases.listDocuments(
-        config.databaseId!,
-        config.usersCollectionId!,
-        [
-          Query.equal("accountId", userIds),
-          Query.limit(Math.min(100, userIds.length)),
-        ],
-      );
-
-      const usersByAccountId = new Map(
-        usersResult.documents.map((userDocument) => [
-          String(userDocument.accountId || ""),
-          userDocument,
-        ]),
-      );
-
-      return tenantProfiles.documents.reduce<TenantWithProfile[]>(
-        (tenants, profile) => {
-          const userDocument = usersByAccountId.get(
-            String(profile.userId || ""),
-          );
-
-          if (!userDocument) {
-            return tenants;
-          }
-
-          tenants.push({
-            userId: String(profile.userId || ""),
-            name: userDocument.name || "Tenant",
-            email: userDocument.email || "",
-            phone: userDocument.phone || undefined,
-            avatar:
-              userDocument.avatar ||
-              userDocument.customAvatar ||
-              undefined,
-            tenantScore: Number(profile.tenantScore || 0),
-            isIdVerified: Boolean(profile.isIdVerified),
-            currentProperty: profile.currentProperty || undefined,
-            tenantProfileId: profile.$id,
-          });
-
-          return tenants;
-        },
-        [],
-      );
-    },
-    params: {
-      propertyId: property?.$id || "",
-    },
-    skip:
-      !property?.$id ||
-      user?.userMode !== "landlord" ||
-      !isLandlordOwner,
-    cacheKey: `property_current_tenants_${
-      property?.$id || "missing"
-    }`,
-    watchCollections: [
-      config.tenantProfilesCollectionId,
-      config.usersCollectionId,
-    ],
-  });
-
-  const tenantsForProperty = cachedTenantsForProperty ?? [];
-  const loadingTenants =
-    cachedTenantsLoading && cachedTenantsForProperty === null;
-
   const priceHistory = buildPriceHistory(property);
 
   useEffect(() => {
@@ -546,6 +452,68 @@ const handleContactLandlord = () => {
 
     checkFavorite();
   }, [property]);
+
+  // ============================================================================
+  // FETCH TENANTS FOR PROPERTY
+  // ============================================================================
+  const fetchTenantsForProperty = async () => {
+    if (!property?.$id || user?.userMode !== "landlord") return;
+
+    setLoadingTenants(true);
+    try {
+      // Query tenant profiles where currentProperty matches this property ID
+      const tenantProfiles = await databases.listDocuments(
+        config.databaseId!,
+        config.tenantProfilesCollectionId!,
+        [Query.equal("currentProperty", property.$id)],
+      );
+
+      if (tenantProfiles.documents.length === 0) {
+        setTenantsForProperty([]);
+        return;
+      }
+
+      // Fetch user details for each tenant
+      const tenantsWithDetails = await Promise.all(
+        tenantProfiles.documents.map(async (profile) => {
+          try {
+            const userDocs = await databases.listDocuments(
+              config.databaseId!,
+              config.usersCollectionId!,
+              [Query.equal("accountId", profile.userId)],
+            );
+
+            if (userDocs.documents.length > 0) {
+              const userDoc = userDocs.documents[0];
+              return {
+                userId: profile.userId,
+                name: userDoc.name || "Tenant",
+                email: userDoc.email || "",
+                phone: userDoc.phone || "",
+                avatar: userDoc.avatar || userDoc.customAvatar || null,
+                tenantScore: profile.tenantScore || 0,
+                isIdVerified: profile.isIdVerified || false,
+                currentProperty: profile.currentProperty,
+                tenantProfileId: profile.$id,
+              };
+            }
+            return null;
+          } catch (error) {
+            console.error("Error fetching user for tenant:", error);
+            return null;
+          }
+        }),
+      );
+
+      setTenantsForProperty(
+        tenantsWithDetails.filter(Boolean) as TenantWithProfile[],
+      );
+    } catch (error) {
+      console.error("Error fetching tenants for property:", error);
+    } finally {
+      setLoadingTenants(false);
+    }
+  };
 
   // Handle tenant press - show details in alert
   const handleTenantPress = (tenant: TenantWithProfile) => {
@@ -589,6 +557,13 @@ const handleContactLandlord = () => {
       ],
     );
   };
+
+  // Add this useEffect to fetch tenants when property loads and user is landlord
+  useEffect(() => {
+    if (property && user?.userMode === "landlord" && isLandlordOwner) {
+      fetchTenantsForProperty();
+    }
+  }, [property, user, isLandlordOwner]);
 
   // ============================================================================
   // EDIT FUNCTIONS
@@ -1515,25 +1490,16 @@ const creator =
           )}
 
           <View className="flex flex-row items-center justify-between gap-3">
-            <View className="flex-row items-center flex-wrap gap-2 flex-1">
-              <View className="flex-row items-center px-3 py-2 bg-primary-100 rounded-full">
+            <View className="flex flex-row items-center gap-3">
+              <View className="flex flex-row items-center px-4 py-2 bg-primary-100 rounded-full">
                 <Text className="text-xs font-rubik-bold text-primary-300">
                   {property.type}
                 </Text>
               </View>
-
-              <View
-                className="flex-row items-center px-3 py-2 rounded-full"
-                style={{ backgroundColor: theme.surface }}
-              >
-                <Ionicons name="star" size={17} color="#FACC15" />
-                <Text
-                  className="text-sm font-rubik-bold ml-1"
-                  style={{ color: theme.text }}
-                >
-                  {avgRating}
-                </Text>
-              </View>
+              <Image source={icons.star} className="size-3.5" />
+              <Text className="text-black-200 text-sm mt-1 font-rubik-medium">
+                {avgRating}
+              </Text>
             </View>
 
             <TouchableOpacity
@@ -2266,37 +2232,17 @@ const creator =
               placeholderTextColor="#9CA3AF"
               style={{ color: theme.text, backgroundColor: theme.surface }}
             />
-            <View className="flex-row items-center gap-2 mt-3">
-              {[1, 2, 3, 4, 5].map((star) => {
-                const selected = rating >= star;
-
-                return (
-                  <TouchableOpacity
-                    key={`review-star-${star}`}
-                    onPress={() => setRating(star)}
-                    activeOpacity={0.7}
-                    className="w-11 h-11 items-center justify-center rounded-full"
-                    style={{
-                      backgroundColor: selected
-                        ? "rgba(250, 204, 21, 0.14)"
-                        : theme.surface,
-                      borderWidth: 1,
-                      borderColor: selected
-                        ? "#FACC15"
-                        : `${theme.muted}35`,
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Rate ${star} star${star === 1 ? "" : "s"}`}
-                    accessibilityState={{ selected }}
+            <View className="flex flex-row gap-3 mt-3">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                  <Text
+                    className="text-3xl"
+                    style={{ color: rating >= star ? "#facc15" : "#9ca3af" }}
                   >
-                    <Ionicons
-                      name={selected ? "star" : "star-outline"}
-                      size={28}
-                      color={selected ? "#FACC15" : theme.muted}
-                    />
-                  </TouchableOpacity>
-                );
-              })}
+                    â˜…
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
             <TouchableOpacity
               onPress={handleAddReview}
@@ -3595,37 +3541,15 @@ const creator =
             <View className="flex-row items-center gap-2">
               <TouchableOpacity
                 onPress={handleLike}
-                activeOpacity={0.75}
-                className="flex-row items-center px-3 py-2 rounded-full"
-                style={{
-                  backgroundColor: liked
-                    ? "rgba(236, 72, 153, 0.14)"
-                    : theme.surface,
-                  borderWidth: 1,
-                  borderColor: liked
-                    ? "#EC4899"
-                    : `${theme.muted}35`,
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  liked
-                    ? `Unlike property. ${likeCount} total likes`
-                    : `Like property. ${likeCount} total likes`
-                }
-                accessibilityState={{ selected: liked }}
+                className="flex-row items-center bg-gray-100 px-3 py-2 rounded-full"
               >
                 <Image
-                  source={icons.like}
-                  className="size-5 mr-1.5"
-                  style={{
-                    tintColor: liked ? "#EC4899" : "#6B7280",
-                  }}
+                  source={liked ? icons.like : icons.like}
+                  className="size-5 mr-1"
+                  style={{ tintColor: liked ? "#ff69b4" : "#666" }}
                 />
                 <Text
-                  className="text-base font-rubik-bold"
-                  style={{
-                    color: liked ? "#EC4899" : "#6B7280",
-                  }}
+                  className={`text-base font-rubik-bold ${liked ? "text-pink-500" : "text-gray-600"}`}
                 >
                   {likeCount}
                 </Text>

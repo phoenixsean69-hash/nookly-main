@@ -1,4 +1,4 @@
-﻿// app/properties/[id].tsx
+// app/properties/[id].tsx
 import AmenitiesBadge from "@/components/AmenitiesBadge";
 import ConfirmationModal from "@/components/ConfirmationModal";
 import ContactModal from "@/components/ContactModal";
@@ -155,6 +155,7 @@ const Property = () => {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
   const scale = useSharedValue(1);
+  const viewRecorded = useRef(false);
 
   // ============================================================================
   // CONTACT MODAL STATE
@@ -173,12 +174,8 @@ const Property = () => {
     loading,
     refetch,
   } = useAppwrite({
-    fn: ({ documentId }: { documentId: string }) =>
-      getPropertyById({ id: documentId }),
-    params: { documentId: id! },
-    skip: !id,
-    cacheKey: `property_details_complete_v2_${id || "missing"}`,
-    watchCollections: [config.propertiesCollectionId],
+    fn: getPropertyById,
+    params: { id: id! },
   }) as {
     data: PropertyData | null;
     loading: boolean;
@@ -306,6 +303,10 @@ const Property = () => {
   // ============================================================================
   // TENANTS STATE
   // ============================================================================
+  const [tenantsForProperty, setTenantsForProperty] = useState<
+    TenantWithProfile[]
+  >([]);
+  const [loadingTenants, setLoadingTenants] = useState(false);
 
   // ============================================================================
   // HELPER FUNCTIONS FOR SCORES
@@ -415,104 +416,6 @@ const handleContactLandlord = () => {
   const isLandlordOwner =
     user?.userMode === "landlord" && property?.creatorId === user?.accountId;
 
-  const {
-    data: cachedTenantsForProperty,
-    loading: cachedTenantsLoading,
-  } = useAppwrite({
-    fn: async (params: {
-      propertyId: string;
-    }): Promise<TenantWithProfile[]> => {
-      const tenantProfiles = await databases.listDocuments(
-        config.databaseId!,
-        config.tenantProfilesCollectionId!,
-        [
-          Query.equal("currentProperty", params.propertyId),
-          Query.limit(100),
-        ],
-      );
-
-      if (tenantProfiles.documents.length === 0) {
-        return [];
-      }
-
-      const userIds = [
-        ...new Set(
-          tenantProfiles.documents
-            .map((profile) => String(profile.userId || "").trim())
-            .filter(Boolean),
-        ),
-      ];
-
-      if (userIds.length === 0) {
-        return [];
-      }
-
-      const usersResult = await databases.listDocuments(
-        config.databaseId!,
-        config.usersCollectionId!,
-        [
-          Query.equal("accountId", userIds),
-          Query.limit(Math.min(100, userIds.length)),
-        ],
-      );
-
-      const usersByAccountId = new Map(
-        usersResult.documents.map((userDocument) => [
-          String(userDocument.accountId || ""),
-          userDocument,
-        ]),
-      );
-
-      return tenantProfiles.documents.reduce<TenantWithProfile[]>(
-        (tenants, profile) => {
-          const userDocument = usersByAccountId.get(
-            String(profile.userId || ""),
-          );
-
-          if (!userDocument) {
-            return tenants;
-          }
-
-          tenants.push({
-            userId: String(profile.userId || ""),
-            name: userDocument.name || "Tenant",
-            email: userDocument.email || "",
-            phone: userDocument.phone || undefined,
-            avatar:
-              userDocument.avatar ||
-              userDocument.customAvatar ||
-              undefined,
-            tenantScore: Number(profile.tenantScore || 0),
-            isIdVerified: Boolean(profile.isIdVerified),
-            currentProperty: profile.currentProperty || undefined,
-            tenantProfileId: profile.$id,
-          });
-
-          return tenants;
-        },
-        [],
-      );
-    },
-    params: {
-      propertyId: property?.$id || "",
-    },
-    skip:
-      !property?.$id ||
-      user?.userMode !== "landlord" ||
-      !isLandlordOwner,
-    cacheKey: `property_current_tenants_${
-      property?.$id || "missing"
-    }`,
-    watchCollections: [
-      config.tenantProfilesCollectionId,
-      config.usersCollectionId,
-    ],
-  });
-
-  const tenantsForProperty = cachedTenantsForProperty ?? [];
-  const loadingTenants =
-    cachedTenantsLoading && cachedTenantsForProperty === null;
-
   const priceHistory = buildPriceHistory(property);
 
   useEffect(() => {
@@ -547,6 +450,68 @@ const handleContactLandlord = () => {
     checkFavorite();
   }, [property]);
 
+  // ============================================================================
+  // FETCH TENANTS FOR PROPERTY
+  // ============================================================================
+  const fetchTenantsForProperty = async () => {
+    if (!property?.$id || user?.userMode !== "landlord") return;
+
+    setLoadingTenants(true);
+    try {
+      // Query tenant profiles where currentProperty matches this property ID
+      const tenantProfiles = await databases.listDocuments(
+        config.databaseId!,
+        config.tenantProfilesCollectionId!,
+        [Query.equal("currentProperty", property.$id)],
+      );
+
+      if (tenantProfiles.documents.length === 0) {
+        setTenantsForProperty([]);
+        return;
+      }
+
+      // Fetch user details for each tenant
+      const tenantsWithDetails = await Promise.all(
+        tenantProfiles.documents.map(async (profile) => {
+          try {
+            const userDocs = await databases.listDocuments(
+              config.databaseId!,
+              config.usersCollectionId!,
+              [Query.equal("accountId", profile.userId)],
+            );
+
+            if (userDocs.documents.length > 0) {
+              const userDoc = userDocs.documents[0];
+              return {
+                userId: profile.userId,
+                name: userDoc.name || "Tenant",
+                email: userDoc.email || "",
+                phone: userDoc.phone || "",
+                avatar: userDoc.avatar || userDoc.customAvatar || null,
+                tenantScore: profile.tenantScore || 0,
+                isIdVerified: profile.isIdVerified || false,
+                currentProperty: profile.currentProperty,
+                tenantProfileId: profile.$id,
+              };
+            }
+            return null;
+          } catch (error) {
+            console.error("Error fetching user for tenant:", error);
+            return null;
+          }
+        }),
+      );
+
+      setTenantsForProperty(
+        tenantsWithDetails.filter(Boolean) as TenantWithProfile[],
+      );
+    } catch (error) {
+      console.error("Error fetching tenants for property:", error);
+    } finally {
+      setLoadingTenants(false);
+    }
+  };
+
   // Handle tenant press - show details in alert
   const handleTenantPress = (tenant: TenantWithProfile) => {
     const score = Math.round(tenant.tenantScore || 0);
@@ -554,8 +519,8 @@ const handleContactLandlord = () => {
     const scoreLabel = getScoreLabel(score);
 
     Alert.alert(
-      "ðŸ‘¤ Tenant Details",
-      `Name: ${tenant.name}\nEmail: ${tenant.email}\nPhone: ${tenant.phone || "Not available"}\n\nðŸ“Š Tenant Score: ${score}/100 (${scoreLabel})\nâœ… ID Verified: ${tenant.isIdVerified ? "Yes" : "No"}`,
+      "👤 Tenant Details",
+      `Name: ${tenant.name}\nEmail: ${tenant.email}\nPhone: ${tenant.phone || "Not available"}\n\n📊 Tenant Score: ${score}/100 (${scoreLabel})\n✅ ID Verified: ${tenant.isIdVerified ? "Yes" : "No"}`,
       [
         {
           text: "Contact Tenant",
@@ -565,13 +530,13 @@ const handleContactLandlord = () => {
               `Email: ${tenant.email}\nPhone: ${tenant.phone || "Not available"}`,
               [
                 {
-                  text: "ðŸ“§ Send Email",
+                  text: "📧 Send Email",
                   onPress: () => {
                     Linking.openURL(`mailto:${tenant.email}`);
                   },
                 },
                 {
-                  text: "ðŸ“ž Call",
+                  text: "📞 Call",
                   onPress: () => {
                     if (tenant.phone) {
                       Linking.openURL(`tel:${tenant.phone}`);
@@ -589,6 +554,13 @@ const handleContactLandlord = () => {
       ],
     );
   };
+
+  // Add this useEffect to fetch tenants when property loads and user is landlord
+  useEffect(() => {
+    if (property && user?.userMode === "landlord" && isLandlordOwner) {
+      fetchTenantsForProperty();
+    }
+  }, [property, user, isLandlordOwner]);
 
   // ============================================================================
   // EDIT FUNCTIONS
@@ -650,51 +622,33 @@ const handleContactLandlord = () => {
     "none" | "pending" | "accepted" | "rejected"
   >("none");
 
-  const { data: cachedRequestStatus } = useAppwrite({
-    fn: async (params: {
-      propertyId: string;
-      tenantId: string;
-    }): Promise<"none" | "pending" | "accepted" | "rejected"> => {
-      const requestsResult = await databases.listDocuments(
-        config.databaseId!,
-        config.requestsCollectionId!,
-        [
-          Query.equal("propertyId", params.propertyId),
-          Query.equal("tenantId", params.tenantId),
-          Query.limit(1),
-        ],
-      );
-
-      const status = String(
-        requestsResult.documents[0]?.status || "none",
-      ).toLowerCase();
-
-      return status === "pending" ||
-        status === "accepted" ||
-        status === "rejected"
-        ? status
-        : "none";
-    },
-    params: {
-      propertyId: property?.$id || "",
-      tenantId: user?.accountId || "",
-    },
-    skip: !property?.$id || !user?.accountId,
-    cacheKey: `property_request_status_${property?.$id || "missing"}_${
-      user?.accountId || "anonymous"
-    }`,
-    watchCollections: [config.requestsCollectionId],
-  });
-
   useEffect(() => {
-    if (cachedRequestStatus === null) return;
+    const checkRequestStatus = async () => {
+      if (!property || !user?.accountId) return;
 
-    setRequestStatus(cachedRequestStatus);
-    setHasRequested(
-      cachedRequestStatus !== "none" &&
-        cachedRequestStatus !== "rejected",
-    );
-  }, [cachedRequestStatus]);
+      try {
+        const requestsResult = await databases.listDocuments(
+          config.databaseId!,
+          config.requestsCollectionId!,
+          [
+            Query.equal("propertyId", property.$id),
+            Query.equal("tenantId", user.accountId),
+            Query.limit(1),
+          ],
+        );
+
+        if (requestsResult.documents.length > 0) {
+          const status = requestsResult.documents[0].status;
+          setRequestStatus(status);
+          setHasRequested(status !== "rejected");
+        }
+      } catch (error) {
+        console.error("Error checking request status:", error);
+      }
+    };
+
+    checkRequestStatus();
+  }, [property, user]);
 
   useEffect(() => {
     const checkIfRequested = async () => {
@@ -754,7 +708,7 @@ const handleContactLandlord = () => {
         facilities: editSelectedFacilities.join(", "),
       };
 
-      // âœ… Track price changes
+      // ✅ Track price changes
       if (hasPriceChanged) {
         updateData.new_price = newPrice;
         updateData.price_change_date = new Date().toISOString();
@@ -942,39 +896,45 @@ const handleContactLandlord = () => {
   // ============================================================================
   // CHECK LIKE STATUS WHEN PROPERTY LOADS
   // ============================================================================
-  const { data: cachedLikeSummary } = useAppwrite({
-    fn: async (params: {
-      propertyId: string;
-      userId: string;
-    }) => {
-      const [userLiked, count] = await Promise.all([
-        checkUserLiked(params.propertyId, params.userId),
-        getLikeCount(params.propertyId),
-      ]);
+  useEffect(() => {
+    const checkLikeStatus = async () => {
+      if (property && user?.accountId) {
+        try {
+          const userLiked = await checkUserLiked(property.$id, user.accountId);
+          const count = await getLikeCount(property.$id);
+          setLiked(userLiked);
+          setLikeCount(count);
+        } catch (error) {
+          console.error("Error checking like status:", error);
+        }
+      }
+    };
 
-      return {
-        liked: userLiked,
-        likeCount: count,
-      };
-    },
-    params: {
-      propertyId: property?.$id || "",
-      userId: user?.accountId || "",
-    },
-    skip: !property?.$id || !user?.accountId,
-    cacheKey: `property_like_summary_${property?.$id || "missing"}_${
-      user?.accountId || "anonymous"
-    }`,
-    watchCollections: [config.likesCollectionId],
-  });
+    checkLikeStatus();
+  }, [property, user]);
 
   useEffect(() => {
-    if (!cachedLikeSummary) return;
+    if (
+      property &&
+      (user?.userMode === "tenant" || user?.userMode === "student") &&
+      !viewRecorded.current
+    ) {
+      viewRecorded.current = true;
 
-    setLiked(cachedLikeSummary.liked);
-    setLikeCount(cachedLikeSummary.likeCount);
-  }, [cachedLikeSummary]);
+      incrementPropertyViews(property.$id, user.accountId).catch(console.error);
 
+      const recordLocalView = async () => {
+        const key = `user_viewed_properties_${user.accountId}`;
+        const stored = await AsyncStorage.getItem(key);
+        let viewed = stored ? JSON.parse(stored) : [];
+        if (!viewed.includes(property.$id)) {
+          viewed.push(property.$id);
+          await AsyncStorage.setItem(key, JSON.stringify(viewed));
+        }
+      };
+      recordLocalView().catch(console.error);
+    }
+  }, [property, user]);
 
 const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1515,25 +1475,16 @@ const creator =
           )}
 
           <View className="flex flex-row items-center justify-between gap-3">
-            <View className="flex-row items-center flex-wrap gap-2 flex-1">
-              <View className="flex-row items-center px-3 py-2 bg-primary-100 rounded-full">
+            <View className="flex flex-row items-center gap-3">
+              <View className="flex flex-row items-center px-4 py-2 bg-primary-100 rounded-full">
                 <Text className="text-xs font-rubik-bold text-primary-300">
                   {property.type}
                 </Text>
               </View>
-
-              <View
-                className="flex-row items-center px-3 py-2 rounded-full"
-                style={{ backgroundColor: theme.surface }}
-              >
-                <Ionicons name="star" size={17} color="#FACC15" />
-                <Text
-                  className="text-sm font-rubik-bold ml-1"
-                  style={{ color: theme.text }}
-                >
-                  {avgRating}
-                </Text>
-              </View>
+              <Image source={icons.star} className="size-3.5" />
+              <Text className="text-black-200 text-sm mt-1 font-rubik-medium">
+                {avgRating}
+              </Text>
             </View>
 
             <TouchableOpacity
@@ -1567,7 +1518,7 @@ const creator =
             </TouchableOpacity>
           </View>
 
-          {/* âœ… PRICE DISPLAY */}
+          {/* ✅ PRICE DISPLAY */}
           <View>
             <Text
               className="text-2xl font-rubik-bold"
@@ -1587,7 +1538,7 @@ const creator =
             )}
           </View>
 
-          {/* âœ… PRICE CHANGE SECTION */}
+          {/* ✅ PRICE CHANGE SECTION */}
           {property?.new_price && property.new_price !== property.price && (
             <View
               className="rounded-2xl p-4 mt-4"
@@ -1601,7 +1552,7 @@ const creator =
                 className="text-base font-rubik-bold mb-3"
                 style={{ color: theme.title }}
               >
-                ðŸ“Š Price Change
+                📊 Price Change
               </Text>
 
               <View className="flex-row items-center justify-between">
@@ -1681,7 +1632,7 @@ const creator =
             </View>
           )}
 
-          {/* âœ… PRICE HISTORY COMPONENT */}
+          {/* ✅ PRICE HISTORY COMPONENT */}
           <View className="mt-4">
             <PriceHistory
               history={priceHistory}
@@ -1737,9 +1688,9 @@ const creator =
               onPress={() => {
                 const landlordId =
                   property.creatorId || (property.agent as any)?.$id;
-                console.log("ðŸ  Property creatorId:", property.creatorId);
-                console.log("ðŸ  Agent $id:", (property.agent as any)?.$id);
-                console.log("ðŸš€ Navigating with landlordId:", landlordId);
+                console.log("🏠 Property creatorId:", property.creatorId);
+                console.log("🏠 Agent $id:", (property.agent as any)?.$id);
+                console.log("🚀 Navigating with landlordId:", landlordId);
 
                 if (landlordId) {
                   router.push(
@@ -2098,7 +2049,7 @@ const creator =
             </View>
           </Modal>
 
-          {/* âœ… LOCATION WITH INLINE MAP */}
+          {/* ✅ LOCATION WITH INLINE MAP */}
           <View className="mt-7">
             <Text
               className="text-black-300 text-xl font-rubik-bold"
@@ -2118,7 +2069,7 @@ const creator =
               </Text>
             </View>
 
-            {/* âœ… Inline Map Preview */}
+            {/* ✅ Inline Map Preview */}
             {property.latitude && property.longitude ? (
               <View className="mt-3">
                 <PropertyMapCard
@@ -2266,37 +2217,17 @@ const creator =
               placeholderTextColor="#9CA3AF"
               style={{ color: theme.text, backgroundColor: theme.surface }}
             />
-            <View className="flex-row items-center gap-2 mt-3">
-              {[1, 2, 3, 4, 5].map((star) => {
-                const selected = rating >= star;
-
-                return (
-                  <TouchableOpacity
-                    key={`review-star-${star}`}
-                    onPress={() => setRating(star)}
-                    activeOpacity={0.7}
-                    className="w-11 h-11 items-center justify-center rounded-full"
-                    style={{
-                      backgroundColor: selected
-                        ? "rgba(250, 204, 21, 0.14)"
-                        : theme.surface,
-                      borderWidth: 1,
-                      borderColor: selected
-                        ? "#FACC15"
-                        : `${theme.muted}35`,
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Rate ${star} star${star === 1 ? "" : "s"}`}
-                    accessibilityState={{ selected }}
+            <View className="flex flex-row gap-3 mt-3">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity key={star} onPress={() => setRating(star)}>
+                  <Text
+                    className="text-3xl"
+                    style={{ color: rating >= star ? "#facc15" : "#9ca3af" }}
                   >
-                    <Ionicons
-                      name={selected ? "star" : "star-outline"}
-                      size={28}
-                      color={selected ? "#FACC15" : theme.muted}
-                    />
-                  </TouchableOpacity>
-                );
-              })}
+                    ★
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
             <TouchableOpacity
               onPress={handleAddReview}
@@ -2353,7 +2284,7 @@ const creator =
             </TouchableOpacity>
           )}
 
-          {/* âœ… PRICE DISPLAY */}
+          {/* ✅ PRICE DISPLAY */}
           <Text
             className="text-2xl font-rubik-bold"
             style={{ color: theme.text }}
@@ -2363,7 +2294,7 @@ const creator =
               : `$${property.price} /month`}
           </Text>
 
-          {/* âœ… PRICE CHANGE SECTION */}
+          {/* ✅ PRICE CHANGE SECTION */}
           {property?.new_price && property.new_price !== property.price && (
             <View
               className="rounded-2xl p-4 mt-4"
@@ -2377,7 +2308,7 @@ const creator =
                 className="text-base font-rubik-bold mb-3"
                 style={{ color: theme.title }}
               >
-                ðŸ“Š Price Change
+                📊 Price Change
               </Text>
 
               <View className="flex-row items-center justify-between">
@@ -2589,7 +2520,7 @@ const creator =
                           {tenant.isIdVerified && (
                             <View className="bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
                               <Text className="text-[10px] text-green-700 dark:text-green-400 font-rubik-bold">
-                                âœ… Verified
+                                ✅ Verified
                               </Text>
                             </View>
                           )}
@@ -2952,7 +2883,7 @@ const creator =
             </View>
           )}
 
-          {/* âœ… LOCATION WITH INLINE MAP */}
+          {/* ✅ LOCATION WITH INLINE MAP */}
           <View className="mt-7">
             <Text
               className="text-black-300 text-xl font-rubik-bold"
@@ -2972,7 +2903,7 @@ const creator =
               </Text>
             </View>
 
-            {/* âœ… Inline Map Preview */}
+            {/* ✅ Inline Map Preview */}
             {property.latitude && property.longitude ? (
               <View className="mt-3">
                 <PropertyMapCard
@@ -3155,7 +3086,7 @@ const creator =
               </Text>
               <TouchableOpacity onPress={closeEditModal}>
                 <Text className="text-2xl" style={{ color: theme.text }}>
-                  âœ•
+                  ✕
                 </Text>
               </TouchableOpacity>
             </View>
@@ -3430,7 +3361,7 @@ const creator =
                             : "text-red-600"
                         }`}
                       >
-                        {editForm.isAvailable ? "âœ“" : "âœ•"}
+                        {editForm.isAvailable ? "✓" : "✕"}
                       </Text>
                     </View>
                     <View className="ml-3">
@@ -3595,37 +3526,15 @@ const creator =
             <View className="flex-row items-center gap-2">
               <TouchableOpacity
                 onPress={handleLike}
-                activeOpacity={0.75}
-                className="flex-row items-center px-3 py-2 rounded-full"
-                style={{
-                  backgroundColor: liked
-                    ? "rgba(236, 72, 153, 0.14)"
-                    : theme.surface,
-                  borderWidth: 1,
-                  borderColor: liked
-                    ? "#EC4899"
-                    : `${theme.muted}35`,
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  liked
-                    ? `Unlike property. ${likeCount} total likes`
-                    : `Like property. ${likeCount} total likes`
-                }
-                accessibilityState={{ selected: liked }}
+                className="flex-row items-center bg-gray-100 px-3 py-2 rounded-full"
               >
                 <Image
-                  source={icons.like}
-                  className="size-5 mr-1.5"
-                  style={{
-                    tintColor: liked ? "#EC4899" : "#6B7280",
-                  }}
+                  source={liked ? icons.like : icons.like}
+                  className="size-5 mr-1"
+                  style={{ tintColor: liked ? "#ff69b4" : "#666" }}
                 />
                 <Text
-                  className="text-base font-rubik-bold"
-                  style={{
-                    color: liked ? "#EC4899" : "#6B7280",
-                  }}
+                  className={`text-base font-rubik-bold ${liked ? "text-pink-500" : "text-gray-600"}`}
                 >
                   {likeCount}
                 </Text>
@@ -3699,5 +3608,3 @@ const creator =
 };
 
 export default Property;
-
-

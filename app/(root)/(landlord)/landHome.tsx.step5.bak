@@ -99,14 +99,32 @@ export default function LandLordHome() {
         fetchAppwriteUnreadCount(userId);
         lastNotificationsFetch.current = now;
       }
-      // The property collection Realtime event updates cached property queries.
-      // Only clear the navigation flag so it cannot retrigger on focus.
-      if (params.refresh === "true") {
+
+      // Only refetch properties if explicitly requested via params
+      if (params.refresh === "true" && user?.accountId) {
+        console.log("ðŸ”„ Refreshing properties after adding new listing...");
+        Promise.all([
+          refetchLatest(),
+          refetchMyProperties({
+            filter: params.filter || "",
+            query: "",
+            limit: 20,
+            creatorId: user.accountId,
+          }),
+        ])
+          .then(() => {
+            console.log("âœ… Properties refreshed successfully");
+          })
+          .catch((error) => {
+            console.error("âŒ Error refreshing properties:", error);
+          });
+
+        // Clear the refresh param to prevent repeated refreshes
         setTimeout(() => {
           router.setParams({});
         }, 100);
       }
-    }, [userId, params.refresh]),
+    }, [userId, params.refresh, user?.accountId, params.filter]),
   );
 
   // Update greeting every minute
@@ -166,9 +184,22 @@ export default function LandLordHome() {
       creatorId: user?.accountId,
     },
     skip: !user?.accountId,
-    cacheKey: `landlord_properties_${user?.accountId || "anonymous"}_${params.filter || "all"}`,
-    watchCollections: [config.propertiesCollectionId],
   });
+
+  // Refetch when filter changes
+  const filterRef = useRef(params.filter);
+
+  useEffect(() => {
+    if (filterRef.current !== params.filter && user?.accountId) {
+      filterRef.current = params.filter;
+      refetchMyProperties({
+        filter: params.filter || "",
+        query: "",
+        limit: 20,
+        creatorId: user?.accountId,
+      });
+    }
+  }, [params.filter, user?.accountId]);
 
   // Pull to refresh - forces all data
   const onRefresh = async () => {
@@ -552,5 +583,4 @@ export default function LandLordHome() {
     </SafeAreaView>
   );
 }
-
 

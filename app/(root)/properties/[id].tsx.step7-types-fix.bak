@@ -463,35 +463,33 @@ const handleContactLandlord = () => {
         ]),
       );
 
-      return tenantProfiles.documents.reduce<TenantWithProfile[]>(
-        (tenants, profile) => {
+      return tenantProfiles.documents
+        .map((profile) => {
           const userDocument = usersByAccountId.get(
             String(profile.userId || ""),
           );
 
-          if (!userDocument) {
-            return tenants;
-          }
+          if (!userDocument) return null;
 
-          tenants.push({
+          return {
             userId: String(profile.userId || ""),
             name: userDocument.name || "Tenant",
             email: userDocument.email || "",
-            phone: userDocument.phone || undefined,
+            phone: userDocument.phone || "",
             avatar:
               userDocument.avatar ||
               userDocument.customAvatar ||
               undefined,
             tenantScore: Number(profile.tenantScore || 0),
             isIdVerified: Boolean(profile.isIdVerified),
-            currentProperty: profile.currentProperty || undefined,
+            currentProperty: profile.currentProperty,
             tenantProfileId: profile.$id,
-          });
-
-          return tenants;
-        },
-        [],
-      );
+          } satisfies TenantWithProfile;
+        })
+        .filter(
+          (tenant): tenant is TenantWithProfile =>
+            tenant !== null,
+        );
     },
     params: {
       propertyId: property?.$id || "",

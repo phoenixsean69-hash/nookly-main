@@ -463,35 +463,33 @@ const handleContactLandlord = () => {
         ]),
       );
 
-      return tenantProfiles.documents.reduce<TenantWithProfile[]>(
-        (tenants, profile) => {
+      return tenantProfiles.documents
+        .map((profile) => {
           const userDocument = usersByAccountId.get(
             String(profile.userId || ""),
           );
 
-          if (!userDocument) {
-            return tenants;
-          }
+          if (!userDocument) return null;
 
-          tenants.push({
+          return {
             userId: String(profile.userId || ""),
             name: userDocument.name || "Tenant",
             email: userDocument.email || "",
-            phone: userDocument.phone || undefined,
+            phone: userDocument.phone || "",
             avatar:
               userDocument.avatar ||
               userDocument.customAvatar ||
               undefined,
             tenantScore: Number(profile.tenantScore || 0),
             isIdVerified: Boolean(profile.isIdVerified),
-            currentProperty: profile.currentProperty || undefined,
+            currentProperty: profile.currentProperty,
             tenantProfileId: profile.$id,
-          });
-
-          return tenants;
-        },
-        [],
-      );
+          } satisfies TenantWithProfile;
+        })
+        .filter(
+          (tenant): tenant is TenantWithProfile =>
+            tenant !== null,
+        );
     },
     params: {
       propertyId: property?.$id || "",
@@ -1515,25 +1513,16 @@ const creator =
           )}
 
           <View className="flex flex-row items-center justify-between gap-3">
-            <View className="flex-row items-center flex-wrap gap-2 flex-1">
-              <View className="flex-row items-center px-3 py-2 bg-primary-100 rounded-full">
+            <View className="flex flex-row items-center gap-3">
+              <View className="flex flex-row items-center px-4 py-2 bg-primary-100 rounded-full">
                 <Text className="text-xs font-rubik-bold text-primary-300">
                   {property.type}
                 </Text>
               </View>
-
-              <View
-                className="flex-row items-center px-3 py-2 rounded-full"
-                style={{ backgroundColor: theme.surface }}
-              >
-                <Ionicons name="star" size={17} color="#FACC15" />
-                <Text
-                  className="text-sm font-rubik-bold ml-1"
-                  style={{ color: theme.text }}
-                >
-                  {avgRating}
-                </Text>
-              </View>
+              <Image source={icons.star} className="size-3.5" />
+              <Text className="text-black-200 text-sm mt-1 font-rubik-medium">
+                {avgRating}
+              </Text>
             </View>
 
             <TouchableOpacity
@@ -3595,37 +3584,15 @@ const creator =
             <View className="flex-row items-center gap-2">
               <TouchableOpacity
                 onPress={handleLike}
-                activeOpacity={0.75}
-                className="flex-row items-center px-3 py-2 rounded-full"
-                style={{
-                  backgroundColor: liked
-                    ? "rgba(236, 72, 153, 0.14)"
-                    : theme.surface,
-                  borderWidth: 1,
-                  borderColor: liked
-                    ? "#EC4899"
-                    : `${theme.muted}35`,
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  liked
-                    ? `Unlike property. ${likeCount} total likes`
-                    : `Like property. ${likeCount} total likes`
-                }
-                accessibilityState={{ selected: liked }}
+                className="flex-row items-center bg-gray-100 px-3 py-2 rounded-full"
               >
                 <Image
-                  source={icons.like}
-                  className="size-5 mr-1.5"
-                  style={{
-                    tintColor: liked ? "#EC4899" : "#6B7280",
-                  }}
+                  source={liked ? icons.like : icons.like}
+                  className="size-5 mr-1"
+                  style={{ tintColor: liked ? "#ff69b4" : "#666" }}
                 />
                 <Text
-                  className="text-base font-rubik-bold"
-                  style={{
-                    color: liked ? "#EC4899" : "#6B7280",
-                  }}
+                  className={`text-base font-rubik-bold ${liked ? "text-pink-500" : "text-gray-600"}`}
                 >
                   {likeCount}
                 </Text>
