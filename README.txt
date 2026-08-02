@@ -1,31 +1,56 @@
-NOOKLY STEP 8 — CORRECTED INSTANT AVATAR PATCH
+NOOKLY — TERMINAL BEEF LIKE TEST V3
 
-The first Step 8 script stopped before writing because its validation rejected
-any occurrence of the word loadingAvatar, including harmless leftover text.
+WHY V2 FAILED
 
-Run this corrected version from the project root:
+The node-appwrite Server SDK created the email/password session, but because
+there was no server API key, Appwrite did not expose session.secret in the JSON
+response. The session still existed, so the v2 script could not authenticate
+subsequent requests or delete that session.
 
-node .\apply-step-8-fix.mjs
+V3 FIX
 
-WHAT IT DOES
-- Shows user.avatar immediately when available.
-- Otherwise shows the built-in/default avatar immediately.
-- Stores the selected built-in avatar in AsyncStorage.
-- Refreshes Appwrite preferences quietly in the background.
-- Removes only actual blocking loadingAvatar state/render gates.
-- During image upload, keeps the old avatar visible with a progress overlay.
-- Uses tolerant pattern matching for locally modified files.
-- Writes nothing until all targeted validations pass.
+V3 uses Appwrite's client REST login directly:
 
-UPDATED
-- utils/avatarStorage.ts
-- app/(root)/(tabs)/tenantHome.tsx
-- app/(root)/(landlord)/landHome.tsx
-- app/(root)/(landlord)/landProfile.tsx
+1. POST /account/sessions/email
+2. Capture the Appwrite session cookie from Set-Cookie
+3. Authenticate subsequent requests using X-Appwrite-Session
+4. Create the real Like
+5. Increment properties.likes
+6. Execute /property-like
+7. DELETE /account/sessions/current
 
-BACKUPS
-Each updated file receives a .step8-fix.bak copy.
+No API key is used.
 
-After applying:
+REQUIREMENT
 
-npx tsc --noEmit
+Node.js 20 or newer.
+
+INSTALL
+
+node .\install-terminal-like-test-v3.mjs
+
+RUN
+
+powershell -ExecutionPolicy Bypass -File .\run-beef-like-test.ps1
+
+DEFAULTS
+
+Beef email: beefspook22@gmail.com
+Beef accountId: 6a6e3ba6000fb26e3dbc
+Yellow House propertyId: 69c50097001babcc3e7c
+Lucan accountId: 69c18e4400164e106828
+
+BEFORE RUNNING
+
+1. Sign into Lucan's landlord account on the phone.
+2. Leave the app online for about 10 seconds.
+3. Confirm Lucan has an active push token.
+4. Put the app in the background.
+5. Run the terminal test.
+
+NOTE ABOUT THE V2 SESSION
+
+The failed v2 attempt may have left one extra Beef session in Appwrite. That is
+not dangerous, but Appwrite limits the number of active sessions. You can remove
+old sessions later from Beef's Security/Sessions screen or the Appwrite Console.
+V3 cleans up its own temporary session automatically.
