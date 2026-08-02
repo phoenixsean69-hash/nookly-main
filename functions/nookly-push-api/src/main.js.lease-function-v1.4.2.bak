@@ -1671,6 +1671,30 @@ const notifyPropertyReview = async (
   };
 };
 
+const getUserRowByReference = async (
+  tables,
+  reference,
+) => {
+  const normalized = String(
+    reference ?? "",
+  ).trim();
+
+  if (!normalized) return null;
+
+  const direct = await getRowOrNull(
+    tables,
+    USERS_TABLE_ID,
+    normalized,
+  );
+
+  if (direct) return direct;
+
+  return getUserRowByAccountId(
+    tables,
+    normalized,
+  );
+};
+
 const notifyLeaseSent = async (
   req,
   tables,
@@ -2209,7 +2233,7 @@ export default async ({
     ) {
       return ok(res, {
         service: "nookly-push-api",
-        version: "1.4.2",
+        version: "1.4.1",
         status: "healthy",
         functionId:
           "6a31d988001bf962fb57",
