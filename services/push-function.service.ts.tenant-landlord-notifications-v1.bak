@@ -116,66 +116,6 @@ export interface PropertyLikeNotificationResult {
   push?: PushTicketSummary;
 }
 
-export interface PropertyRequestNotificationResult {
-  skipped: boolean;
-  duplicate?: boolean;
-  reason?: string;
-  notificationCreated?: boolean;
-  notificationRowId?: string;
-  recipientUserId: string;
-  propertyId: string;
-  requestId: string;
-  data?: {
-    type: "request";
-    screen: string;
-    requestId: string;
-    propertyId: string;
-    propertyName: string;
-    tenantId: string;
-    tenantName: string;
-    tenantAvatar?: string;
-    tenantEmail?: string;
-    tenantPhone?: string;
-    proposedPrice?: number;
-    originalPrice?: number;
-    message?: string;
-    moveInDate?: string;
-    leaseDuration?: string;
-    questions: string[];
-    status: string;
-    requestedAt?: string;
-  };
-  push?: PushTicketSummary;
-}
-
-export interface PropertyReviewNotificationResult {
-  skipped: boolean;
-  duplicate?: boolean;
-  reason?: string;
-  notificationCreated?: boolean;
-  notificationRowId?: string;
-  recipientUserId: string;
-  propertyId: string;
-  reviewId: string;
-  data?: {
-    type: "review";
-    screen: string;
-    propertyId: string;
-    propertyName: string;
-    reviewId: string;
-    reviewerId: string;
-    reviewerName: string;
-    reviewerAvatar?: string;
-    reviewerEmail?: string;
-    reviewerPhone?: string;
-    rating: number;
-    stars: string;
-    reviewText: string;
-    reviewedAt?: string;
-  };
-  push?: PushTicketSummary;
-}
-
 function requireFunctionId(): string {
   if (!PUSH_FUNCTION_ID) {
     throw new Error(
@@ -304,62 +244,6 @@ class PushFunctionService {
       propertyId: normalizedPropertyId,
     });
   }
-  async notifyPropertyRequest(
-    requestId: string,
-    propertyId: string,
-  ): Promise<PropertyRequestNotificationResult> {
-    const normalizedRequestId = requestId.trim();
-    const normalizedPropertyId = propertyId.trim();
-
-    if (!normalizedRequestId) {
-      throw new Error(
-        "A request ID is required to send a property-request notification.",
-      );
-    }
-
-    if (!normalizedPropertyId) {
-      throw new Error(
-        "A property ID is required to send a property-request notification.",
-      );
-    }
-
-    return executePushRoute<PropertyRequestNotificationResult>(
-      "/property-request",
-      {
-        requestId: normalizedRequestId,
-        propertyId: normalizedPropertyId,
-      },
-    );
-  }
-
-  async notifyPropertyReview(
-    propertyId: string,
-    reviewId: string,
-  ): Promise<PropertyReviewNotificationResult> {
-    const normalizedPropertyId = propertyId.trim();
-    const normalizedReviewId = reviewId.trim();
-
-    if (!normalizedPropertyId) {
-      throw new Error(
-        "A property ID is required to send a property-review notification.",
-      );
-    }
-
-    if (!normalizedReviewId) {
-      throw new Error(
-        "A review ID is required to send a property-review notification.",
-      );
-    }
-
-    return executePushRoute<PropertyReviewNotificationResult>(
-      "/property-review",
-      {
-        propertyId: normalizedPropertyId,
-        reviewId: normalizedReviewId,
-      },
-    );
-  }
-
 }
 
 const pushFunctionService = new PushFunctionService();

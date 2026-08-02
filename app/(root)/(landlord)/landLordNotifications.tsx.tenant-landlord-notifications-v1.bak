@@ -28,13 +28,7 @@ interface NotificationItem {
   id: string;
   title: string;
   message: string;
-  type:
-    | "like"
-    | "message"
-    | "review"
-    | "request"
-    | "system"
-    | "event";
+  type: "like" | "message" | "review" | "system" | "event";
   read: boolean;
   createdAt: Date;
   data?: any;
@@ -193,8 +187,6 @@ export default function NotificationsScreen() {
       // Navigate based on type
       if (notification.type === "event") {
         router.push("/calendar");
-      } else if (notification.type === "request") {
-        router.push("/Landrequests" as any);
       } else if (
         notification.type === "like" ||
         notification.type === "review"
@@ -220,8 +212,6 @@ export default function NotificationsScreen() {
         return icons.chat;
       case "review":
         return icons.star;
-      case "request":
-        return icons.request;
       case "event":
         return icons.calendar;
       default:
@@ -237,8 +227,6 @@ export default function NotificationsScreen() {
         return "#3B82F6";
       case "review":
         return "#F59E0B";
-      case "request":
-        return "#8B5CF6";
       case "event":
         return "#10B981";
       default:
@@ -258,158 +246,6 @@ export default function NotificationsScreen() {
     if (hours < 24) return `${hours}h ago`;
     if (days < 7) return `${days}d ago`;
     return date.toLocaleDateString();
-  };
-
-  const renderStructuredDetails = (
-    item: NotificationItem,
-  ) => {
-    if (item.type === "review") {
-      const rawRating = Number(
-        item.data?.rating ?? 0,
-      );
-      const rating = Number.isFinite(rawRating)
-        ? Math.max(0, Math.min(5, rawRating))
-        : 0;
-      const roundedRating = Math.round(rating);
-      const stars =
-        item.data?.stars ||
-        `${"★".repeat(roundedRating)}${"☆".repeat(
-          5 - roundedRating,
-        )}`;
-      const reviewText = String(
-        item.data?.reviewText ?? "",
-      ).trim();
-
-      return (
-        <View
-          className="mt-3 rounded-xl p-3"
-          style={{
-            backgroundColor: "#F59E0B12",
-            borderWidth: 1,
-            borderColor: "#F59E0B35",
-          }}
-        >
-          <View className="flex-row items-center justify-between">
-            <Text
-              className="font-rubik-medium flex-1 mr-2"
-              style={{ color: theme.text }}
-            >
-              {item.data?.reviewerName || "Tenant"}
-            </Text>
-            <Text
-              className="font-rubik-medium"
-              style={{ color: "#F59E0B" }}
-            >
-              {stars} {rating.toFixed(1)}/5
-            </Text>
-          </View>
-
-          <Text
-            className="text-xs mt-1"
-            style={{ color: theme.muted }}
-          >
-            Property: {item.data?.propertyName || "Property"}
-          </Text>
-
-          {reviewText ? (
-            <Text
-              className="text-sm mt-2"
-              style={{ color: theme.text }}
-            >
-              “{reviewText}”
-            </Text>
-          ) : null}
-        </View>
-      );
-    }
-
-    if (item.type === "request") {
-      const proposedPrice = Number(
-        item.data?.proposedPrice ??
-          item.data?.originalPrice,
-      );
-      const questions = Array.isArray(
-        item.data?.questions,
-      )
-        ? item.data.questions
-        : [];
-      const requestMessage = String(
-        item.data?.message ?? "",
-      ).trim();
-
-      return (
-        <View
-          className="mt-3 rounded-xl p-3"
-          style={{
-            backgroundColor: "#8B5CF612",
-            borderWidth: 1,
-            borderColor: "#8B5CF635",
-          }}
-        >
-          <Text
-            className="font-rubik-medium"
-            style={{ color: theme.text }}
-          >
-            {item.data?.tenantName || "Tenant"}
-          </Text>
-
-          <Text
-            className="text-xs mt-1"
-            style={{ color: theme.muted }}
-          >
-            Property: {item.data?.propertyName || "Property"}
-          </Text>
-
-          {Number.isFinite(proposedPrice) ? (
-            <Text
-              className="text-sm mt-2"
-              style={{ color: theme.text }}
-            >
-              Proposed price: ${proposedPrice}/month
-            </Text>
-          ) : null}
-
-          {item.data?.moveInDate ? (
-            <Text
-              className="text-xs mt-1"
-              style={{ color: theme.muted }}
-            >
-              Move-in: {item.data.moveInDate}
-            </Text>
-          ) : null}
-
-          {item.data?.leaseDuration ? (
-            <Text
-              className="text-xs mt-1"
-              style={{ color: theme.muted }}
-            >
-              Lease: {item.data.leaseDuration}
-            </Text>
-          ) : null}
-
-          {requestMessage ? (
-            <Text
-              className="text-sm mt-2"
-              style={{ color: theme.text }}
-            >
-              “{requestMessage}”
-            </Text>
-          ) : null}
-
-          {questions.length > 0 ? (
-            <Text
-              className="text-xs mt-2"
-              style={{ color: theme.primary[300] }}
-            >
-              {questions.length} question
-              {questions.length === 1 ? "" : "s"} included
-            </Text>
-          ) : null}
-        </View>
-      );
-    }
-
-    return null;
   };
 
   const renderNotification = ({ item }: { item: NotificationItem }) => (
@@ -446,7 +282,6 @@ export default function NotificationsScreen() {
         <Text className="text-sm mt-1" style={{ color: theme.muted }}>
           {item.message}
         </Text>
-        {renderStructuredDetails(item)}
         <Text className="text-xs mt-1" style={{ color: theme.muted }}>
           {formatTime(item.createdAt)}
         </Text>
@@ -468,7 +303,7 @@ export default function NotificationsScreen() {
     return {
       title: "No notifications yet",
       message:
-        "When you get requests, reviews, likes, messages, or calendar events, they'll appear here",
+        "When you get likes, messages, or add calendar events, they'll appear here",
     };
   };
 

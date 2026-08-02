@@ -1326,52 +1326,59 @@ export const addReview = async (
 
     await trackReviewActivity(propertyId, newReview.id);
 
-    // Notify the property owner through the secure centralized Function.
-    // The Function verifies the authenticated reviewer and the exact review
-    // inside properties.reviews before creating the in-app notification.
-    if (
-      property.creatorId &&
-      property.creatorId !== currentUser.$id
-    ) {
-      try {
-        const notificationResult =
-          await pushFunctionService.notifyPropertyReview(
-            propertyId,
-            newReview.id,
-          );
+    // 📢 Send notification to property owner (including self‑reviews)
+    if (property.creatorId && currentUser) {
+      console.log("📧 Sending notification to:", property.creatorId);
 
-        if (notificationResult.skipped) {
-          console.log(
-            "ℹ️ Property-review notification skipped:",
-            {
-              reason: notificationResult.reason,
-              duplicate:
-                notificationResult.duplicate,
-            },
-          );
-        } else {
-          console.log(
-            "✅ Property-review notification processed:",
-            {
-              notificationRowId:
-                notificationResult.notificationRowId,
-              recipientUserId:
-                notificationResult.recipientUserId,
-              acceptedPushes:
-                notificationResult.push?.accepted ?? 0,
-              failedPushes:
-                notificationResult.push?.failed ?? 0,
-            },
-          );
-        }
+      try {
+        // Create in‑app notification
+        const notificationResult = await createNotification(
+          property.creatorId,
+          "New Review! ⭐",
+          `${currentUser.name || "Someone"} gave ${rating} star${rating !== 1 ? "s" : ""} to "${property.propertyName || "Property"}"`,
+          "review",
+          {
+            propertyId: property.$id,
+            propertyName: property.propertyName,
+            reviewerId: currentUser.$id,
+            reviewerName: currentUser.name,
+            rating: rating,
+          },
+        );
+
+        console.log(
+          "✅ Review notification saved to database:",
+          notificationResult ? "Success" : "Failed",
+        );
       } catch (notificationError) {
-        // The review must remain saved even if notification delivery is
-        // temporarily unavailable.
         console.error(
-          "❌ Failed to process property-review notification:",
+          "❌ Failed to create review notification:",
           notificationError,
         );
       }
+
+      // After creating the review, send push notification
+      try {
+        await notificationService.sendNotificationToUser(
+          property.creatorId,
+          "New Review Received!",
+          `${currentUser.name || "Someone"} gave ${rating} star${rating !== 1 ? "s" : ""} to "${property.propertyName}"`,
+          {
+            activityType: "review",
+            propertyId: property.$id,
+            rating: rating,
+            screen: `/properties/${property.$id}`,
+          },
+        );
+        console.log("✅ Push notification sent to landlord about review");
+      } catch (pushError) {
+        console.error(
+          "Failed to send push notification for review:",
+          pushError,
+        );
+      }
+    } else {
+      console.log("⚠️ Skipping notification - no creatorId");
     }
 
     return newReview;
@@ -3165,7 +3172,7 @@ export const requestProperty = async (
     const request = await databases.createDocument(
       config.databaseId!,
       config.requestsCollectionId!,
-      ID.unique(),
+      "unique()",
       {
         propertyId: propertyId,
         propertyName: property.propertyName || "Property",
@@ -3188,46 +3195,66 @@ export const requestProperty = async (
 
     console.log("✅ Request document created:", request.$id);
 
-    // Notify the property owner through the secure centralized Function.
-    // The Function verifies the authenticated tenant and the exact request row.
-    try {
-      const notificationResult =
-        await pushFunctionService.notifyPropertyRequest(
-          request.$id,
-          propertyId,
-        );
+    // Get landlord's user document ID for notifications
+    let landlordUserDocId = property.creatorId;
 
-      if (notificationResult.skipped) {
-        console.log(
-          "ℹ️ Property-request notification skipped:",
-          {
-            reason: notificationResult.reason,
-            duplicate:
-              notificationResult.duplicate,
-          },
-        );
-      } else {
-        console.log(
-          "✅ Property-request notification processed:",
-          {
-            notificationRowId:
-              notificationResult.notificationRowId,
-            recipientUserId:
-              notificationResult.recipientUserId,
-            acceptedPushes:
-              notificationResult.push?.accepted ?? 0,
-            failedPushes:
-              notificationResult.push?.failed ?? 0,
-          },
-        );
-      }
-    } catch (notificationError) {
-      // The request must remain saved even if notification delivery is
-      // temporarily unavailable.
-      console.error(
-        "❌ Failed to process property-request notification:",
-        notificationError,
+    if (property.creatorId && property.creatorId.length < 36) {
+      const landlordDocs = await databases.listDocuments(
+        config.databaseId!,
+        config.usersCollectionId!,
+        [Query.equal("accountId", property.creatorId)],
       );
+
+      if (landlordDocs.documents.length > 0) {
+        landlordUserDocId = landlordDocs.documents[0].$id;
+        console.log("✅ Found landlord document ID:", landlordUserDocId);
+      }
+    }
+
+    // Create in-app notification for landlord
+    if (landlordUserDocId) {
+      const notificationMessage = `${tenantName || "A tenant"} has requested to rent "${property.propertyName}"${
+        requestData?.proposedPrice &&
+        requestData.proposedPrice !== property.price
+          ? ` with a proposed price of $${requestData.proposedPrice}/month`
+          : ""
+      }.`;
+
+      await databases.createDocument(
+        config.databaseId!,
+        config.notificationsCollectionId!,
+        "unique()",
+        {
+          userId: landlordUserDocId,
+          title: "New Rental Request",
+          message: notificationMessage,
+          type: "request",
+          data: JSON.stringify({
+            requestId: request.$id,
+            propertyId: propertyId,
+            propertyName: property.propertyName,
+            tenantId: tenantId,
+            tenantName: tenantName,
+            tenantPhone: tenantPhone,
+            tenantAvatar: tenantAvatar,
+            proposedPrice: requestData?.proposedPrice,
+            originalPrice: property.price,
+          }),
+          read: false,
+        },
+      );
+
+      // Send push notification
+      try {
+        await notificationService.sendRentalRequestNotification(
+          property.creatorId,
+          tenantName || "A tenant",
+          property.propertyName,
+        );
+        console.log("✅ Push notification sent to landlord");
+      } catch (pushError) {
+        console.error("❌ Failed to send push notification:", pushError);
+      }
     }
 
     return request;
