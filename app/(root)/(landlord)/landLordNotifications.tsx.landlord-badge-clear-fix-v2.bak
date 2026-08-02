@@ -46,7 +46,6 @@ export default function NotificationsScreen() {
   const {
     fetchAppwriteUnreadCount,
     markAsRead: markLocalAsRead,
-    markAllAsRead: markAllLocalAsRead,
     loadNotifications,
     notifications: localNotifications,
   } = useNotificationStore();
@@ -67,7 +66,7 @@ export default function NotificationsScreen() {
           if (hasUnread) {
             console.log("🔔 Marking all notifications as read...");
             await markAllNotificationsAsRead(userId);
-            await markAllLocalAsRead(userId);
+            await markLocalAsRead(userId, "");
             await fetchAppwriteUnreadCount(userId);
 
             // Update local state to mark all as read

@@ -7,7 +7,6 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  AppState,
   BackHandler,
   FlatList,
   Image,
@@ -24,7 +23,6 @@ import { Colors } from "@/constants/Colors";
 import { getAvatarSource } from "@/constants/data";
 import icons from "@/constants/icons";
 import {
-  client,
   config,
   getAvailableProperties,
   getBestProperties,
@@ -35,6 +33,7 @@ import useAuthStore from "@/store/auth.store";
 import { useNotificationStore } from "@/store/notification.store";
 import { getSavedAvatar } from "@/utils/avatarStorage";
 
+const STALE_TIME = 5 * 60 * 1000; // Notification badge only
 const FEATURED_PROPERTIES_CACHE_KEY = "featured_properties_ranked_6";
 
 const loadFeaturedProperties = async () => getBestProperties(6);
@@ -71,6 +70,8 @@ export default function LandLordHome() {
     useNotificationStore();
   const userId = user?.accountId;
 
+  // Notification badge timestamp only
+  const lastNotificationsFetch = useRef<number>(0);
   const backPressCountRef = useRef(0);
 
   useFocusEffect(
@@ -86,22 +87,18 @@ export default function LandLordHome() {
     }, []),
   );
 
-  // Refresh the badge whenever the landlord homepage gains focus.
-  // This is a lightweight unread-count query and must not be throttled for
-  // several minutes because push notifications can arrive at any time.
+  // Single useFocusEffect for all focus-related operations with stale check
   useFocusEffect(
     useCallback(() => {
-      if (userId) {
-        console.log(
-          "🔄 Refreshing landlord notification badge...",
-        );
+      const now = Date.now();
 
-        void Promise.all([
-          loadNotifications(userId),
-          fetchAppwriteUnreadCount(userId),
-        ]);
+      // Only refresh notifications if stale > 5 min or first load
+      if (userId && now - lastNotificationsFetch.current > STALE_TIME) {
+        console.log("🔄 Refreshing notification badge...");
+        loadNotifications(userId);
+        fetchAppwriteUnreadCount(userId);
+        lastNotificationsFetch.current = now;
       }
-
       // The property collection Realtime event updates cached property queries.
       // Only clear the navigation flag so it cannot retrigger on focus.
       if (params.refresh === "true") {
@@ -109,57 +106,8 @@ export default function LandLordHome() {
           router.setParams({});
         }, 100);
       }
-    }, [
-      fetchAppwriteUnreadCount,
-      loadNotifications,
-      params.refresh,
-      userId,
-    ]),
+    }, [userId, params.refresh]),
   );
-
-  // Update the badge immediately when the notifications collection changes.
-  useEffect(() => {
-    if (
-      !userId ||
-      !config.databaseId ||
-      !config.notificationsCollectionId
-    ) {
-      return;
-    }
-
-    const channel =
-      `databases.${config.databaseId}.collections.${config.notificationsCollectionId}.documents`;
-
-    const unsubscribe = client.subscribe(
-      channel,
-      () => {
-        void fetchAppwriteUnreadCount(userId);
-      },
-    );
-
-    return () => {
-      unsubscribe();
-    };
-  }, [fetchAppwriteUnreadCount, userId]);
-
-  // Android can receive a push while the app is in the background and its
-  // Realtime socket is paused. Refresh as soon as Nookly becomes active again.
-  useEffect(() => {
-    if (!userId) return;
-
-    const subscription = AppState.addEventListener(
-      "change",
-      (nextState) => {
-        if (nextState === "active") {
-          void fetchAppwriteUnreadCount(userId);
-        }
-      },
-    );
-
-    return () => {
-      subscription.remove();
-    };
-  }, [fetchAppwriteUnreadCount, userId]);
 
   // Update greeting every minute
   useEffect(() => {
@@ -230,6 +178,7 @@ export default function LandLordHome() {
   // Pull to refresh - forces all data
   const onRefresh = async () => {
     setRefreshing(true);
+    const now = Date.now();
     if (user?.accountId) {
       try {
         await Promise.all([
@@ -244,6 +193,7 @@ export default function LandLordHome() {
           loadNotifications(user.accountId),
           fetchAppwriteUnreadCount(user.accountId),
         ]);
+        lastNotificationsFetch.current = now;
         console.log("✅ Manual refresh completed");
       } catch (error) {
         console.error("❌ Error during manual refresh:", error);

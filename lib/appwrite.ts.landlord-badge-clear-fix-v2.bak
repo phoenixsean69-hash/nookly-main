@@ -3237,99 +3237,39 @@ export const requestProperty = async (
   }
 };
 
-export const markAllNotificationsAsRead = async (
-  userId: string,
-) => {
+export const markAllNotificationsAsRead = async (userId: string) => {
   try {
-    const normalizedUserId = userId.trim();
+    console.log("🔔 markAllNotificationsAsRead called for userId:", userId);
 
-    if (!normalizedUserId) {
-      return false;
-    }
+    const userDoc = await getUserDocumentByIdOrAccountId(userId);
+    const userDocId = userDoc?.$id || userId;
 
-    console.log(
-      "🔔 Marking all Appwrite notifications as read for:",
-      normalizedUserId,
+    // Get all unread notifications for this user
+    const unreadNotifs = await databases.listDocuments(
+      config.databaseId!,
+      config.notificationsCollectionId!,
+      [Query.equal("userId", userDocId), Query.equal("read", false)],
     );
 
-    // Secure Function notifications use the authenticated account ID.
-    // Older client-created notifications may use the users-table document ID.
-    // Resolve and update both so the badge and notification screen stay aligned.
-    const recipientIds = new Set<string>([
-      normalizedUserId,
-    ]);
-
-    try {
-      const userDocs =
-        await databases.listDocuments(
-          config.databaseId!,
-          config.usersCollectionId!,
-          [
-            Query.equal(
-              "accountId",
-              normalizedUserId,
-            ),
-            Query.limit(1),
-          ],
-        );
-
-      const userDocument =
-        userDocs.documents[0];
-
-      if (userDocument?.$id) {
-        recipientIds.add(userDocument.$id);
-      }
-    } catch (lookupError) {
-      console.warn(
-        "Could not resolve the users-table document ID while marking notifications read:",
-        lookupError,
-      );
-    }
-
-    const ids = Array.from(recipientIds);
-
-    const unreadNotifs =
-      await databases.listDocuments(
-        config.databaseId!,
-        config.notificationsCollectionId!,
-        [
-          Query.equal(
-            "userId",
-            ids.length === 1
-              ? ids[0]
-              : ids,
-          ),
-          Query.equal("read", false),
-          Query.limit(500),
-        ],
-      );
-
     console.log(
-      "📊 Unread notifications to mark:",
+      "📊 Found unread notifications:",
       unreadNotifs.documents.length,
     );
 
-    await Promise.all(
-      unreadNotifs.documents.map((doc) =>
-        databases.updateDocument(
-          config.databaseId!,
-          config.notificationsCollectionId!,
-          doc.$id,
-          { read: true },
-        ),
+    // Update each to read = true
+    const updates = unreadNotifs.documents.map((doc) =>
+      databases.updateDocument(
+        config.databaseId!,
+        config.notificationsCollectionId!,
+        doc.$id,
+        { read: true },
       ),
     );
-
-    console.log(
-      "✅ All Appwrite notifications marked as read",
-    );
-
+    await Promise.all(updates);
+    console.log("✅ All notifications marked as read");
     return true;
   } catch (error) {
-    console.error(
-      "Error marking all notifications as read:",
-      error,
-    );
+    console.error("Error marking all notifications as read:", error);
     return false;
   }
 };

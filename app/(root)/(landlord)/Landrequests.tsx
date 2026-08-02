@@ -13,7 +13,6 @@ import {
 import notificationService from "@/services/notification.service";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -32,6 +31,11 @@ import {
 } from "react-native";
 import { Query } from "react-native-appwrite";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+// Import status icons
+import acceptedIcon from "@/assets/icons/accepted.png";
+import pendingIcon from "@/assets/icons/pending.png";
+import rejectedIcon from "@/assets/icons/rejected.png";
 
 interface RentalRequest {
   $id: string;
@@ -731,16 +735,33 @@ export default function LandlordRequests() {
     };
   };
 
-  const getStatusColor = (status: string) => {
+  // Updated getStatusInfo to return appropriate icon and colors
+  const getStatusInfo = (status: string) => {
     switch (status) {
       case "pending":
-        return { bg: "#F59E0B20", text: "#92400E", label: "⏳ Pending" };
+        return {
+          bg: "#F59E0B20",
+          icon: pendingIcon,
+          label: "Pending",
+        };
       case "accepted":
-        return { bg: "#10B98120", text: "#065F46", label: "✓ Accepted" };
+        return {
+          bg: "#10B98120",
+          icon: acceptedIcon,
+          label: "Accepted",
+        };
       case "rejected":
-        return { bg: "#EF444420", text: "#991B1B", label: "✗ Rejected" };
+        return {
+          bg: "#EF444420",
+          icon: rejectedIcon,
+          label: "Rejected",
+        };
       default:
-        return { bg: "#6B728020", text: "#374151", label: "Unknown" };
+        return {
+          bg: "#6B728020",
+          icon: pendingIcon,
+          label: "Unknown",
+        };
     }
   };
 
@@ -897,7 +918,7 @@ export default function LandlordRequests() {
   const renderDetailsModal = () => {
     if (!selectedRequest) return null;
 
-    const statusColor = getStatusColor(selectedRequest.status);
+    const statusInfo = getStatusInfo(selectedRequest.status);
     const hasNegotiatedPrice =
       selectedRequest.proposedPrice !== undefined &&
       selectedRequest.originalPrice !== undefined &&
@@ -912,57 +933,59 @@ export default function LandlordRequests() {
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
           {/* Header */}
-          <LinearGradient
-            colors={[theme.primary[100], theme.background]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            className="px-5 py-4"
-          >
-            <View className="flex-row items-center">
-              <TouchableOpacity
-                onPress={() => setDetailsModalVisible(false)}
-                className="mr-4 p-2"
-              >
-                <Image
-                  source={icons.backArrow}
-                  className="w-6 h-6"
-                  style={{ tintColor: "#FFF" }}
-                />
-              </TouchableOpacity>
-              <Text className="text-white text-xl font-rubik-bold flex-1">
-                Request Details
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setDetailsModalVisible(false);
-                  handleDeleteRequest(selectedRequest.$id, selectedRequest);
-                }}
-                disabled={processingId === selectedRequest.$id}
-                className="bg-red-500/20 p-2 rounded-full"
-              >
-                <Image
-                  source={icons.trash}
-                  className="w-5 h-5"
-                  style={{ tintColor: "#EF4444" }}
-                />
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
+
+          <View className="flex-row items-center top-3">
+            <TouchableOpacity
+              onPress={() => setDetailsModalVisible(false)}
+              className="mr-4 p-2"
+            >
+              <Image
+                source={icons.backArrow}
+                className="w-6 h-6"
+                style={{ tintColor: "#FFF" }}
+              />
+            </TouchableOpacity>
+            <Text className="text-white text-xl font-rubik-bold flex-1">
+              Request Details
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setDetailsModalVisible(false);
+                handleDeleteRequest(selectedRequest.$id, selectedRequest);
+              }}
+              disabled={processingId === selectedRequest.$id}
+            >
+              <Image
+                source={icons.trash}
+                className="w-5 h-5 right-5"
+                style={{ tintColor: "#EF4444" }}
+              />
+            </TouchableOpacity>
+          </View>
 
           <ScrollView
             className="flex-1 px-5 pt-4"
             showsVerticalScrollIndicator={false}
           >
-            {/* Status Badge */}
+            {/* Status Badge with Icon */}
             <View
-              className="self-start px-4 py-2 rounded-full mb-4"
-              style={{ backgroundColor: statusColor.bg }}
+              className="self-start px-4 py-2 top-3 rounded-full mb-4 flex-row items-center"
+              style={{ backgroundColor: statusInfo.bg }}
             >
-              <Text
-                className="font-rubik-bold"
-                style={{ color: statusColor.text }}
-              >
-                {statusColor.label}
+              <Image
+                source={statusInfo.icon}
+                className="w-5 h-5 mr-2"
+                style={{
+                  tintColor:
+                    selectedRequest.status === "rejected"
+                      ? undefined
+                      : colorScheme === "dark"
+                        ? "#FFFFFF"
+                        : "#000000",
+                }}
+              />
+              <Text className="font-rubik-bold" style={{ color: theme.text }}>
+                {statusInfo.label}
               </Text>
             </View>
 
@@ -1005,7 +1028,7 @@ export default function LandlordRequests() {
                 className="text-base font-rubik-bold mb-3"
                 style={{ color: theme.title }}
               >
-                👤 Tenant Information
+                Tenant Information
               </Text>
               <View className="flex-row items-center mb-3">
                 <Image
@@ -1101,7 +1124,7 @@ export default function LandlordRequests() {
                         {selectedRequest.tenantIsIdVerified && (
                           <View className="mt-1 px-2 py-0.5 rounded-full bg-blue-700100 dark:bg-blue-700900/30">
                             <Text className="text-[10px] text-blue-700700 dark:text-blue-700400 font-rubik-bold">
-                              ✅ ID Verified
+                              ID Verified
                             </Text>
                           </View>
                         )}
@@ -1190,7 +1213,7 @@ export default function LandlordRequests() {
                 className="text-base font-rubik-bold mb-3"
                 style={{ color: theme.title }}
               >
-                🏠 Property & Price
+                Property & Price
               </Text>
 
               <View className="mb-3">
@@ -1503,13 +1526,20 @@ export default function LandlordRequests() {
         </TouchableOpacity>
       </View>
 
-      {/* Stats Summary */}
+      {/* Stats Summary with Icons */}
       {requests.length > 0 && (
         <View className="flex-row px-4 py-3 gap-3">
           <View
             className="flex-1 rounded-xl p-3 items-center"
             style={{ backgroundColor: "#F59E0B15" }}
           >
+            <Image
+              source={pendingIcon}
+              className="w-8 h-8"
+              style={{
+                tintColor: colorScheme === "dark" ? "#FBBF24" : "#92400E",
+              }}
+            />
             <Text className="text-2xl font-rubik-bold text-amber-600">
               {pendingCount}
             </Text>
@@ -1519,6 +1549,13 @@ export default function LandlordRequests() {
             className="flex-1 rounded-xl p-3 items-center"
             style={{ backgroundColor: "#10B98115" }}
           >
+            <Image
+              source={acceptedIcon}
+              className="w-8 h-8"
+              style={{
+                tintColor: colorScheme === "dark" ? "#34D399" : "#065F46",
+              }}
+            />
             <Text className="text-2xl font-rubik-bold text-white">
               {acceptedCount}
             </Text>
@@ -1528,6 +1565,11 @@ export default function LandlordRequests() {
             className="flex-1 rounded-xl p-3 items-center"
             style={{ backgroundColor: "#EF444415" }}
           >
+            <Image
+              source={rejectedIcon}
+              className="w-8 h-8"
+              // No tintColor for rejected - keeps original colors
+            />
             <Text className="text-2xl font-rubik-bold text-red-600">
               {rejectedCount}
             </Text>
@@ -1572,7 +1614,7 @@ export default function LandlordRequests() {
             />
           }
           renderItem={({ item }) => {
-            const statusColor = getStatusColor(item.status);
+            const statusInfo = getStatusInfo(item.status);
             const hasNegotiatedPrice =
               item.proposedPrice !== undefined &&
               item.originalPrice !== undefined &&
@@ -1631,16 +1673,23 @@ export default function LandlordRequests() {
                             From: {item.tenantName}
                           </Text>
                         </View>
+                        {/* Status Badge with Icon */}
                         <View
-                          className="px-3 py-1 rounded-full ml-2"
-                          style={{ backgroundColor: statusColor.bg }}
+                          className="px-3 py-1 rounded-full ml-2 flex-row items-center"
+                          style={{ backgroundColor: statusInfo.bg }}
                         >
-                          <Text
-                            className="text-xs font-rubik-bold"
-                            style={{ color: statusColor.text }}
-                          >
-                            {statusColor.label}
-                          </Text>
+                          <Image
+                            source={statusInfo.icon}
+                            className="w-4 h-4 mr-1"
+                            style={{
+                              tintColor:
+                                item.status === "rejected"
+                                  ? undefined
+                                  : colorScheme === "dark"
+                                    ? "#FFFFFF"
+                                    : "#000000",
+                            }}
+                          />
                         </View>
                       </View>
                     </View>
