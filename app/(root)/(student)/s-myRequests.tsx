@@ -532,7 +532,6 @@ export default function TenantRequests() {
         }}
       >
         <View className="flex-row items-center mb-3">
-          <Ionicons name="document-text" size={24} color={theme.primary[300]} />
           <Text
             className="text-base font-rubik-bold ml-2"
             style={{ color: theme.title }}
@@ -1060,7 +1059,7 @@ export default function TenantRequests() {
                     className="text-base font-rubik-bold mb-3"
                     style={{ color: theme.title }}
                   >
-                    ❓ Your Questions
+                    Your Questions
                   </Text>
                   {selectedRequest.questions.map((question, index) => (
                     <View
@@ -1096,7 +1095,7 @@ export default function TenantRequests() {
                   className="text-base font-rubik-bold mb-3"
                   style={{ color: theme.title }}
                 >
-                  💬 Your Message
+                  Your Message
                 </Text>
                 <Text
                   className="text-sm italic leading-5"
