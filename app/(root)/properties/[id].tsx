@@ -1145,6 +1145,7 @@ const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   }, [navigation, user]);
 
   const {
+    pois,
     amenities,
     loading: amenitiesLoading,
     error: amenitiesError,
@@ -1992,9 +1993,13 @@ const creator =
                 <View className="mt-3">
                   <AmenitiesBadge
                     amenities={amenities}
+                    pois={pois}
                     loading={amenitiesLoading}
                     error={amenitiesError}
                     onRetry={() => void refetchAmenities()}
+                    propertyLatitude={property.latitude}
+                    propertyLongitude={property.longitude}
+                    propertyName={property.propertyName || "Property"}
                   />
                 </View>
               </View>
@@ -2831,9 +2836,13 @@ const creator =
                 <View className="mt-3">
                   <AmenitiesBadge
                     amenities={amenities}
+                    pois={pois}
                     loading={amenitiesLoading}
                     error={amenitiesError}
                     onRetry={() => void refetchAmenities()}
+                    propertyLatitude={property.latitude}
+                    propertyLongitude={property.longitude}
+                    propertyName={property.propertyName || "Property"}
                   />
                 </View>
               </View>

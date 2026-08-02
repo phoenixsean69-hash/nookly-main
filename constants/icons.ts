@@ -84,8 +84,27 @@ import walled from "@/assets/icons/walled.png";
 import wallet from "@/assets/icons/wallet.png";
 import wifi from "@/assets/icons/wifi.png";
 
+import openBook from "@/assets/icons/open-book.png";
+import mortarboard from "@/assets/icons/mortarboard.png";
+import hospital from "@/assets/icons/hospital.png";
+import store from "@/assets/icons/store.png";
+import busStation from "@/assets/icons/bus-station.png";
+import policeStation from "@/assets/icons/police-station.png";
+import dinner from "@/assets/icons/dinner.png";
+import park from "@/assets/icons/park.png";
+import gasStation from "@/assets/icons/gas-station.png";
+
 export default {
   owner,
+  openBook,
+  mortarboard,
+  hospital,
+  store,
+  busStation,
+  policeStation,
+  dinner,
+  park,
+  gasStation,
   apartment,
   boarding,
   map,

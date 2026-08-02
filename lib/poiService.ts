@@ -102,19 +102,29 @@ const CATEGORY_BY_ID = new Map<POICategoryId, POICategory>(
 );
 const ALL_CATEGORY_IDS = POI_CATEGORIES.map((category) => category.id);
 
-const CACHE_PREFIX = "@nookly:poi:v3:";
+const CACHE_PREFIX = "@nookly:poi:v4:";
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-const ENDPOINT_COOLDOWN_MS = 5 * 60 * 1000;
-const REQUEST_TIMEOUT_MS = 45_000;
-const MAX_RESULTS = 500;
-const MAX_SERVER_RESULTS = 800;
+const ENDPOINT_COOLDOWN_MS = 60 * 1000;
+const RATE_LIMIT_COOLDOWN_MS = 2 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 22_000;
+const MAX_RESULTS = 350;
+const MAX_SERVER_RESULTS = 500;
 
-// private.coffee is the current home of the former Kumi public instance.
-// Keep the main Overpass instance as a fallback, not as the first choice.
+// Use independent public Overpass hosts as fallbacks. Requests are attempted
+// sequentially so Nookly does not send duplicate load to multiple servers.
 const OVERPASS_ENDPOINTS = [
-  "https://overpass.private.coffee/api/interpreter",
   "https://overpass-api.de/api/interpreter",
+  "https://overpass.private.coffee/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 ] as const;
+
+const OVERPASS_REQUEST_HEADERS = {
+  Accept: "*/*",
+  "Content-Type": "application/x-www-form-urlencoded",
+  "User-Agent":
+    "Nookly/1.0 (https://github.com/phoenixsean69-hash/nookly-app)",
+  Referer: "https://github.com/phoenixsean69-hash/nookly-app",
+} as const;
 
 interface OverpassElement {
   id: number;
@@ -127,6 +137,7 @@ interface OverpassElement {
 
 interface OverpassResponse {
   elements?: OverpassElement[];
+  remark?: string;
 }
 
 interface POICacheEntry {
@@ -279,7 +290,7 @@ const buildOverpassQuery = (
   const around = `around:${radiusMeters},${latitude},${longitude}`;
   const statements = buildOverpassStatements(around, categoryIds);
 
-  return `[out:json][timeout:35][maxsize:268435456];
+  return `[out:json][timeout:18][maxsize:67108864];
 (
 ${statements.map((statement) => `  ${statement}`).join("\n")}
 );
@@ -388,6 +399,98 @@ const normalizeElement = (
   };
 };
 
+const parseOverpassResponse = async (
+  response: Response,
+): Promise<OverpassResponse> => {
+  const raw = await response.text();
+
+  if (!response.ok) {
+    const compactMessage = raw
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 180);
+
+    throw new Error(
+      compactMessage
+        ? `HTTP ${response.status}: ${compactMessage}`
+        : `HTTP ${response.status}`,
+    );
+  }
+
+  try {
+    const payload = JSON.parse(raw) as OverpassResponse;
+
+    if (!Array.isArray(payload.elements)) {
+      throw new Error(payload.remark || "Invalid Overpass response.");
+    }
+
+    return payload;
+  } catch (error) {
+    if (error instanceof Error && error.message !== "Unexpected end of JSON input") {
+      throw error;
+    }
+
+    throw new Error("The POI server returned invalid JSON.");
+  }
+};
+
+const fetchFromEndpoint = async (
+  endpoint: string,
+  query: string,
+): Promise<OverpassResponse> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    // POST avoids oversized URLs and is more reliable through mobile carriers,
+    // proxies and captive networks than a long ?data= GET request.
+    let response = await fetch(endpoint, {
+      method: "POST",
+      headers: OVERPASS_REQUEST_HEADERS,
+      body: `data=${encodeURIComponent(query)}`,
+      signal: controller.signal,
+    });
+
+    // A small number of proxies or mirrors reject POST. Only then retry GET.
+    if (response.status === 405 || response.status === 415) {
+      response = await fetch(
+        `${endpoint}?data=${encodeURIComponent(query)}`,
+        {
+          method: "GET",
+          headers: OVERPASS_REQUEST_HEADERS,
+          signal: controller.signal,
+        },
+      );
+    }
+
+    return await parseOverpassResponse(response);
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const getAvailableEndpoints = (ignoreCooldown: boolean): string[] => {
+  if (ignoreCooldown) return [...OVERPASS_ENDPOINTS];
+
+  const now = Date.now();
+  const available = OVERPASS_ENDPOINTS.filter(
+    (endpoint) => (endpointCooldownUntil.get(endpoint) ?? 0) <= now,
+  );
+
+  if (available.length > 0) return available;
+
+  // Do not fail immediately merely because every endpoint recently timed out.
+  // Retry the endpoint whose cooldown expires first.
+  const earliest = [...OVERPASS_ENDPOINTS].sort(
+    (first, second) =>
+      (endpointCooldownUntil.get(first) ?? 0) -
+      (endpointCooldownUntil.get(second) ?? 0),
+  )[0];
+
+  return earliest ? [earliest] : [];
+};
+
 const requestPOIs = async (
   latitude: number,
   longitude: number,
@@ -396,68 +499,67 @@ const requestPOIs = async (
   ignoreCooldown = false,
 ): Promise<POI[]> => {
   const query = buildOverpassQuery(latitude, longitude, radiusKm, categoryIds);
-  let attemptedEndpoint = false;
+  const endpoints = getAvailableEndpoints(ignoreCooldown);
   let lastMessage = "No POI server was available.";
 
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    const cooldownUntil = endpointCooldownUntil.get(endpoint) ?? 0;
-    if (!ignoreCooldown && cooldownUntil > Date.now()) continue;
-
-    attemptedEndpoint = true;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
+  for (const endpoint of endpoints) {
     try {
-      const requestUrl = `${endpoint}?data=${encodeURIComponent(query)}`;
-      const response = await fetch(requestUrl, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const payload = (await response.json()) as OverpassResponse;
-      if (!Array.isArray(payload.elements)) {
-        throw new Error("Invalid response");
-      }
+      const payload = await fetchFromEndpoint(endpoint, query);
 
       endpointCooldownUntil.delete(endpoint);
+
       const selected = new Set(categoryIds);
       const unique = new Map<string, POI>();
 
-      for (const element of payload.elements) {
+      for (const element of payload.elements ?? []) {
         const poi = normalizeElement(element, latitude, longitude);
         if (!poi || !selected.has(poi.categoryId)) continue;
         if (poi.distanceKm > radiusKm + 0.05) continue;
         unique.set(poi.id, poi);
       }
 
-      return [...unique.values()]
+      const results = [...unique.values()]
         .sort((first, second) => first.distanceKm - second.distanceKm)
         .slice(0, MAX_RESULTS);
+
+      console.log(
+        `✅ Nearby amenities loaded: ${results.length} from ${endpoint}`,
+      );
+
+      return results;
     } catch (error) {
       const aborted =
         error instanceof Error &&
         (error.name === "AbortError" ||
           error.message.toLowerCase().includes("abort"));
+
+      const errorMessage =
+        error instanceof Error && error.message
+          ? error.message
+          : "Unknown network error";
+
+      const isRateLimited =
+        errorMessage.includes("HTTP 429") ||
+        errorMessage.includes("HTTP 502") ||
+        errorMessage.includes("HTTP 503") ||
+        errorMessage.includes("HTTP 504");
+
+      const cooldown = isRateLimited
+        ? RATE_LIMIT_COOLDOWN_MS
+        : ENDPOINT_COOLDOWN_MS;
+
+      endpointCooldownUntil.set(endpoint, Date.now() + cooldown);
+
       lastMessage = aborted
         ? "The nearby-amenities server took too long to respond."
-        : `The nearby-amenities server failed${
-            error instanceof Error && error.message ? `: ${error.message}` : "."
-          }`;
-      endpointCooldownUntil.set(endpoint, Date.now() + ENDPOINT_COOLDOWN_MS);
-      console.warn(`POI endpoint unavailable: ${endpoint}`);
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
+        : `The nearby-amenities server failed: ${errorMessage}`;
 
-  if (!attemptedEndpoint) {
-    lastMessage =
-      "Nearby amenities are cooling down after a network timeout. Try again shortly.";
+      console.warn("POI endpoint unavailable:", {
+        endpoint,
+        reason: aborted ? "timeout" : errorMessage,
+        retryAfterSeconds: Math.round(cooldown / 1000),
+      });
+    }
   }
 
   throw new POIUnavailableError(lastMessage);

@@ -1,10 +1,10 @@
 import { Colors } from "@/constants/Colors";
+import { buildPropertyMapHtml } from "@/lib/propertyMapHtml";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Linking,
   Platform,
   Text,
@@ -12,6 +12,7 @@ import {
   useColorScheme,
   View,
 } from "react-native";
+import { WebView } from "react-native-webview";
 
 interface PropertyMapCardProps {
   latitude?: number | string | null;
@@ -31,6 +32,7 @@ interface PropertyMapCardProps {
 export const parseCoordinates = (latitude: unknown, longitude: unknown) => {
   const lat = Number(latitude);
   const lng = Number(longitude);
+
   if (
     !Number.isFinite(lat) ||
     !Number.isFinite(lng) ||
@@ -38,8 +40,10 @@ export const parseCoordinates = (latitude: unknown, longitude: unknown) => {
     lat > 90 ||
     lng < -180 ||
     lng > 180
-  )
+  ) {
     return null;
+  }
+
   return { latitude: lat, longitude: lng };
 };
 
@@ -54,7 +58,9 @@ export const openExternalMap = async (
     android: `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodedLabel})`,
     default: `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=17/${latitude}/${longitude}`,
   })!;
+
   const fallbackUrl = `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=17/${latitude}/${longitude}`;
+
   try {
     const supported = await Linking.canOpenURL(nativeUrl);
     await Linking.openURL(supported ? nativeUrl : fallbackUrl);
@@ -75,7 +81,6 @@ const PropertyMapCard = ({
   longitude,
   propertyName,
   address,
-  propertyImage,
   propertyPrice,
   propertyType,
   bedrooms,
@@ -88,8 +93,20 @@ const PropertyMapCard = ({
   const coordinates = parseCoordinates(latitude, longitude);
   const [opening, setOpening] = useState(false);
 
+  const mapHtml = useMemo(() => {
+    if (!coordinates) return "";
+
+    return buildPropertyMapHtml({
+      propertyLatitude: coordinates.latitude,
+      propertyLongitude: coordinates.longitude,
+      propertyName: propertyName || address || "Property",
+      initialZoom: 16,
+    });
+  }, [address, coordinates, propertyName]);
+
   const openMaps = async () => {
     if (!coordinates || opening) return;
+
     setOpening(true);
     await openExternalMap(
       coordinates.latitude,
@@ -107,27 +124,57 @@ const PropertyMapCard = ({
         borderColor: `${theme.muted}30`,
       }}
     >
-      {propertyImage ? (
-        <Image
-          source={{ uri: propertyImage }}
-          className="h-28 w-full"
-          resizeMode="cover"
-          accessibilityLabel={`${propertyName || "Property"} location`}
-        />
+      {coordinates ? (
+        <View
+          style={{
+            height: isFullScreen ? 420 : 230,
+            backgroundColor: theme.surface,
+          }}
+        >
+          <WebView
+            source={{ html: mapHtml }}
+            originWhitelist={["*"]}
+            javaScriptEnabled
+            domStorageEnabled
+            setSupportMultipleWindows={false}
+            startInLoadingState
+            renderLoading={() => (
+              <View
+                className="absolute inset-0 items-center justify-center"
+                style={{ backgroundColor: theme.surface }}
+              >
+                <ActivityIndicator
+                  size="large"
+                  color={theme.primary[300]}
+                />
+                <Text
+                  className="mt-2 text-xs"
+                  style={{ color: theme.muted }}
+                >
+                  Loading property map...
+                </Text>
+              </View>
+            )}
+          />
+        </View>
       ) : (
         <View
-          className="h-24 items-center justify-center"
+          className="h-40 items-center justify-center"
           style={{ backgroundColor: theme.primary[100] }}
         >
           <Ionicons
             name="location-outline"
-            size={38}
+            size={42}
             color={theme.primary[300]}
           />
+          <Text className="mt-2 text-xs" style={{ color: theme.muted }}>
+            Property coordinates are unavailable
+          </Text>
         </View>
       )}
+
       <View className="p-4">
-        <View className="flex-row items-start gap-3">
+        <View className="flex-row items-start">
           <View
             className="mt-0.5 h-10 w-10 items-center justify-center rounded-full"
             style={{ backgroundColor: theme.primary[100] }}
@@ -138,7 +185,8 @@ const PropertyMapCard = ({
               color={theme.primary[300]}
             />
           </View>
-          <View className="flex-1">
+
+          <View className="ml-3 flex-1">
             <Text
               className="font-rubik-bold text-base"
               style={{ color: theme.title }}
@@ -185,31 +233,25 @@ const PropertyMapCard = ({
         ) : null}
 
         {coordinates ? (
-          <>
-            <Text className="mt-3 text-xs" style={{ color: theme.muted }}>
-              {coordinates.latitude.toFixed(6)},{" "}
-              {coordinates.longitude.toFixed(6)}
-            </Text>
-            <TouchableOpacity
-              onPress={openMaps}
-              disabled={opening}
-              className="mt-4 flex-row items-center justify-center rounded-full py-3"
-              style={{ backgroundColor: theme.primary[300] }}
-              accessibilityRole="button"
-              accessibilityLabel="Open property in maps"
-            >
-              {opening ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
-              ) : (
-                <>
-                  <Ionicons name="open-outline" size={18} color="#FFFFFF" />
-                  <Text className="ml-2 font-rubik-bold text-white">
-                    Open in Maps
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </>
+          <TouchableOpacity
+            onPress={openMaps}
+            disabled={opening}
+            className="mt-4 flex-row items-center justify-center rounded-full py-3"
+            style={{ backgroundColor: theme.primary[300] }}
+            accessibilityRole="button"
+            accessibilityLabel="Open property in maps"
+          >
+            {opening ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="open-outline" size={18} color="#FFFFFF" />
+                <Text className="ml-2 font-rubik-bold text-white">
+                  Open in Maps
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
         ) : (
           <View
             className="mt-4 flex-row items-center rounded-xl p-3"
