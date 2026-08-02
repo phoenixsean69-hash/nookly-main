@@ -2025,7 +2025,9 @@ export async function toggleLike(propertyId: string, userId: string) {
         await saveLocalLikes(userId, localLikes);
       }
 
-      await trackLikeActivity(propertyId, userId, "liked");
+      // Like activities are created securely by the /property-like
+      // Appwrite Function after it verifies the authenticated liker,
+      // property owner, and like record.
 
       // Securely create the in-app notification and send the push through
       // the centralized Appwrite Function. The Function verifies that the
