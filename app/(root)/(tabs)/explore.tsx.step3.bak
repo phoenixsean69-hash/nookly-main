@@ -1,4 +1,4 @@
-﻿// app/(root)/explore.tsx
+// app/(root)/explore.tsx
 import FullMap from "@/components/FullMap";
 import HotDealsFilter from "@/components/HotDealsFilter";
 import { router, useLocalSearchParams } from "expo-router";
@@ -82,6 +82,20 @@ const Explore = () => {
     };
   }, [locationInput]);
 
+  // Light pins for banner count - super fast
+  const { data: mapPins } = useAppwrite({
+    fn: async () => {
+      const res = await getPropertiesWithFilters({
+        filter: "",
+        query: "",
+        limit: 100,
+        select: ["$id", "latitude", "longitude"],
+      } as any);
+      return res;
+    },
+    cacheKey: "map_pins_light",
+    ttl: 10 * 60 * 1000,
+  });
 
   // Full data for FullMap screen
   const { data: allProperties, refetch: refetchMapFull } = useAppwrite({
@@ -107,6 +121,7 @@ const Explore = () => {
       return res;
     },
     cacheKey: "map_pins_full",
+    ttl: 10 * 60 * 1000,
   });
 
   const filterParams = useMemo(
@@ -135,11 +150,25 @@ const Explore = () => {
     return `explore_${filterParams.filter}_${filterParams.query}_${filterParams.location}_${filterParams.bedrooms}_${filterParams.facilities.join("-")}_${filterParams.priceRange?.label || "all"}_${filterParams.customPrice ? `${filterParams.customPrice.min}-${filterParams.customPrice.max}` : "all"}`;
   }, [filterParams]);
 
-  const { data: properties, loading } = useAppwrite({
+  const {
+    data: properties,
+    refetch,
+    loading,
+  } = useAppwrite({
     fn: (p: any) => getPropertiesWithFilters(p),
     params: filterParams,
     cacheKey,
+    ttl: 60 * 1000,
   });
+
+  const prevParamsRef = useRef<string>("");
+  useEffect(() => {
+    const key = JSON.stringify(filterParams);
+    if (prevParamsRef.current !== key) {
+      prevParamsRef.current = key;
+      refetch(filterParams);
+    }
+  }, [filterParams]);
 
   const filteredProperties = useMemo(() => {
     if (!properties) return [];
@@ -224,7 +253,7 @@ const Explore = () => {
               className="font-rubik-bold mt-1"
               style={{ color: theme.primary[300] }}
             >
-              {allProperties?.length || 0} on Map
+              {mapPins?.length || allProperties?.length || 0} on Map
             </Text>
             <Text className="text-xs mt-1" style={{ color: theme.muted }}>
               Tap to browse locations
@@ -382,6 +411,7 @@ const Explore = () => {
     ),
     [
       theme,
+      mapPins,
       allProperties,
       params.query,
       showHotDeals,
@@ -436,4 +466,3 @@ const Explore = () => {
 };
 
 export default Explore;
-

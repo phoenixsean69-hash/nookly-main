@@ -1,4 +1,4 @@
-﻿import DealsAlerts from "@/components/DealsAlerts";
+import DealsAlerts from "@/components/DealsAlerts";
 import FeaturedModal from "@/components/FeaturedModal";
 import QuickActions from "@/components/QuickActions";
 import QuickTips from "@/components/QuickTips";
@@ -193,6 +193,7 @@ const Home = () => {
 
   const lastNotificationsFetch = useRef(0);
   const lastFeaturedFetch = useRef(0);
+  const filterRef = useRef(params.filter);
 
   useFocusEffect(
     useCallback(() => {
@@ -262,11 +263,23 @@ const Home = () => {
     fetchBestProperties();
   }, [fetchBestProperties]);
 
-  const { data: properties, loading } = useAppwrite({
+  const {
+    data: properties,
+    refetch,
+    loading,
+  } = useAppwrite({
     fn: getAvailableProperties,
     params: { filter: params.filter || "", query: "", limit: 6 },
     cacheKey: `available_${params.filter || "all"}`,
+    ttl: 5 * 60 * 1000,
   });
+
+  useEffect(() => {
+    if (filterRef.current !== params.filter) {
+      filterRef.current = params.filter;
+      refetch({ filter: params.filter || "", query: "", limit: 6 });
+    }
+  }, [params.filter, refetch]);
 
   const handleCardPress = useCallback(
     (id: string) => router.push(`/properties/${id}` as any),
@@ -409,4 +422,3 @@ const Home = () => {
 };
 
 export default Home;
-
