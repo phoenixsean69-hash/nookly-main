@@ -1577,6 +1577,7 @@ export async function getPropertyById({ id }: { id: string }) {
 
     type OwnerProfile = {
       $id: string;
+      accountId?: string;
       name: string;
       email: string;
       phone?: string | null;
@@ -1584,21 +1585,97 @@ export async function getPropertyById({ id }: { id: string }) {
       isOrganization?: boolean;
     };
 
-    const mapOwner = (document: any, isOrganization = false): OwnerProfile => ({
-      $id: document?.$id || document?.accountId || "",
-      name:
-        document?.name ||
-        document?.T_name ||
-        document?.organizationName ||
-        "Property Owner",
-      email: document?.email || "Contact details unavailable",
-      phone: document?.phone || document?.T_phone || null,
-      avatar: document?.avatar || null,
-      ...(isOrganization ? { isOrganization: true } : {}),
-    });
+    const cleanString = (value: unknown): string =>
+      typeof value === "string" ? value.trim() : "";
 
-    const safeGet = async (collectionId: string | undefined, documentId: string) => {
+    const firstString = (...values: unknown[]): string => {
+      for (const value of values) {
+        const cleaned = cleanString(value);
+        if (cleaned) return cleaned;
+      }
+      return "";
+    };
+
+    const uniqueReferences = (...values: unknown[]): string[] =>
+      Array.from(
+        new Set(
+          values
+            .map(cleanString)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      );
+
+    const hasUsefulOwnerDetails = (document: any): boolean =>
+      Boolean(
+        firstString(
+          document?.name,
+          document?.T_name,
+          document?.organizationName,
+          document?.email,
+          document?.phone,
+          document?.T_phone,
+          document?.avatar,
+        ),
+      );
+
+    const mapOwner = (
+      document: any,
+      isOrganization = false,
+    ): OwnerProfile | null => {
+      if (!document || !hasUsefulOwnerDetails(document)) return null;
+
+      const accountId = firstString(
+        document?.accountId,
+        document?.authUserId,
+        document?.ownerAccountId,
+      );
+
+      return {
+        $id: firstString(
+          document?.$id,
+          accountId,
+          document?.userDocId,
+          document?.userId,
+        ),
+        ...(accountId ? { accountId } : {}),
+        name:
+          firstString(
+            document?.name,
+            document?.T_name,
+            document?.organizationName,
+            document?.ownerName,
+          ) || (isOrganization ? "Organization" : "Property Owner"),
+        email:
+          firstString(
+            document?.email,
+            document?.T_email,
+            document?.organizationEmail,
+            document?.ownerEmail,
+          ) || "Contact details unavailable",
+        phone:
+          firstString(
+            document?.phone,
+            document?.T_phone,
+            document?.organizationPhone,
+            document?.ownerPhone,
+          ) || null,
+        avatar:
+          firstString(
+            document?.avatar,
+            document?.logo,
+            document?.organizationLogo,
+            document?.ownerAvatar,
+          ) || null,
+        ...(isOrganization ? { isOrganization: true } : {}),
+      };
+    };
+
+    const safeGet = async (
+      collectionId: string | undefined,
+      documentId: string,
+    ) => {
       if (!collectionId || !documentId) return null;
+
       try {
         return await databases.getDocument(
           config.databaseId!,
@@ -1615,110 +1692,225 @@ export async function getPropertyById({ id }: { id: string }) {
       field: string,
       value: string,
     ) => {
-      if (!collectionId || !value) return null;
+      if (!collectionId || !field || !value) return null;
+
       try {
         const response = await databases.listDocuments(
           config.databaseId!,
           collectionId,
           [Query.equal(field, value), Query.limit(1)],
         );
+
         return response.documents[0] ?? null;
       } catch {
         return null;
       }
     };
 
-    const findUserDocument = async (reference: string) =>
-      (await safeGet(config.usersCollectionId, reference)) ||
-      (await safeFind(config.usersCollectionId, "accountId", reference));
+    const findUserDocument = async (reference: string) => {
+      if (!reference) return null;
 
-    const findOrganization = async (references: string[]) => {
+      return (
+        (await safeGet(config.usersCollectionId, reference)) ||
+        (await safeFind(config.usersCollectionId, "accountId", reference))
+      );
+    };
+
+    const findLinkedUser = async (document: any) => {
+      const references = uniqueReferences(
+        document?.userDocId,
+        document?.userId,
+        document?.accountId,
+        document?.authUserId,
+        document?.ownerId,
+        document?.ownerAccountId,
+      );
+
       for (const reference of references) {
-        const organization = await safeFind(
-          config.organizationsCollectionId,
-          "userId",
-          reference,
-        );
-        if (organization) return organization;
+        const userDocument = await findUserDocument(reference);
+        if (userDocument) return userDocument;
       }
+
       return null;
     };
 
     const findLandlordProfile = async (reference: string) => {
+      if (!reference) return null;
+
       const direct = await safeGet(config.landlordsCollectionId, reference);
       if (direct) return direct;
 
-      for (const field of ["userDocId", "userId", "accountId"]) {
+      for (const field of [
+        "userDocId",
+        "userId",
+        "accountId",
+        "authUserId",
+        "ownerId",
+      ]) {
         const profile = await safeFind(
           config.landlordsCollectionId,
           field,
           reference,
         );
+
         if (profile) return profile;
       }
+
       return null;
+    };
+
+    const findOrganization = async (references: string[]) => {
+      for (const reference of references) {
+        const direct = await safeGet(
+          config.organizationsCollectionId,
+          reference,
+        );
+
+        if (direct) return direct;
+
+        for (const field of [
+          "userId",
+          "userDocId",
+          "accountId",
+          "authUserId",
+          "ownerId",
+        ]) {
+          const organization = await safeFind(
+            config.organizationsCollectionId,
+            field,
+            reference,
+          );
+
+          if (organization) return organization;
+        }
+      }
+
+      return null;
+    };
+
+    const mapProfileWithLinkedUser = async (
+      profile: any,
+      isOrganization = false,
+    ): Promise<OwnerProfile | null> => {
+      if (!profile) return null;
+
+      const linkedUser = await findLinkedUser(profile);
+
+      if (linkedUser) {
+        return mapOwner(
+          {
+            ...profile,
+            ...linkedUser,
+            phone:
+              firstString(
+                linkedUser.phone,
+                profile.phone,
+                profile.T_phone,
+              ) || null,
+            avatar:
+              firstString(
+                linkedUser.avatar,
+                profile.avatar,
+                profile.logo,
+              ) || null,
+          },
+          isOrganization,
+        );
+      }
+
+      return mapOwner(profile, isOrganization);
     };
 
     const embeddedAgent =
       property.agent && typeof property.agent === "object"
         ? property.agent
         : null;
+
     const agentReference =
       typeof property.agent === "string" ? property.agent.trim() : "";
-    const creatorReference =
-      typeof property.creatorId === "string" ? property.creatorId.trim() : "";
 
-    let owner: OwnerProfile | null = embeddedAgent
-      ? mapOwner(embeddedAgent, Boolean(embeddedAgent.isOrganization))
-      : null;
+    const creatorReference = cleanString(property.creatorId);
 
-    let agentUser: any = null;
-    let creatorUser: any = null;
+    const legacyReferences = uniqueReferences(
+      agentReference,
+      creatorReference,
+      property.landlordId,
+      property.ownerId,
+      property.userId,
+      property.createdBy,
+    );
 
-    if (!owner && agentReference) {
-      agentUser = await findUserDocument(agentReference);
-      if (agentUser) owner = mapOwner(agentUser);
+    let owner: OwnerProfile | null = null;
+
+    if (embeddedAgent) {
+      owner = await mapProfileWithLinkedUser(
+        embeddedAgent,
+        Boolean(
+          embeddedAgent.isOrganization ||
+            embeddedAgent.organizationName ||
+            embeddedAgent.organizationId,
+        ),
+      );
 
       if (!owner) {
-        const profile = await findLandlordProfile(agentReference);
-        if (profile) {
-          const profileUser = profile.userDocId
-            ? await findUserDocument(profile.userDocId)
-            : null;
-          owner = mapOwner(profileUser ? { ...profile, ...profileUser } : profile);
+        const embeddedReferences = uniqueReferences(
+          embeddedAgent.$id,
+          embeddedAgent.userDocId,
+          embeddedAgent.userId,
+          embeddedAgent.accountId,
+          embeddedAgent.ownerId,
+        );
+
+        const organization = await findOrganization(embeddedReferences);
+        if (organization) {
+          owner = await mapProfileWithLinkedUser(organization, true);
         }
       }
     }
 
-    if (!owner && creatorReference) {
-      creatorUser = await findUserDocument(creatorReference);
+    for (const reference of legacyReferences) {
+      if (owner) break;
 
-      if (!agentReference) {
-        const organizationReferences = [
-          creatorReference,
-          creatorUser?.$id,
-          creatorUser?.accountId,
-        ].filter((value): value is string => Boolean(value));
-        const organization = await findOrganization(organizationReferences);
-        if (organization) owner = mapOwner(organization, true);
+      const userDocument = await findUserDocument(reference);
+      if (userDocument) {
+        owner = mapOwner(userDocument);
       }
 
-      if (!owner && creatorUser) owner = mapOwner(creatorUser);
+      if (owner) break;
 
-      if (!owner) {
-        const profile = await findLandlordProfile(creatorReference);
-        if (profile) owner = mapOwner(profile);
+      const landlordProfile = await findLandlordProfile(reference);
+      if (landlordProfile) {
+        owner = await mapProfileWithLinkedUser(landlordProfile);
       }
 
-      if (!owner) {
-        const organization = await findOrganization([creatorReference]);
-        if (organization) owner = mapOwner(organization, true);
+      if (owner) break;
+
+      const organization = await findOrganization([reference]);
+      if (organization) {
+        owner = await mapProfileWithLinkedUser(organization, true);
       }
     }
 
-    if (!owner && (property.creatorName || property.creatorEmail)) {
+    if (!owner) {
+      const organization = await findOrganization(legacyReferences);
+
+      if (organization) {
+        owner = await mapProfileWithLinkedUser(organization, true);
+      }
+    }
+
+    if (
+      !owner &&
+      hasUsefulOwnerDetails({
+        name: property.creatorName,
+        email: property.creatorEmail,
+        phone: property.creatorPhone,
+        avatar: property.creatorAvatar,
+      })
+    ) {
       owner = mapOwner({
         $id: creatorReference || agentReference,
+        accountId: creatorReference,
         name: property.creatorName,
         email: property.creatorEmail,
         phone: property.creatorPhone,
@@ -1727,8 +1919,16 @@ export async function getPropertyById({ id }: { id: string }) {
     }
 
     if (!owner) {
+      console.warn("⚠️ Property owner could not be fully resolved:", {
+        propertyId: property.$id,
+        propertyName: property.propertyName,
+        creatorId: creatorReference || null,
+        agentReference: agentReference || null,
+      });
+
       owner = {
         $id: creatorReference || agentReference,
+        ...(creatorReference ? { accountId: creatorReference } : {}),
         name: "Property Owner",
         email: "Contact details unavailable",
         phone: null,
