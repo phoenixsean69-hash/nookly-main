@@ -1,18 +1,33 @@
+import OfflinePOIFavoritesModal from "@/components/OfflinePOIFavoritesModal";
+import OfflineRoutePreview from "@/components/OfflineRoutePreview";
 import { Colors } from "@/constants/Colors";
 import icons from "@/constants/icons";
+import { buildPropertyMapHtml } from "@/lib/propertyMapHtml";
 import {
-  buildPropertyMapHtml,
-  type PropertyMapRoute,
-} from "@/lib/propertyMapHtml";
+  buildPOIFavoriteId,
+  getOfflinePOIFavorites,
+  removePOIFavorite,
+  savePOIRouteOffline,
+  subscribeToOfflinePOIFavorites,
+  togglePOIFavorite,
+  type OfflinePOIFavorite,
+  type SavePOIFavoriteInput,
+} from "@/lib/poiOfflineService";
 import {
   POI_CATEGORIES,
   type POI,
   type POICategoryId,
   type PropertyAmenities,
 } from "@/lib/poiService";
-import { getDrivingRoute } from "@/lib/routingService";
+import {
+  getCachedDrivingRoute,
+  getDrivingRoute,
+  saveDrivingRouteOffline,
+  type DrivingRoute,
+} from "@/lib/routingService";
+import { useNetInfo } from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -130,16 +145,39 @@ export const AmenitiesBadge = ({
 }: AmenitiesBadgeProps) => {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
+  const netInfo = useNetInfo();
+  const isOffline =
+    netInfo.isConnected === false || netInfo.isInternetReachable === false;
   const amenityIconTint =
     colorScheme === "dark" ? "#F8FAFC" : "#111827";
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [savedModalVisible, setSavedModalVisible] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] =
     useState<POICategoryId | null>(null);
   const [selectedPOIId, setSelectedPOIId] = useState<string | null>(null);
-  const [route, setRoute] = useState<PropertyMapRoute | null>(null);
+  const [route, setRoute] = useState<DrivingRoute | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
+  const [routeSaving, setRouteSaving] = useState(false);
+  const [favoriteBusyId, setFavoriteBusyId] = useState<string | null>(null);
+  const [offlineFavorites, setOfflineFavorites] = useState<
+    OfflinePOIFavorite[]
+  >([]);
+
+  const canOpenMap = isValidCoordinate(
+    propertyLatitude,
+    propertyLongitude,
+  );
+
+  const loadOfflineFavorites = useCallback(async () => {
+    setOfflineFavorites(await getOfflinePOIFavorites());
+  }, []);
+
+  useEffect(() => {
+    void loadOfflineFavorites();
+    return subscribeToOfflinePOIFavorites(setOfflineFavorites);
+  }, [loadOfflineFavorites]);
 
   const allPOIs = useMemo(
     () =>
@@ -156,35 +194,66 @@ export const AmenitiesBadge = ({
   const filteredTotal = allPOIs.length;
   const filteredNearestDistanceKm = allPOIs[0]?.distanceKm ?? null;
 
-  const categories = useMemo<AmenityCategoryItem[]>(() => {
-    if (!amenities) return [];
+  const categories = useMemo<AmenityCategoryItem[]>(
+    () =>
+      POI_CATEGORIES.map((category) => {
+        const places = allPOIs.filter(
+          (poi) => poi.categoryId === category.id,
+        );
 
-    return POI_CATEGORIES.map((category) => {
-      const places = allPOIs.filter(
-        (poi) => poi.categoryId === category.id,
-      );
-
-      return {
-        key: category.id,
-        label: category.label,
-        count: places.length,
-        icon: CATEGORY_ICONS[category.id],
-        color: category.color,
-        places,
-      };
-    }).filter((item) => item.count > 0);
-  }, [allPOIs, amenities]);
+        return {
+          key: category.id,
+          label: category.label,
+          count: places.length,
+          icon: CATEGORY_ICONS[category.id],
+          color: category.color,
+          places,
+        };
+      }).filter((item) => item.count > 0),
+    [allPOIs],
+  );
 
   const selectedCategory =
     categories.find((item) => item.key === selectedCategoryId) ?? null;
-
   const selectedPOI =
     selectedCategory?.places.find((poi) => poi.id === selectedPOIId) ?? null;
 
-  const canOpenMap = isValidCoordinate(
-    propertyLatitude,
-    propertyLongitude,
+  const buildFavoriteInput = useCallback(
+    (poi: POI): SavePOIFavoriteInput | null => {
+      if (!canOpenMap) return null;
+
+      return {
+        poi,
+        propertyName,
+        propertyLatitude,
+        propertyLongitude: propertyLongitude!,
+      };
+    }, [canOpenMap, propertyLatitude, propertyLongitude, propertyName],
   );
+
+  const getFavoriteId = useCallback(
+    (poi: POI): string | null => {
+      if (!canOpenMap) return null;
+      return buildPOIFavoriteId(
+        propertyLatitude,
+        propertyLongitude!,
+        poi.id,
+      );
+    }, [canOpenMap, propertyLatitude, propertyLongitude],
+  );
+
+  const getFavorite = useCallback(
+    (poi: POI): OfflinePOIFavorite | null => {
+      const favoriteId = getFavoriteId(poi);
+      if (!favoriteId) return null;
+      return (
+        offlineFavorites.find((favorite) => favorite.id === favoriteId) ?? null
+      );
+    }, [getFavoriteId, offlineFavorites],
+  );
+
+  const selectedFavorite = selectedPOI ? getFavorite(selectedPOI) : null;
+  const selectedRouteSavedOffline = !!selectedFavorite?.route;
 
   const closeModal = () => {
     setModalVisible(false);
@@ -192,6 +261,12 @@ export const AmenitiesBadge = ({
     setRoute(null);
     setRouteError(null);
     setRouteLoading(false);
+    setRouteSaving(false);
+  };
+
+  const openSavedFavorites = () => {
+    closeModal();
+    setSavedModalVisible(true);
   };
 
   const openCategory = (categoryId: POICategoryId) => {
@@ -207,6 +282,21 @@ export const AmenitiesBadge = ({
     setModalVisible(true);
   };
 
+  const toggleSavedPOI = async (poi: POI) => {
+    const input = buildFavoriteInput(poi);
+    const favoriteId = getFavoriteId(poi);
+    if (!input || !favoriteId || favoriteBusyId) return;
+
+    setFavoriteBusyId(favoriteId);
+    try {
+      await togglePOIFavorite(input);
+    } catch (caughtError) {
+      console.warn("Unable to update the offline POI favorite:", caughtError);
+    } finally {
+      setFavoriteBusyId(null);
+    }
+  };
+
   const selectPOI = async (poi: POI) => {
     if (!canOpenMap) return;
 
@@ -216,12 +306,25 @@ export const AmenitiesBadge = ({
     setRouteLoading(true);
 
     try {
-      const result = await getDrivingRoute(
-        propertyLatitude,
-        propertyLongitude!,
-        poi.latitude,
-        poi.longitude,
-      );
+      const result = isOffline
+        ? await getCachedDrivingRoute(
+            propertyLatitude,
+            propertyLongitude!,
+            poi.latitude,
+            poi.longitude,
+          )
+        : await getDrivingRoute(
+            propertyLatitude,
+            propertyLongitude!,
+            poi.latitude,
+            poi.longitude,
+          );
+
+      if (!result) {
+        throw new Error(
+          "No offline route has been saved for this amenity yet.",
+        );
+      }
 
       setRoute(result);
     } catch (caughtError) {
@@ -232,6 +335,35 @@ export const AmenitiesBadge = ({
       );
     } finally {
       setRouteLoading(false);
+    }
+  };
+
+  const saveSelectedRoute = async () => {
+    if (!selectedPOI || !route || !canOpenMap || routeSaving) return;
+
+    const input = buildFavoriteInput(selectedPOI);
+    if (!input) return;
+
+    setRouteSaving(true);
+    try {
+      const cachedRoute = await saveDrivingRouteOffline(
+        propertyLatitude,
+        propertyLongitude!,
+        selectedPOI.latitude,
+        selectedPOI.longitude,
+        route,
+      );
+
+      await savePOIRouteOffline(input, cachedRoute);
+      setRoute(cachedRoute);
+    } catch (caughtError) {
+      setRouteError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "The route could not be saved offline.",
+      );
+    } finally {
+      setRouteSaving(false);
     }
   };
 
@@ -248,83 +380,128 @@ export const AmenitiesBadge = ({
         (item) => item.id === message.poiId,
       );
 
-      if (poi) {
-        void selectPOI(poi);
-      }
+      if (poi) void selectPOI(poi);
     } catch {
       // Ignore malformed messages from the embedded map.
     }
   };
 
+  const mapHtml =
+    selectedCategory && canOpenMap
+      ? buildPropertyMapHtml({
+          propertyLatitude,
+          propertyLongitude: propertyLongitude!,
+          propertyName,
+          pois: selectedCategory.places,
+          selectedPOIId,
+          route,
+          categoryColor: selectedCategory.color,
+          initialZoom: 14,
+          initialMapType: "hybrid",
+          showMapTypeToggle: true,
+        })
+      : "";
+
+  const savedButton = (
+    <TouchableOpacity
+      onPress={openSavedFavorites}
+      activeOpacity={0.75}
+      className="flex-row items-center rounded-full px-2.5 py-1.5"
+      style={{ backgroundColor: `${theme.primary[300]}14` }}
+      accessibilityLabel="Open offline amenity favorites"
+    >
+      <Ionicons name="heart" size={14} color={theme.primary[300]} />
+      <Text
+        className="ml-1 text-[11px] font-rubik-bold"
+        style={{ color: theme.primary[300] }}
+      >
+        {offlineFavorites.length}
+      </Text>
+    </TouchableOpacity>
+  );
+
+  let content: React.ReactNode;
+
   if (loading) {
-    return (
+    content = (
       <View
         className="flex-row items-center rounded-xl px-3 py-3"
         style={{ backgroundColor: theme.surface }}
       >
         <ActivityIndicator size="small" color={theme.primary[300]} />
-        <Text className="ml-2 text-xs" style={{ color: theme.muted }}>
-          Finding nearby amenities...
+        <Text className="ml-2 flex-1 text-xs" style={{ color: theme.muted }}>
+          Loading cached nearby amenities...
         </Text>
+        {savedButton}
       </View>
     );
-  }
-
-  if (error && !amenities) {
-    return (
-      <TouchableOpacity
-        onPress={onRetry}
-        disabled={!onRetry}
-        className="flex-row items-center rounded-xl px-3 py-3"
+  } else if (error && !amenities) {
+    content = (
+      <View
+        className="rounded-xl border px-3 py-3"
         style={{
           backgroundColor: `${theme.danger}10`,
-          borderWidth: 1,
           borderColor: `${theme.danger}30`,
         }}
       >
-        <Ionicons name="cloud-offline-outline" size={19} color={theme.danger} />
-        <View className="ml-2 flex-1">
-          <Text
-            className="text-xs font-rubik-medium"
-            style={{ color: theme.text }}
-          >
-            Nearby amenities could not load
-          </Text>
-          <Text className="mt-0.5 text-[11px]" style={{ color: theme.muted }}>
-            {onRetry
-              ? "Tap to retry."
-              : "Try again when the connection improves."}
-          </Text>
+        <View className="flex-row items-center">
+          <Ionicons
+            name="cloud-offline-outline"
+            size={19}
+            color={theme.danger}
+          />
+          <View className="ml-2 flex-1">
+            <Text
+              className="text-xs font-rubik-medium"
+              style={{ color: theme.text }}
+            >
+              Nearby amenities could not load
+            </Text>
+            <Text className="mt-0.5 text-[11px]" style={{ color: theme.muted }}>
+              Cached and saved amenities remain available offline.
+            </Text>
+          </View>
+          {savedButton}
         </View>
+
         {onRetry && (
-          <Ionicons name="refresh" size={17} color={theme.primary[300]} />
+          <TouchableOpacity
+            onPress={onRetry}
+            className="mt-3 flex-row items-center justify-center rounded-full py-2.5"
+            style={{ backgroundColor: theme.primary[300] }}
+          >
+            <Ionicons name="refresh" size={16} color="#FFFFFF" />
+            <Text className="ml-1.5 text-xs font-rubik-bold text-white">
+              Refresh amenities
+            </Text>
+          </TouchableOpacity>
         )}
-      </TouchableOpacity>
-    );
-  }
-
-  if (!amenities) return null;
-
-  if (filteredTotal === 0) {
-    return (
-      <View
-        className="flex-row items-center rounded-xl px-3 py-3"
-        style={{ backgroundColor: theme.surface }}
-      >
-        <Ionicons
-          name="information-circle-outline"
-          size={18}
-          color={theme.muted}
-        />
-        <Text className="ml-2 flex-1 text-xs" style={{ color: theme.muted }}>
-          No mapped amenities were found within 2 km of this property.
-        </Text>
       </View>
     );
-  }
-
-  if (compact) {
-    return (
+  } else if (!amenities || filteredTotal === 0) {
+    content = (
+      <View
+        className="rounded-xl border px-3 py-3"
+        style={{
+          backgroundColor: theme.surface,
+          borderColor: `${theme.muted}25`,
+        }}
+      >
+        <View className="flex-row items-center">
+          <Ionicons
+            name="information-circle-outline"
+            size={18}
+            color={theme.muted}
+          />
+          <Text className="ml-2 flex-1 text-xs" style={{ color: theme.muted }}>
+            No mapped amenities were found within 2 km of this property.
+          </Text>
+          {savedButton}
+        </View>
+      </View>
+    );
+  } else if (compact) {
+    content = (
       <View className="flex-row flex-wrap items-center gap-2">
         {categories.slice(0, 5).map((item) => (
           <TouchableOpacity
@@ -344,28 +521,11 @@ export const AmenitiesBadge = ({
             </Text>
           </TouchableOpacity>
         ))}
+        {savedButton}
       </View>
     );
-  }
-
-  const mapHtml =
-    selectedCategory && canOpenMap
-      ? buildPropertyMapHtml({
-          propertyLatitude,
-          propertyLongitude: propertyLongitude!,
-          propertyName,
-          pois: selectedCategory.places,
-          selectedPOIId,
-          route,
-          categoryColor: selectedCategory.color,
-          initialZoom: 14,
-          initialMapType: "hybrid",
-          showMapTypeToggle: true,
-        })
-      : "";
-
-  return (
-    <>
+  } else {
+    content = (
       <View
         className="rounded-2xl border p-4"
         style={{
@@ -374,13 +534,13 @@ export const AmenitiesBadge = ({
         }}
       >
         <View className="mb-3 flex-row items-center justify-between">
-          <View className="flex-row items-center">
+          <View className="mr-3 flex-1 flex-row items-center">
             <Ionicons
               name="navigate-circle-outline"
               size={22}
               color={theme.primary[300]}
             />
-            <View className="ml-2">
+            <View className="ml-2 flex-1">
               <Text
                 className="font-rubik-bold text-base"
                 style={{ color: theme.title }}
@@ -388,20 +548,38 @@ export const AmenitiesBadge = ({
                 Nearby amenities within 2 km
               </Text>
               <Text className="text-[11px]" style={{ color: theme.muted }}>
-                Tap a category to view places and routes
+                Cached locally • tap a category for routes
               </Text>
             </View>
           </View>
-          <View
-            className="rounded-full px-2.5 py-1"
-            style={{ backgroundColor: theme.primary[100] }}
-          >
-            <Text
-              className="text-xs font-rubik-bold"
-              style={{ color: theme.primary[300] }}
+
+          <View className="flex-row items-center gap-2">
+            {savedButton}
+            {onRetry && (
+              <TouchableOpacity
+                onPress={onRetry}
+                className="h-8 w-8 items-center justify-center rounded-full"
+                style={{ backgroundColor: theme.primary[100] }}
+                accessibilityLabel="Refresh nearby amenities"
+              >
+                <Ionicons
+                  name="refresh"
+                  size={15}
+                  color={theme.primary[300]}
+                />
+              </TouchableOpacity>
+            )}
+            <View
+              className="rounded-full px-2.5 py-1"
+              style={{ backgroundColor: theme.primary[100] }}
             >
-              {filteredTotal}
-            </Text>
+              <Text
+                className="text-xs font-rubik-bold"
+                style={{ color: theme.primary[300] }}
+              >
+                {filteredTotal}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -460,31 +638,18 @@ export const AmenitiesBadge = ({
                     {item.label}
                   </Text>
 
-                  <View
-                    className="mt-1 overflow-hidden"
-                    style={{ height: 43 }}
-                  >
-                    {names.length > 0 ? (
-                      names.map((name, index) => (
-                        <Text
-                          key={`${item.key}-${index}-${name}`}
-                          className="text-[11px] leading-4"
-                          style={{ color: theme.muted }}
-                          numberOfLines={1}
-                          ellipsizeMode="tail"
-                        >
-                          • {name}
-                        </Text>
-                      ))
-                    ) : (
+                  <View className="mt-1 overflow-hidden" style={{ height: 43 }}>
+                    {names.map((name, index) => (
                       <Text
-                        className="text-[11px]"
+                        key={`${item.key}-${index}-${name}`}
+                        className="text-[11px] leading-4"
                         style={{ color: theme.muted }}
-                        numberOfLines={2}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
                       >
-                        Mapped places nearby
+                        • {name}
                       </Text>
-                    )}
+                    ))}
 
                     {remaining > 0 && (
                       <Text
@@ -504,7 +669,6 @@ export const AmenitiesBadge = ({
                     <Text
                       className="text-[11px] font-rubik-bold"
                       style={{ color: item.color }}
-                      numberOfLines={1}
                     >
                       View on map
                     </Text>
@@ -527,6 +691,12 @@ export const AmenitiesBadge = ({
           </Text>
         )}
       </View>
+    );
+  }
+
+  return (
+    <>
+      {content}
 
       <Modal
         visible={modalVisible}
@@ -560,9 +730,7 @@ export const AmenitiesBadge = ({
               <>
                 <View
                   className="ml-3 h-10 w-10 items-center justify-center rounded-xl"
-                  style={{
-                    backgroundColor: `${selectedCategory.color}18`,
-                  }}
+                  style={{ backgroundColor: `${selectedCategory.color}18` }}
                 >
                   <Image
                     source={selectedCategory.icon}
@@ -586,6 +754,20 @@ export const AmenitiesBadge = ({
                 </View>
               </>
             )}
+
+            <TouchableOpacity
+              onPress={openSavedFavorites}
+              className="h-10 min-w-[42px] flex-row items-center justify-center rounded-full px-2"
+              style={{ backgroundColor: `${theme.primary[300]}14` }}
+            >
+              <Ionicons name="heart" size={16} color={theme.primary[300]} />
+              <Text
+                className="ml-1 text-xs font-rubik-bold"
+                style={{ color: theme.primary[300] }}
+              >
+                {offlineFavorites.length}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {selectedCategory && canOpenMap && (
@@ -594,35 +776,74 @@ export const AmenitiesBadge = ({
                 className="h-[45%] overflow-hidden border-b"
                 style={{ borderBottomColor: `${theme.muted}25` }}
               >
-                <WebView
-                  key={`${selectedCategory.key}-${selectedPOIId || "all"}-${
-                    route?.coordinates.length || 0
-                  }`}
-                  source={{ html: mapHtml }}
-                  originWhitelist={["*"]}
-                  javaScriptEnabled
-                  domStorageEnabled
-                  onMessage={handleMapMessage}
-                  setSupportMultipleWindows={false}
-                  startInLoadingState
-                  renderLoading={() => (
+                {isOffline ? (
+                  route ? (
                     <View
-                      className="absolute inset-0 items-center justify-center"
+                      className="flex-1 justify-center p-3"
+                      style={{ backgroundColor: theme.background }}
+                    >
+                      <OfflineRoutePreview
+                        route={route}
+                        startLabel={propertyName}
+                        destinationLabel={selectedPOI?.name || "Destination"}
+                      />
+                    </View>
+                  ) : (
+                    <View
+                      className="flex-1 items-center justify-center px-8"
                       style={{ backgroundColor: theme.surface }}
                     >
-                      <ActivityIndicator
-                        size="large"
-                        color={theme.primary[300]}
+                      <Ionicons
+                        name="cloud-offline-outline"
+                        size={40}
+                        color={theme.muted}
                       />
                       <Text
-                        className="mt-2 text-xs"
+                        className="mt-3 text-center text-base font-rubik-bold"
+                        style={{ color: theme.title }}
+                      >
+                        Offline map mode
+                      </Text>
+                      <Text
+                        className="mt-2 text-center text-sm"
                         style={{ color: theme.muted }}
                       >
-                        Loading map...
+                        Tap a place with a previously saved route to display its
+                        route without internet.
                       </Text>
                     </View>
-                  )}
-                />
+                  )
+                ) : (
+                  <WebView
+                    key={`${selectedCategory.key}-${selectedPOIId || "all"}-${
+                      route?.coordinates.length || 0
+                    }`}
+                    source={{ html: mapHtml }}
+                    originWhitelist={["*"]}
+                    javaScriptEnabled
+                    domStorageEnabled
+                    onMessage={handleMapMessage}
+                    setSupportMultipleWindows={false}
+                    startInLoadingState
+                    renderLoading={() => (
+                      <View
+                        className="absolute inset-0 items-center justify-center"
+                        style={{ backgroundColor: theme.surface }}
+                      >
+                        <ActivityIndicator
+                          size="large"
+                          color={theme.primary[300]}
+                        />
+                        <Text
+                          className="mt-2 text-xs"
+                          style={{ color: theme.muted }}
+                        >
+                          Loading map...
+                        </Text>
+                      </View>
+                    )}
+                  />
+                )}
 
                 {routeLoading && (
                   <View className="absolute inset-0 items-center justify-center bg-black/20">
@@ -638,7 +859,9 @@ export const AmenitiesBadge = ({
                         className="ml-2 text-sm font-rubik-medium"
                         style={{ color: theme.text }}
                       >
-                        Finding route...
+                        {isOffline
+                          ? "Checking saved route..."
+                          : "Finding route..."}
                       </Text>
                     </View>
                   </View>
@@ -654,7 +877,7 @@ export const AmenitiesBadge = ({
                       borderBottomColor: `${theme.muted}20`,
                     }}
                   >
-                    <View className="flex-row items-center justify-between">
+                    <View className="flex-row items-center">
                       <View className="mr-3 flex-1">
                         <Text
                           className="font-rubik-bold text-sm"
@@ -669,12 +892,9 @@ export const AmenitiesBadge = ({
                             className="mt-1 text-xs"
                             style={{ color: selectedCategory.color }}
                           >
-                            Driving route: {route.distanceKm?.toFixed(1)} km •{" "}
-                            {Math.max(
-                              1,
-                              Math.round(route.durationMinutes || 0),
-                            )}{" "}
-                            min
+                            Driving route: {route.distanceKm.toFixed(1)} km •{" "}
+                            {Math.max(1, Math.round(route.durationMinutes))} min
+                            {route.source === "cache" ? " • cached" : ""}
                           </Text>
                         ) : routeError ? (
                           <Text
@@ -695,6 +915,31 @@ export const AmenitiesBadge = ({
                       </View>
 
                       <TouchableOpacity
+                        onPress={() => void toggleSavedPOI(selectedPOI)}
+                        disabled={favoriteBusyId === getFavoriteId(selectedPOI)}
+                        className="mr-2 h-10 w-10 items-center justify-center rounded-full"
+                        style={{ backgroundColor: `${selectedCategory.color}15` }}
+                        accessibilityLabel={
+                          selectedFavorite
+                            ? `Remove ${selectedPOI.name} from favorites`
+                            : `Save ${selectedPOI.name} to offline favorites`
+                        }
+                      >
+                        {favoriteBusyId === getFavoriteId(selectedPOI) ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={selectedCategory.color}
+                          />
+                        ) : (
+                          <Ionicons
+                            name={selectedFavorite ? "heart" : "heart-outline"}
+                            size={20}
+                            color={selectedCategory.color}
+                          />
+                        )}
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
                         onPress={() =>
                           void openExternalDirections(
                             propertyLatitude,
@@ -702,21 +947,56 @@ export const AmenitiesBadge = ({
                             selectedPOI,
                           )
                         }
-                        className="flex-row items-center rounded-full px-3 py-2"
-                        style={{
-                          backgroundColor: selectedCategory.color,
-                        }}
+                        className="flex-row items-center rounded-full px-3 py-2.5"
+                        style={{ backgroundColor: selectedCategory.color }}
                       >
-                        <Ionicons
-                          name="navigate"
-                          size={15}
-                          color="#FFFFFF"
-                        />
+                        <Ionicons name="navigate" size={15} color="#FFFFFF" />
                         <Text className="ml-1 text-xs font-rubik-bold text-white">
                           Open
                         </Text>
                       </TouchableOpacity>
                     </View>
+
+                    {route && (
+                      <TouchableOpacity
+                        onPress={() => void saveSelectedRoute()}
+                        disabled={routeSaving || selectedRouteSavedOffline}
+                        className="mt-3 flex-row items-center justify-center rounded-full border py-2.5"
+                        style={{
+                          backgroundColor: selectedRouteSavedOffline
+                            ? `${theme.primary[300]}12`
+                            : theme.surface,
+                          borderColor: selectedRouteSavedOffline
+                            ? theme.primary[300]
+                            : `${theme.muted}30`,
+                        }}
+                      >
+                        {routeSaving ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={theme.primary[300]}
+                          />
+                        ) : (
+                          <Ionicons
+                            name={
+                              selectedRouteSavedOffline
+                                ? "cloud-done-outline"
+                                : "cloud-download-outline"
+                            }
+                            size={17}
+                            color={theme.primary[300]}
+                          />
+                        )}
+                        <Text
+                          className="ml-2 text-xs font-rubik-bold"
+                          style={{ color: theme.primary[300] }}
+                        >
+                          {selectedRouteSavedOffline
+                            ? "Route saved for offline use"
+                            : "Save route offline"}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
 
@@ -729,18 +1009,20 @@ export const AmenitiesBadge = ({
                     className="mb-2 text-xs font-rubik-medium"
                     style={{ color: theme.muted }}
                   >
-                    Tap a place to draw a driving route from the property.
+                    Tap a place to draw a driving route. Heart buttons save full
+                    POI details for offline use.
                   </Text>
 
                   {selectedCategory.places.map((poi, index) => {
                     const selected = poi.id === selectedPOIId;
+                    const favorite = getFavorite(poi);
+                    const favoriteId = getFavoriteId(poi);
+                    const favoriteBusy = favoriteBusyId === favoriteId;
 
                     return (
-                      <TouchableOpacity
+                      <View
                         key={poi.id}
-                        onPress={() => void selectPOI(poi)}
-                        activeOpacity={0.76}
-                        className="mb-2 flex-row items-center rounded-2xl border p-3"
+                        className="mb-2 flex-row overflow-hidden rounded-2xl border"
                         style={{
                           backgroundColor: selected
                             ? `${selectedCategory.color}12`
@@ -750,53 +1032,89 @@ export const AmenitiesBadge = ({
                             : `${theme.muted}25`,
                         }}
                       >
-                        <View
-                          className="h-9 w-9 items-center justify-center rounded-full"
-                          style={{
-                            backgroundColor: selectedCategory.color,
-                          }}
+                        <TouchableOpacity
+                          onPress={() => void selectPOI(poi)}
+                          activeOpacity={0.76}
+                          className="flex-1 flex-row items-center p-3"
                         >
-                          <Text className="text-xs font-rubik-bold text-white">
-                            {index + 1}
-                          </Text>
-                        </View>
+                          <View
+                            className="h-9 w-9 items-center justify-center rounded-full"
+                            style={{ backgroundColor: selectedCategory.color }}
+                          >
+                            <Text className="text-xs font-rubik-bold text-white">
+                              {index + 1}
+                            </Text>
+                          </View>
 
-                        <View className="ml-3 flex-1">
-                          <Text
-                            className="text-sm font-rubik-bold"
-                            style={{ color: theme.title }}
-                            numberOfLines={1}
-                          >
-                            {poi.name}
-                          </Text>
-                          <Text
-                            className="mt-0.5 text-xs"
-                            style={{ color: theme.muted }}
-                            numberOfLines={1}
-                          >
-                            {poi.address ||
-                              `${poi.distanceKm.toFixed(1)} km from property`}
-                          </Text>
-                        </View>
+                          <View className="ml-3 flex-1">
+                            <Text
+                              className="text-sm font-rubik-bold"
+                              style={{ color: theme.title }}
+                              numberOfLines={1}
+                            >
+                              {poi.name}
+                            </Text>
+                            <Text
+                              className="mt-0.5 text-xs"
+                              style={{ color: theme.muted }}
+                              numberOfLines={1}
+                            >
+                              {poi.address ||
+                                `${poi.distanceKm.toFixed(1)} km from property`}
+                            </Text>
+                            {favorite?.route && (
+                              <Text
+                                className="mt-0.5 text-[10px] font-rubik-medium"
+                                style={{ color: theme.primary[300] }}
+                              >
+                                Offline route saved
+                              </Text>
+                            )}
+                          </View>
 
-                        <View className="ml-2 items-end">
-                          <Text
-                            className="text-xs font-rubik-bold"
-                            style={{ color: selectedCategory.color }}
-                          >
-                            {poi.distanceKm.toFixed(1)} km
-                          </Text>
-                          <Ionicons
-                            name={
-                              selected
-                                ? "navigate-circle"
-                                : "navigate-circle-outline"
-                            }
-                            size={20}
-                            color={selectedCategory.color}
-                          />
-                        </View>
-                      </TouchableOpacity>
+                          <View className="ml-2 items-end">
+                            <Text
+                              className="text-xs font-rubik-bold"
+                              style={{ color: selectedCategory.color }}
+                            >
+                              {poi.distanceKm.toFixed(1)} km
+                            </Text>
+                            <Ionicons
+                              name={
+                                selected
+                                  ? "navigate-circle"
+                                  : "navigate-circle-outline"
+                              }
+                              size={20}
+                              color={selectedCategory.color}
+                            />
+                          </View>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => void toggleSavedPOI(poi)}
+                          disabled={favoriteBusy}
+                          className="w-12 items-center justify-center"
+                          accessibilityLabel={
+                            favorite
+                              ? `Remove ${poi.name} from favorites`
+                              : `Save ${poi.name} to offline favorites`
+                          }
+                        >
+                          {favoriteBusy ? (
+                            <ActivityIndicator
+                              size="small"
+                              color={selectedCategory.color}
+                            />
+                          ) : (
+                            <Ionicons
+                              name={favorite ? "heart" : "heart-outline"}
+                              size={21}
+                              color={selectedCategory.color}
+                            />
+                          )}
+                        </TouchableOpacity>
+                      </View>
                     );
                   })}
                 </ScrollView>
@@ -805,6 +1123,13 @@ export const AmenitiesBadge = ({
           )}
         </SafeAreaView>
       </Modal>
+
+      <OfflinePOIFavoritesModal
+        visible={savedModalVisible}
+        favorites={offlineFavorites}
+        onClose={() => setSavedModalVisible(false)}
+        onRemove={removePOIFavorite}
+      />
     </>
   );
 };

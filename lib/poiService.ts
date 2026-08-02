@@ -103,7 +103,6 @@ const CATEGORY_BY_ID = new Map<POICategoryId, POICategory>(
 const ALL_CATEGORY_IDS = POI_CATEGORIES.map((category) => category.id);
 
 const CACHE_PREFIX = "@nookly:poi:v4:";
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const ENDPOINT_COOLDOWN_MS = 60 * 1000;
 const RATE_LIMIT_COOLDOWN_MS = 2 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 22_000;
@@ -578,10 +577,14 @@ export const getPOIs = async (
   const categories = normalizeCategoryIds(categoryIds);
   const cacheKey = getCacheKey(latitude, longitude, radius, categories);
   const cached = await readCache(cacheKey);
-  const cacheIsFresh =
-    cached !== null && Date.now() - cached.savedAt < CACHE_TTL_MS;
 
-  if (!forceRefresh && cacheIsFresh) return cached.pois;
+  // Cache-first by design: once a location has been loaded, reuse the
+  // persisted result on every normal screen visit. A network request is only
+  // made when there is no cache or when the user explicitly refreshes.
+  if (!forceRefresh && cached) {
+    console.log(`📦 Nearby amenities loaded from cache: ${cached.pois.length}`);
+    return cached.pois;
+  }
 
   const existingRequest = inFlightRequests.get(cacheKey);
   if (existingRequest) return existingRequest;
