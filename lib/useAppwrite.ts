@@ -243,7 +243,6 @@ export const useAppwrite = <
   const isMounted = useRef(true);
   const paramsRef = useRef(params);
   const fnRef = useRef(fn);
-  const dataRef = useRef<T | null>(null);
   const changeRefreshTimerRef =
     useRef<ReturnType<typeof setTimeout> | null>(
       null,
@@ -266,6 +265,24 @@ export const useAppwrite = <
     return `${fnName}_${paramsSignature}`;
   }, [cacheKey, fn.name, paramsSignature]);
 
+  const memoryKey = useMemo(
+    () => `${namespace}:${logicalKey}`,
+    [logicalKey, namespace],
+  );
+
+  const initialMemoryEntry = useMemo(
+    () =>
+      memoryCache.get(memoryKey) as
+        | MemoryCacheEntry<T>
+        | undefined,
+    [memoryKey],
+  );
+
+  const dataRef = useRef<T | null>(
+    initialMemoryEntry?.data ?? null,
+  );
+  const activeMemoryKeyRef = useRef(memoryKey);
+
   const inferredCollections = useMemo(
     () => inferWatchedCollections(fn, cacheKey),
     [cacheKey, fn],
@@ -283,16 +300,49 @@ export const useAppwrite = <
   const watchedCollectionsKey =
     watchedCollections.join("|");
 
-  const [data, setData] =
-    useState<T | null>(null);
+  const [data, setData] = useState<T | null>(
+    () => initialMemoryEntry?.data ?? null,
+  );
   const [loading, setLoading] =
-    useState<boolean>(!skip);
+    useState<boolean>(
+      () => !skip && initialMemoryEntry === undefined,
+    );
   const [error, setError] =
     useState<string | null>(null);
   const [isOffline, setIsOffline] =
     useState(false);
   const [fromCache, setFromCache] =
-    useState(false);
+    useState<boolean>(
+      () => initialMemoryEntry !== undefined,
+    );
+
+  // When the namespace or query key changes, immediately switch to any
+  // matching in-memory result before the asynchronous cache/network work.
+  useEffect(() => {
+    if (activeMemoryKeyRef.current === memoryKey) {
+      return;
+    }
+
+    activeMemoryKeyRef.current = memoryKey;
+
+    const nextMemoryEntry = memoryCache.get(
+      memoryKey,
+    ) as MemoryCacheEntry<T> | undefined;
+
+    if (nextMemoryEntry) {
+      dataRef.current = nextMemoryEntry.data;
+      setData(nextMemoryEntry.data);
+      setFromCache(true);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    dataRef.current = null;
+    setData(null);
+    setFromCache(false);
+    setLoading(!skip);
+  }, [memoryKey, skip]);
 
   const safelySetData = useCallback(
     (nextData: T, cached: boolean) => {
