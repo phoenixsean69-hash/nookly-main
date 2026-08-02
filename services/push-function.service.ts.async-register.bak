@@ -1,4 +1,4 @@
-﻿import {
+import {
   Client,
   ExecutionMethod,
   Functions,
@@ -65,13 +65,6 @@ export interface RegisterDeviceResult {
   tokenRowId: string;
   isActive: boolean;
   duplicatesDeactivated?: number;
-}
-
-export interface QueuedPushExecutionResult {
-  queued: true;
-  executionId: string;
-  status: string;
-  route: string;
 }
 
 export interface DeactivateDeviceResult {
@@ -185,29 +178,11 @@ class PushFunctionService {
   async registerDevice(
     token: string,
     deviceType: string,
-  ): Promise<QueuedPushExecutionResult> {
-    const route = "/register-device";
-
-    const execution = await getFunctions().createExecution({
-      functionId: requireFunctionId(),
-      body: JSON.stringify({
-        token,
-        deviceType,
-      }),
-      async: true,
-      xpath: route,
-      method: ExecutionMethod.POST,
-      headers: {
-        "content-type": "application/json",
-      },
+  ): Promise<RegisterDeviceResult> {
+    return executePushRoute<RegisterDeviceResult>("/register-device", {
+      token,
+      deviceType,
     });
-
-    return {
-      queued: true,
-      executionId: execution.$id,
-      status: String(execution.status ?? "waiting"),
-      route,
-    };
   }
 
   async deactivateDevice(
@@ -249,4 +224,3 @@ class PushFunctionService {
 const pushFunctionService = new PushFunctionService();
 
 export default pushFunctionService;
-

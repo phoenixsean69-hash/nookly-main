@@ -5,7 +5,6 @@ import QuickTips from "@/components/QuickTips";
 import SearchModal from "@/components/SearchModal";
 import {
   cleanupOldAppwriteNotifications,
-  config,
   getAvailableProperties,
   getBestProperties,
 } from "@/lib/appwrite";
@@ -44,9 +43,6 @@ import { useNotificationStore } from "@/store/notification.store";
 import { getSavedAvatar } from "@/utils/avatarStorage";
 
 const STALE_TIME = 5 * 60 * 1000;
-const FEATURED_PROPERTIES_CACHE_KEY = "featured_properties_ranked_6";
-
-const loadFeaturedProperties = async () => getBestProperties(6);
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -176,6 +172,8 @@ const HomeHeader = React.memo(
 
 const Home = () => {
   const { user } = useAuthStore();
+  const [featuredProperties, setFeaturedProperties] = useState<any[]>([]);
+  const [loadingFeatured, setLoadingFeatured] = useState(true);
   const [loadingAvatar, setLoadingAvatar] = useState(true);
   const [featuredModalVisible, setFeaturedModalVisible] = useState(false);
   const [greeting, setGreeting] = useState(getGreeting());
@@ -194,6 +192,7 @@ const Home = () => {
   const userId = user?.accountId;
 
   const lastNotificationsFetch = useRef(0);
+  const lastFeaturedFetch = useRef(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -238,19 +237,30 @@ const Home = () => {
     };
   }, []);
 
-  const {
-    data: featuredPropertyData,
-    loading: featuredPropertiesLoading,
-  } = useAppwrite({
-    fn: loadFeaturedProperties,
-    params: {},
-    cacheKey: FEATURED_PROPERTIES_CACHE_KEY,
-    watchCollections: [config.propertiesCollectionId],
-  });
+  const fetchBestProperties = useCallback(async () => {
+    const now = Date.now();
+    if (
+      now - lastFeaturedFetch.current < STALE_TIME &&
+      featuredProperties.length > 0
+    ) {
+      setLoadingFeatured(false);
+      return;
+    }
+    try {
+      setLoadingFeatured(true);
+      const best = await getBestProperties(6);
+      setFeaturedProperties(best);
+      lastFeaturedFetch.current = now;
+    } catch {
+      setFeaturedProperties([]);
+    } finally {
+      setLoadingFeatured(false);
+    }
+  }, []);
 
-  const featuredProperties = featuredPropertyData ?? [];
-  const loadingFeatured =
-    featuredPropertiesLoading && featuredPropertyData === null;
+  useEffect(() => {
+    fetchBestProperties();
+  }, [fetchBestProperties]);
 
   const { data: properties, loading } = useAppwrite({
     fn: getAvailableProperties,
@@ -399,5 +409,4 @@ const Home = () => {
 };
 
 export default Home;
-
 

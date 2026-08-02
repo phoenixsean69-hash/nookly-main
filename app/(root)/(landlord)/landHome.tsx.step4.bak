@@ -1,4 +1,4 @@
-﻿// app/(root)/landHome.tsx
+// app/(root)/landHome.tsx
 import FeaturedModal from "@/components/FeaturedModal";
 import SearchModal from "@/components/SearchModal";
 import { useFocusEffect } from "@react-navigation/native";
@@ -22,7 +22,6 @@ import { Card, FeaturedCard } from "@/components/Cards";
 import { Colors } from "@/constants/Colors";
 import icons from "@/constants/icons";
 import {
-  config,
   getAvailableProperties,
   getBestProperties,
   getLatestProperties,
@@ -32,10 +31,7 @@ import useAuthStore from "@/store/auth.store";
 import { useNotificationStore } from "@/store/notification.store";
 import { getSavedAvatar } from "@/utils/avatarStorage";
 
-const STALE_TIME = 5 * 60 * 1000; // Notification badge only
-const FEATURED_PROPERTIES_CACHE_KEY = "featured_properties_ranked_6";
-
-const loadFeaturedProperties = async () => getBestProperties(6);
+const STALE_TIME = 5 * 60 * 1000; // 5 minutes
 
 const getGreeting = () => {
   const hour = new Date().getHours();
@@ -60,6 +56,8 @@ export default function LandLordHome() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
   const [featuredModalVisible, setFeaturedModalVisible] = useState(false);
+  const [featuredProperties, setFeaturedProperties] = useState<any[]>([]);
+  const [loadingFeatured, setLoadingFeatured] = useState(true);
 
   const params = useLocalSearchParams<{ filter?: string; refresh?: string }>();
   const colorScheme = useColorScheme();
@@ -70,8 +68,9 @@ export default function LandLordHome() {
     useNotificationStore();
   const userId = user?.accountId;
 
-  // Notification badge timestamp only
+  // Track last fetch times to prevent spam
   const lastNotificationsFetch = useRef<number>(0);
+  const lastFeaturedFetch = useRef<number>(0);
   const backPressCountRef = useRef(0);
 
   useFocusEffect(
@@ -94,7 +93,7 @@ export default function LandLordHome() {
 
       // Only refresh notifications if stale > 5 min or first load
       if (userId && now - lastNotificationsFetch.current > STALE_TIME) {
-        console.log("ðŸ”„ Refreshing notification badge...");
+        console.log("🔄 Refreshing notification badge...");
         loadNotifications(userId);
         fetchAppwriteUnreadCount(userId);
         lastNotificationsFetch.current = now;
@@ -102,7 +101,7 @@ export default function LandLordHome() {
 
       // Only refetch properties if explicitly requested via params
       if (params.refresh === "true" && user?.accountId) {
-        console.log("ðŸ”„ Refreshing properties after adding new listing...");
+        console.log("🔄 Refreshing properties after adding new listing...");
         Promise.all([
           refetchLatest(),
           refetchMyProperties({
@@ -113,10 +112,10 @@ export default function LandLordHome() {
           }),
         ])
           .then(() => {
-            console.log("âœ… Properties refreshed successfully");
+            console.log("✅ Properties refreshed successfully");
           })
           .catch((error) => {
-            console.error("âŒ Error refreshing properties:", error);
+            console.error("❌ Error refreshing properties:", error);
           });
 
         // Clear the refresh param to prevent repeated refreshes
@@ -154,21 +153,6 @@ export default function LandLordHome() {
       return allLatest.filter((p) => p.isAvailable === true);
     },
   });
-
-  const {
-    data: featuredPropertyData,
-    loading: featuredPropertiesLoading,
-    refetch: refetchFeaturedProperties,
-  } = useAppwrite({
-    fn: loadFeaturedProperties,
-    params: {},
-    cacheKey: FEATURED_PROPERTIES_CACHE_KEY,
-    watchCollections: [config.propertiesCollectionId],
-  });
-
-  const featuredProperties = (featuredPropertyData ?? []).slice(0, 5);
-  const loadingFeatured =
-    featuredPropertiesLoading && featuredPropertyData === null;
 
   // Get landlord's own properties
   const {
@@ -215,14 +199,15 @@ export default function LandLordHome() {
             limit: 20,
             creatorId: user?.accountId,
           }),
-          refetchFeaturedProperties(),
+          fetchBestProperties(true), // force refresh featured
           loadNotifications(user.accountId),
           fetchAppwriteUnreadCount(user.accountId),
         ]);
         lastNotificationsFetch.current = now;
-        console.log("âœ… Manual refresh completed");
+        lastFeaturedFetch.current = now;
+        console.log("✅ Manual refresh completed");
       } catch (error) {
-        console.error("âŒ Error during manual refresh:", error);
+        console.error("❌ Error during manual refresh:", error);
       }
     }
     setRefreshing(false);
@@ -243,6 +228,33 @@ export default function LandLordHome() {
 
   const isLoading = loadingMyProperties && !myProperties;
 
+  // Fetch best properties with stale check
+  const fetchBestProperties = async (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastFeaturedFetch.current < STALE_TIME) {
+      console.log("⏭️ Skipping featured fetch - data fresh");
+      setLoadingFeatured(false);
+      return;
+    }
+
+    try {
+      setLoadingFeatured(true);
+      const best = await getBestProperties(5);
+      setFeaturedProperties(best);
+      lastFeaturedFetch.current = now;
+    } catch (error) {
+      console.error("Error fetching best properties:", error);
+      const allLatest = await getLatestProperties();
+      const filtered = allLatest.filter((p) => p.isAvailable === true);
+      setFeaturedProperties(filtered.slice(0, 5));
+    } finally {
+      setLoadingFeatured(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBestProperties();
+  }, []);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
@@ -583,4 +595,3 @@ export default function LandLordHome() {
     </SafeAreaView>
   );
 }
-

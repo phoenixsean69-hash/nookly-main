@@ -1,42 +1,43 @@
-NOOKLY APPWRITE OPTIMISATION — STEP 3
+NOOKLY PUSH REGISTRATION — ASYNC EXECUTION FIX
 
 RUN FROM THE PROJECT ROOT:
 
-powershell -ExecutionPolicy Bypass -File .\apply-step-3.ps1
+powershell -ExecutionPolicy Bypass -File .\apply-push-registration-async-fix.ps1
 
-THE SCRIPT UPDATES:
-- app/(root)/(tabs)/tenantHome.tsx
-- app/(root)/(tabs)/explore.tsx
+UPDATED:
+- services/push-function.service.ts
+- app/_layout.tsx
 
-IT CREATES BACKUPS:
-- tenantHome.tsx.step3.bak
-- explore.tsx.step3.bak
+BACKUPS:
+- services/push-function.service.ts.async-register.bak
+- app/_layout.tsx.async-register.bak
 
-CHANGES
+WHY THE ERROR OCCURRED
 
-TENANT HOME
-- Removes the forced second property request after a filter/cache-key change.
-- useAppwrite now loads the matching persistent cache automatically.
-- A database request occurs only when that query has no cache or the watched
-  properties collection changed.
+The mobile service invoked /register-device using:
 
-EXPLORE
-- Removes the forced request that ran on the initial mount.
-- Removes the forced request that ran after every filter change.
-- Removes the separate lightweight map-pin query.
-- Uses the already-loaded full map property data for the map count.
-- Keeps the full map fallback load when map data genuinely does not exist.
+async: false
 
-EXPECTED CALL REDUCTION
-- Tenant filter change: from as many as 2 property requests to at most 1.
-- Explore initial load: removes the second forced filtered-properties request.
-- Explore filter change: from as many as 2 requests to at most 1.
-- Explore map data: removes one complete Appwrite property query.
+That makes Appwrite wait for the function to finish. Synchronous function
+executions have a hard 30-second limit. Registration may take longer while
+the function starts, searches existing token rows, updates the primary row
+and deactivates duplicate rows.
 
-PUSH NOTIFICATIONS
-- No push registration, token, notification API, function or navigation file
-  is changed.
+WHAT CHANGES
 
-AFTER THE SCRIPT FINISHES:
+- /register-device is submitted with async: true.
+- Appwrite immediately queues the registration execution.
+- The mobile app stores the Expo token after Appwrite accepts the job.
+- The mobile app no longer waits for token cleanup and row updates.
+- The execution ID and initial queue status are logged for diagnosis.
+- The backend function code does not need to be redeployed.
+- /test and notification-producing routes remain synchronous for now.
+
+EXPECTED LOG
+
+✅ Push device registration queued through Nookly Push API
+   (<execution ID>, waiting)
+
+AFTER APPLYING:
 
 npx tsc --noEmit
