@@ -17,9 +17,9 @@ const OrganizationApprovedBadge = ({
         isMedium ? "px-3 py-2" : "px-2 py-1"
       }`}
       style={{
-        backgroundColor: "#DCFCE7",
+        backgroundColor: "#FFF",
         borderWidth: 1,
-        borderColor: "#86EFAC",
+        borderColor: "#DA9100",
       }}
       accessibilityRole="text"
       accessibilityLabel="Organization approved boarding house"
@@ -27,17 +27,17 @@ const OrganizationApprovedBadge = ({
       <Ionicons
         name="shield-checkmark"
         size={isMedium ? 17 : 13}
-        color="#15803D"
+        color="#DA9100"
       />
 
       <Text
         className={`ml-1 font-rubik-bold ${
           isMedium ? "text-sm" : "text-[10px]"
         }`}
-        style={{ color: "#15803D" }}
+        style={{ color: "#DA9100" }}
         numberOfLines={1}
       >
-        Organization approved
+        B.U.S.E approved
       </Text>
     </View>
   );

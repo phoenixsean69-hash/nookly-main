@@ -43,7 +43,7 @@ export const getOrCreateTenantProfile = async (
         onTimePayments: 0,
         totalPayments: 0,
         paymentReliability: 0,
-        previousLandlords: [],
+        previousLandlords: JSON.stringify([]),
         totalRentalMonths: 0,
         screeningStatus: "none",
       },

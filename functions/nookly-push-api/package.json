@@ -1,0 +1,9 @@
+{
+  "name": "nookly-push-api",
+  "version": "1.0.4",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "node-appwrite": "^24.0.0"
+  }
+}

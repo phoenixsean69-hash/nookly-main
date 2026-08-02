@@ -8,6 +8,7 @@ import type {
   TenantType,
 } from "@/lib/userMode";
 import notificationService from "@/services/notification.service";
+import pushFunctionService from "@/services/push-function.service";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { File as ExpoFile } from "expo-file-system";
@@ -1898,14 +1899,6 @@ export async function toggleLike(propertyId: string, userId: string) {
   try {
     console.log("🔄 Toggling like:", { propertyId, userId });
 
-    // Get current user
-    let currentUser = null;
-    try {
-      currentUser = await account.get();
-    } catch (error) {
-      console.log("Could not get current user for notification");
-    }
-
     // Get current likes from local storage
     const getLocalLikes = async (userId: string): Promise<string[]> => {
       const key = `${LIKES_GIVEN_KEY}_${userId}`;
@@ -1990,58 +1983,34 @@ export async function toggleLike(propertyId: string, userId: string) {
 
       await trackLikeActivity(propertyId, userId, "liked");
 
-      // Send notification to property owner
-      if (property.creatorId && currentUser) {
-        console.log("📧 Sending notification to:", property.creatorId);
-        console.log("Property name:", property.propertyName);
-        console.log("Liker name:", currentUser.name);
+      // Securely create the in-app notification and send the push through
+      // the centralized Appwrite Function. The Function verifies that the
+      // authenticated user really created this like and resolves the owner
+      // from properties.creatorId.
+      try {
+        const notificationResult =
+          await pushFunctionService.notifyPropertyLike(propertyId);
 
-        try {
-          // Create notification in database
-          // In toggleLike function, when sending notification:
-          const notificationResult = await createNotification(
-            property.creatorId, // This should be the landlord's $id from users collection
-            "New Like! ❤️",
-            `${currentUser.name || "Someone"} liked your property "${property.propertyName || "Property"}"`,
-            "like",
-            {
-              propertyId: property.$id,
-              propertyName: property.propertyName,
-              likerId: userId,
-              likerName: currentUser.name,
-              likeCount: newLikeCount,
-            },
-          );
-
-          console.log("✅ Notification created:", notificationResult);
-        } catch (notificationError) {
-          console.error("❌ Failed to create notification:", notificationError);
+        if (notificationResult.skipped) {
+          console.log("ℹ️ Property-like notification skipped:", {
+            reason: notificationResult.reason,
+            duplicate: notificationResult.duplicate,
+          });
+        } else {
+          console.log("✅ Property-like notification processed:", {
+            notificationRowId: notificationResult.notificationRowId,
+            recipientUserId: notificationResult.recipientUserId,
+            acceptedPushes: notificationResult.push?.accepted ?? 0,
+            failedPushes: notificationResult.push?.failed ?? 0,
+          });
         }
-
-        try {
-          await notificationService.sendNotificationToUser(
-            property.creatorId,
-            "Someone liked your property!",
-            `${currentUser.name || "Someone"} liked "${property.propertyName}"`,
-            {
-              type: "like",
-              propertyId: property.$id,
-              screen: `/properties/${property.$id}`,
-            },
-          );
-          console.log("✅ Push notification sent to landlord about like");
-        } catch (pushError) {
-          console.error(
-            "Failed to send push notification for like:",
-            pushError,
-          );
-        }
-      } else {
-        console.log("⚠️ Skipping notification - conditions not met:", {
-          hasCreatorId: !!property.creatorId,
-          isSelfLike: property.creatorId === userId,
-          hasCurrentUser: !!currentUser,
-        });
+      } catch (notificationError) {
+        // The like itself must remain successful even if notification delivery
+        // is temporarily unavailable.
+        console.error(
+          "❌ Failed to process property-like notification:",
+          notificationError,
+        );
       }
 
       return { liked: true, likeCount: newLikeCount };

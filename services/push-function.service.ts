@@ -1,14 +1,57 @@
-import { client } from "@/lib/appwrite";
 import {
+  Client,
   ExecutionMethod,
   Functions,
   type Models,
 } from "react-native-appwrite";
 
+const APPWRITE_ENDPOINT =
+  process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT?.trim();
+
+const APPWRITE_PROJECT_ID =
+  process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID?.trim();
+
+const APPWRITE_PLATFORM = "com.shon1123.Nookly";
+
 const PUSH_FUNCTION_ID =
   process.env.EXPO_PUBLIC_APPWRITE_PUSH_FUNCTION_ID?.trim();
 
-const functions = new Functions(client);
+/**
+ * This service intentionally creates its own Appwrite client.
+ *
+ * The shared client must not be imported here because lib/appwrite.ts imports
+ * this service for property-like notifications. Doing so would create a
+ * circular dependency and leave the Functions service without a valid client
+ * during app startup.
+ */
+function createPushClient(): Client {
+  if (!APPWRITE_ENDPOINT) {
+    throw new Error(
+      "Missing EXPO_PUBLIC_APPWRITE_ENDPOINT in the environment.",
+    );
+  }
+
+  if (!APPWRITE_PROJECT_ID) {
+    throw new Error(
+      "Missing EXPO_PUBLIC_APPWRITE_PROJECT_ID in the environment.",
+    );
+  }
+
+  return new Client()
+    .setEndpoint(APPWRITE_ENDPOINT)
+    .setProject(APPWRITE_PROJECT_ID)
+    .setPlatform(APPWRITE_PLATFORM);
+}
+
+let functionsInstance: Functions | null = null;
+
+function getFunctions(): Functions {
+  if (!functionsInstance) {
+    functionsInstance = new Functions(createPushClient());
+  }
+
+  return functionsInstance;
+}
 
 interface FunctionResponse<T> {
   ok: boolean;
@@ -21,6 +64,7 @@ export interface RegisterDeviceResult {
   created: boolean;
   tokenRowId: string;
   isActive: boolean;
+  duplicatesDeactivated?: number;
 }
 
 export interface DeactivateDeviceResult {
@@ -52,6 +96,17 @@ export interface PushTicketSummary {
     };
   }>;
   message?: string;
+}
+
+export interface PropertyLikeNotificationResult {
+  skipped: boolean;
+  duplicate?: boolean;
+  reason?: string;
+  notificationCreated?: boolean;
+  notificationRowId?: string;
+  recipientUserId: string;
+  propertyId: string;
+  push?: PushTicketSummary;
 }
 
 function requireFunctionId(): string {
@@ -90,7 +145,7 @@ async function executePushRoute<T>(
   path: string,
   body: Record<string, unknown> = {},
 ): Promise<T> {
-  const execution = await functions.createExecution({
+  const execution = await getFunctions().createExecution({
     functionId: requireFunctionId(),
     body: JSON.stringify(body),
     async: false,
@@ -146,6 +201,22 @@ class PushFunctionService {
         type: "alert",
         source: "nookly-mobile",
       },
+    });
+  }
+
+  async notifyPropertyLike(
+    propertyId: string,
+  ): Promise<PropertyLikeNotificationResult> {
+    const normalizedPropertyId = propertyId.trim();
+
+    if (!normalizedPropertyId) {
+      throw new Error(
+        "A property ID is required to send a property-like notification.",
+      );
+    }
+
+    return executePushRoute<PropertyLikeNotificationResult>("/property-like", {
+      propertyId: normalizedPropertyId,
     });
   }
 }
