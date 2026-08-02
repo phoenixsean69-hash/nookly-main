@@ -95,33 +95,6 @@ export default function LandlordRequests() {
   const theme = Colors[colorScheme ?? "light"];
   const isLandlord = user?.userMode === "landlord";
 
-  const parseRequestPrice = (value: unknown): number | undefined => {
-    if (typeof value === "number") {
-      return Number.isFinite(value) ? value : undefined;
-    }
-
-    if (typeof value !== "string") {
-      return undefined;
-    }
-
-    const normalized = value.replace(/[^0-9.-]/g, "").trim();
-
-    if (!normalized) {
-      return undefined;
-    }
-
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : undefined;
-  };
-
-  const formatMonthlyPrice = (value: unknown): string => {
-    const price = parseRequestPrice(value);
-
-    return price === undefined
-      ? "Price unavailable"
-      : `${price.toLocaleString()}/month`;
-  };
-
   // Fetch ALL requests for landlord's properties
   const fetchRequests = async () => {
     if (!user?.accountId) return;
@@ -138,14 +111,7 @@ export default function LandlordRequests() {
 
       const propertyIds = properties.documents.map((p) => p.$id);
 
-      
-      const propertiesById = new Map(
-        properties.documents.map((propertyDocument) => [
-          String(propertyDocument.$id),
-          propertyDocument,
-        ]),
-      );
-if (propertyIds.length === 0) {
+      if (propertyIds.length === 0) {
         setRequests([]);
         return;
       }
@@ -215,22 +181,6 @@ if (propertyIds.length === 0) {
             console.error("Error fetching tenant profile:", error);
           }
 
-          const propertyDocument = propertiesById.get(
-            String(doc.propertyId || ""),
-          );
-
-          const propertyPrice = parseRequestPrice(
-            propertyDocument?.price,
-          );
-
-          const originalPrice =
-            parseRequestPrice(doc.originalPrice) ??
-            propertyPrice;
-
-          const proposedPrice =
-            parseRequestPrice(doc.proposedPrice) ??
-            originalPrice;
-
           return {
             $id: doc.$id,
             propertyId: doc.propertyId,
@@ -246,8 +196,8 @@ if (propertyIds.length === 0) {
             status: doc.status,
             createdAt: doc.$createdAt,
             // Enhanced fields
-            proposedPrice,
-            originalPrice,
+            proposedPrice: doc.proposedPrice,
+            originalPrice: doc.originalPrice,
             message: doc.message,
             moveInDate: doc.moveInDate,
             leaseDuration: doc.leaseDuration,
@@ -904,8 +854,7 @@ if (propertyIds.length === 0) {
 
     const statusColor = getStatusColor(selectedRequest.status);
     const hasNegotiatedPrice =
-      selectedRequest.proposedPrice !== undefined &&
-      selectedRequest.originalPrice !== undefined &&
+      selectedRequest.proposedPrice &&
       selectedRequest.proposedPrice !== selectedRequest.originalPrice;
 
     return (
@@ -1219,7 +1168,7 @@ if (propertyIds.length === 0) {
                     Original Price
                   </Text>
                   <Text className="text-base" style={{ color: theme.muted }}>
-                    {formatMonthlyPrice(selectedRequest.originalPrice)}
+                    ${selectedRequest.originalPrice}/month
                   </Text>
                 </View>
                 <View className="flex-1">
@@ -1239,10 +1188,10 @@ if (propertyIds.length === 0) {
                         : theme.text,
                     }}
                   >
-                    {formatMonthlyPrice(
-                      selectedRequest.proposedPrice ??
-                        selectedRequest.originalPrice,
-                    )}
+                    $
+                    {selectedRequest.proposedPrice ||
+                      selectedRequest.originalPrice}
+                    /month
                   </Text>
                   {hasNegotiatedPrice && (
                     <Text className="text-xs text-green-600 mt-1">
@@ -1579,9 +1528,7 @@ if (propertyIds.length === 0) {
           renderItem={({ item }) => {
             const statusColor = getStatusColor(item.status);
             const hasNegotiatedPrice =
-              item.proposedPrice !== undefined &&
-              item.originalPrice !== undefined &&
-              item.proposedPrice !== item.originalPrice;
+              item.proposedPrice && item.proposedPrice !== item.originalPrice;
 
             return (
               <TouchableOpacity
@@ -1705,9 +1652,7 @@ if (propertyIds.length === 0) {
                             : theme.text,
                         }}
                       >
-                        {formatMonthlyPrice(
-                          item.proposedPrice ?? item.originalPrice,
-                        )}
+                        ${item.proposedPrice || item.originalPrice}/month
                         {hasNegotiatedPrice && (
                           <Text className="text-xs text-green-600 ml-1">
                             (Negotiating from ${item.originalPrice})

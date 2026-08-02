@@ -153,7 +153,7 @@ export default function RootLayout() {
         await AsyncStorage.setItem(EXPO_PUSH_TOKEN_STORAGE_KEY, token);
 
         console.log(
-          `✅ Push device registration queued through Nookly Push API (${result.executionId}, ${result.status})`,
+          `âœ… Push device registration queued through Nookly Push API (${result.executionId}, ${result.status})`,
         );
       } catch (error) {
         console.error("Push registration error:", error);

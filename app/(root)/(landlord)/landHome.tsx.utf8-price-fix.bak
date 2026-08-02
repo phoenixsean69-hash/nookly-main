@@ -94,7 +94,7 @@ export default function LandLordHome() {
 
       // Only refresh notifications if stale > 5 min or first load
       if (userId && now - lastNotificationsFetch.current > STALE_TIME) {
-        console.log("🔄 Refreshing notification badge...");
+        console.log("ðŸ”„ Refreshing notification badge...");
         loadNotifications(userId);
         fetchAppwriteUnreadCount(userId);
         lastNotificationsFetch.current = now;
@@ -194,9 +194,9 @@ export default function LandLordHome() {
           fetchAppwriteUnreadCount(user.accountId),
         ]);
         lastNotificationsFetch.current = now;
-        console.log("✅ Manual refresh completed");
+        console.log("âœ… Manual refresh completed");
       } catch (error) {
-        console.error("❌ Error during manual refresh:", error);
+        console.error("âŒ Error during manual refresh:", error);
       }
     }
     setRefreshing(false);

@@ -554,8 +554,8 @@ const handleContactLandlord = () => {
     const scoreLabel = getScoreLabel(score);
 
     Alert.alert(
-      "👤 Tenant Details",
-      `Name: ${tenant.name}\nEmail: ${tenant.email}\nPhone: ${tenant.phone || "Not available"}\n\n📊 Tenant Score: ${score}/100 (${scoreLabel})\n✅ ID Verified: ${tenant.isIdVerified ? "Yes" : "No"}`,
+      "ðŸ‘¤ Tenant Details",
+      `Name: ${tenant.name}\nEmail: ${tenant.email}\nPhone: ${tenant.phone || "Not available"}\n\nðŸ“Š Tenant Score: ${score}/100 (${scoreLabel})\nâœ… ID Verified: ${tenant.isIdVerified ? "Yes" : "No"}`,
       [
         {
           text: "Contact Tenant",
@@ -565,13 +565,13 @@ const handleContactLandlord = () => {
               `Email: ${tenant.email}\nPhone: ${tenant.phone || "Not available"}`,
               [
                 {
-                  text: "📧 Send Email",
+                  text: "ðŸ“§ Send Email",
                   onPress: () => {
                     Linking.openURL(`mailto:${tenant.email}`);
                   },
                 },
                 {
-                  text: "📞 Call",
+                  text: "ðŸ“ž Call",
                   onPress: () => {
                     if (tenant.phone) {
                       Linking.openURL(`tel:${tenant.phone}`);
@@ -754,7 +754,7 @@ const handleContactLandlord = () => {
         facilities: editSelectedFacilities.join(", "),
       };
 
-      // ✅ Track price changes
+      // âœ… Track price changes
       if (hasPriceChanged) {
         updateData.new_price = newPrice;
         updateData.price_change_date = new Date().toISOString();
@@ -1567,7 +1567,7 @@ const creator =
             </TouchableOpacity>
           </View>
 
-          {/* ✅ PRICE DISPLAY */}
+          {/* âœ… PRICE DISPLAY */}
           <View>
             <Text
               className="text-2xl font-rubik-bold"
@@ -1587,7 +1587,7 @@ const creator =
             )}
           </View>
 
-          {/* ✅ PRICE CHANGE SECTION */}
+          {/* âœ… PRICE CHANGE SECTION */}
           {property?.new_price && property.new_price !== property.price && (
             <View
               className="rounded-2xl p-4 mt-4"
@@ -1601,7 +1601,7 @@ const creator =
                 className="text-base font-rubik-bold mb-3"
                 style={{ color: theme.title }}
               >
-                📊 Price Change
+                ðŸ“Š Price Change
               </Text>
 
               <View className="flex-row items-center justify-between">
@@ -1681,7 +1681,7 @@ const creator =
             </View>
           )}
 
-          {/* ✅ PRICE HISTORY COMPONENT */}
+          {/* âœ… PRICE HISTORY COMPONENT */}
           <View className="mt-4">
             <PriceHistory
               history={priceHistory}
@@ -1737,9 +1737,9 @@ const creator =
               onPress={() => {
                 const landlordId =
                   property.creatorId || (property.agent as any)?.$id;
-                console.log("🏠 Property creatorId:", property.creatorId);
-                console.log("🏠 Agent $id:", (property.agent as any)?.$id);
-                console.log("🚀 Navigating with landlordId:", landlordId);
+                console.log("ðŸ  Property creatorId:", property.creatorId);
+                console.log("ðŸ  Agent $id:", (property.agent as any)?.$id);
+                console.log("ðŸš€ Navigating with landlordId:", landlordId);
 
                 if (landlordId) {
                   router.push(
@@ -2098,7 +2098,7 @@ const creator =
             </View>
           </Modal>
 
-          {/* ✅ LOCATION WITH INLINE MAP */}
+          {/* âœ… LOCATION WITH INLINE MAP */}
           <View className="mt-7">
             <Text
               className="text-black-300 text-xl font-rubik-bold"
@@ -2118,7 +2118,7 @@ const creator =
               </Text>
             </View>
 
-            {/* ✅ Inline Map Preview */}
+            {/* âœ… Inline Map Preview */}
             {property.latitude && property.longitude ? (
               <View className="mt-3">
                 <PropertyMapCard
@@ -2353,7 +2353,7 @@ const creator =
             </TouchableOpacity>
           )}
 
-          {/* ✅ PRICE DISPLAY */}
+          {/* âœ… PRICE DISPLAY */}
           <Text
             className="text-2xl font-rubik-bold"
             style={{ color: theme.text }}
@@ -2363,7 +2363,7 @@ const creator =
               : `$${property.price} /month`}
           </Text>
 
-          {/* ✅ PRICE CHANGE SECTION */}
+          {/* âœ… PRICE CHANGE SECTION */}
           {property?.new_price && property.new_price !== property.price && (
             <View
               className="rounded-2xl p-4 mt-4"
@@ -2377,7 +2377,7 @@ const creator =
                 className="text-base font-rubik-bold mb-3"
                 style={{ color: theme.title }}
               >
-                📊 Price Change
+                ðŸ“Š Price Change
               </Text>
 
               <View className="flex-row items-center justify-between">
@@ -2589,7 +2589,7 @@ const creator =
                           {tenant.isIdVerified && (
                             <View className="bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
                               <Text className="text-[10px] text-green-700 dark:text-green-400 font-rubik-bold">
-                                ✅ Verified
+                                âœ… Verified
                               </Text>
                             </View>
                           )}
@@ -2952,7 +2952,7 @@ const creator =
             </View>
           )}
 
-          {/* ✅ LOCATION WITH INLINE MAP */}
+          {/* âœ… LOCATION WITH INLINE MAP */}
           <View className="mt-7">
             <Text
               className="text-black-300 text-xl font-rubik-bold"
@@ -2972,7 +2972,7 @@ const creator =
               </Text>
             </View>
 
-            {/* ✅ Inline Map Preview */}
+            {/* âœ… Inline Map Preview */}
             {property.latitude && property.longitude ? (
               <View className="mt-3">
                 <PropertyMapCard
@@ -3155,7 +3155,7 @@ const creator =
               </Text>
               <TouchableOpacity onPress={closeEditModal}>
                 <Text className="text-2xl" style={{ color: theme.text }}>
-                  ✕
+                  âœ•
                 </Text>
               </TouchableOpacity>
             </View>
@@ -3430,7 +3430,7 @@ const creator =
                             : "text-red-600"
                         }`}
                       >
-                        {editForm.isAvailable ? "✓" : "✕"}
+                        {editForm.isAvailable ? "âœ“" : "âœ•"}
                       </Text>
                     </View>
                     <View className="ml-3">
