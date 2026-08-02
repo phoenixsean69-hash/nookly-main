@@ -56,12 +56,12 @@ export const PriceHistory = ({
           </Text>
           <View
             className={`px-2 py-0.5 rounded-full ${
-              entry.type === "drop" ? "bg-red-100" : "bg-green-100"
+              entry.type === "drop" ? "bg-red-100" : "bg-blue-700100"
             }`}
           >
             <Text
               className={`text-xs font-rubik-bold ${
-                entry.type === "drop" ? "text-red-600" : "text-green-600"
+                entry.type === "drop" ? "text-red-600" : "text-blue-700"
               }`}
             >
               {entry.type === "drop" ? "▼" : "▲"}

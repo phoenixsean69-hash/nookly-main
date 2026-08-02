@@ -45,10 +45,7 @@ const normalizeRoute = (
   const minimumLongitude = Math.min(...longitudes);
   const maximumLongitude = Math.max(...longitudes);
   const latitudeSpan = Math.max(maximumLatitude - minimumLatitude, 0.00001);
-  const longitudeSpan = Math.max(
-    maximumLongitude - minimumLongitude,
-    0.00001,
-  );
+  const longitudeSpan = Math.max(maximumLongitude - minimumLongitude, 0.00001);
 
   const project = ([latitude, longitude]: [number, number]) => ({
     x:
@@ -129,10 +126,8 @@ const OfflineRoutePreview = ({
           </Text>
         </View>
         <Text className="text-[11px]" style={{ color: theme.muted }}>
-          {route.distanceKm.toFixed(1)} km • {Math.max(
-            1,
-            Math.round(route.durationMinutes),
-          )} min
+          {route.distanceKm.toFixed(1)} km •{" "}
+          {Math.max(1, Math.round(route.durationMinutes))} min
         </Text>
       </View>
 
@@ -199,7 +194,7 @@ const OfflineRoutePreview = ({
         style={{ borderTopColor: `${theme.muted}20` }}
       >
         <View className="mr-2 flex-1 flex-row items-center">
-          <View className="h-2.5 w-2.5 rounded-full bg-green-600" />
+          <View className="h-2.5 w-2.5 rounded-full bg-blue-700" />
           <Text
             className="ml-1.5 flex-1 text-[11px]"
             style={{ color: theme.muted }}

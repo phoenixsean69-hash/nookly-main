@@ -621,7 +621,7 @@ export default function LandlordDashboard() {
               <TouchableOpacity
                 onPress={toggleAvailability}
                 className={`flex-row items-center justify-between p-4 rounded-xl border ${
-                  editForm.isAvailable ? "border-green-300" : "border-red-300"
+                  editForm.isAvailable ? "border-blue-700300" : "border-red-300"
                 }`}
                 style={{
                   backgroundColor: editForm.isAvailable
@@ -632,12 +632,12 @@ export default function LandlordDashboard() {
                 <View className="flex-row items-center">
                   <View
                     className={`w-10 h-10 rounded-full items-center justify-center ${
-                      editForm.isAvailable ? "bg-green-100" : "bg-red-100"
+                      editForm.isAvailable ? "bg-blue-700100" : "bg-red-100"
                     }`}
                   >
                     <Text
                       className={`text-xl ${
-                        editForm.isAvailable ? "text-green-600" : "text-red-600"
+                        editForm.isAvailable ? "text-blue-700" : "text-red-600"
                       }`}
                     >
                       {editForm.isAvailable ? "✓" : "✕"}
@@ -662,7 +662,7 @@ export default function LandlordDashboard() {
 
                 <View
                   className={`w-12 h-6 rounded-full ${
-                    editForm.isAvailable ? "bg-green-500" : "bg-gray-300"
+                    editForm.isAvailable ? "bg-blue-700500" : "bg-gray-300"
                   }`}
                 >
                   <View

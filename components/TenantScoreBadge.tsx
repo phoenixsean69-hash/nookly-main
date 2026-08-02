@@ -112,9 +112,9 @@ export const TenantScoreBadge = ({
           </View>
           <View className="flex-row flex-wrap gap-2">
             {idVerified && (
-              <View className="flex-row items-center bg-green-100 px-2 py-0.5 rounded-full">
+              <View className="flex-row items-center bg-blue-700100 px-2 py-0.5 rounded-full">
                 <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                <Text className="text-[10px] font-rubik-medium ml-0.5 text-green-700">
+                <Text className="text-[10px] font-rubik-medium ml-0.5 text-blue-700700">
                   Verified
                 </Text>
               </View>

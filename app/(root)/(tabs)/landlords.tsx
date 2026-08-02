@@ -403,7 +403,7 @@ const Landlords = () => {
               id={item.$id}
             />
             {accredited && (
-              <View className="absolute -bottom-1 -right-1 bg-green-500 rounded-full w-5 h-5 items-center justify-center border-2 border-white">
+              <View className="absolute -bottom-1 -right-1 bg-blue-700500 rounded-full w-5 h-5 items-center justify-center border-2 border-white">
                 <Ionicons name="checkmark" size={12} color="white" />
               </View>
             )}
@@ -596,7 +596,7 @@ const Landlords = () => {
                       id={selectedLandlord.$id}
                     />
                     {isaccredited(selectedLandlord) && (
-                      <View className="absolute -bottom-1 -right-1 bg-green-500 rounded-full w-6 h-6 items-center justify-center border-2 border-white">
+                      <View className="absolute -bottom-1 -right-1 bg-blue-700500 rounded-full w-6 h-6 items-center justify-center border-2 border-white">
                         <Ionicons name="checkmark" size={14} color="white" />
                       </View>
                     )}

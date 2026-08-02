@@ -138,14 +138,13 @@ export default function LandlordRequests() {
 
       const propertyIds = properties.documents.map((p) => p.$id);
 
-      
       const propertiesById = new Map(
         properties.documents.map((propertyDocument) => [
           String(propertyDocument.$id),
           propertyDocument,
         ]),
       );
-if (propertyIds.length === 0) {
+      if (propertyIds.length === 0) {
         setRequests([]);
         return;
       }
@@ -219,17 +218,13 @@ if (propertyIds.length === 0) {
             String(doc.propertyId || ""),
           );
 
-          const propertyPrice = parseRequestPrice(
-            propertyDocument?.price,
-          );
+          const propertyPrice = parseRequestPrice(propertyDocument?.price);
 
           const originalPrice =
-            parseRequestPrice(doc.originalPrice) ??
-            propertyPrice;
+            parseRequestPrice(doc.originalPrice) ?? propertyPrice;
 
           const proposedPrice =
-            parseRequestPrice(doc.proposedPrice) ??
-            originalPrice;
+            parseRequestPrice(doc.proposedPrice) ?? originalPrice;
 
           return {
             $id: doc.$id,
@@ -1104,8 +1099,8 @@ if (propertyIds.length === 0) {
                           </Text>
                         </View>
                         {selectedRequest.tenantIsIdVerified && (
-                          <View className="mt-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30">
-                            <Text className="text-[10px] text-green-700 dark:text-green-400 font-rubik-bold">
+                          <View className="mt-1 px-2 py-0.5 rounded-full bg-blue-700100 dark:bg-blue-700900/30">
+                            <Text className="text-[10px] text-blue-700700 dark:text-blue-700400 font-rubik-bold">
                               ✅ ID Verified
                             </Text>
                           </View>
@@ -1245,7 +1240,7 @@ if (propertyIds.length === 0) {
                     )}
                   </Text>
                   {hasNegotiatedPrice && (
-                    <Text className="text-xs text-green-600 mt-1">
+                    <Text className="text-xs text-blue-700 mt-1">
                       ↓ Tenant is negotiating
                     </Text>
                   )}
@@ -1399,7 +1394,7 @@ if (propertyIds.length === 0) {
                     setDetailsModalVisible(false);
                   }}
                   disabled={processingId === selectedRequest.$id}
-                  className="flex-1 py-3 rounded-full bg-green-500"
+                  className="flex-1 py-3 rounded-full bg-blue-700"
                 >
                   <Text className="text-white text-center font-rubik-bold">
                     {processingId === selectedRequest.$id
@@ -1524,10 +1519,10 @@ if (propertyIds.length === 0) {
             className="flex-1 rounded-xl p-3 items-center"
             style={{ backgroundColor: "#10B98115" }}
           >
-            <Text className="text-2xl font-rubik-bold text-green-600">
+            <Text className="text-2xl font-rubik-bold text-white">
               {acceptedCount}
             </Text>
-            <Text className="text-xs text-green-600">Accepted</Text>
+            <Text className="text-xs text-white">Accepted</Text>
           </View>
           <View
             className="flex-1 rounded-xl p-3 items-center"
@@ -1676,7 +1671,7 @@ if (propertyIds.length === 0) {
                           • {getScoreLabel(item.tenantScore)}
                         </Text>
                         {item.tenantIsIdVerified && (
-                          <Text className="text-[10px] text-green-600 ml-1">
+                          <Text className="text-[10px] text-blue-700 ml-1">
                             ✅
                           </Text>
                         )}
@@ -1709,7 +1704,7 @@ if (propertyIds.length === 0) {
                           item.proposedPrice ?? item.originalPrice,
                         )}
                         {hasNegotiatedPrice && (
-                          <Text className="text-xs text-green-600 ml-1">
+                          <Text className="text-xs text-gray-600 ml-1">
                             (Negotiating from ${item.originalPrice})
                           </Text>
                         )}
@@ -1767,7 +1762,7 @@ if (propertyIds.length === 0) {
                           handleRequestAction(item.$id, "accepted");
                         }}
                         disabled={processingId === item.$id}
-                        className="flex-1 py-2 rounded-full bg-green-500"
+                        className="flex-1 py-2 rounded-full bg-blue-700"
                       >
                         <Text className="text-white text-center font-rubik-bold text-sm">
                           {processingId === item.$id

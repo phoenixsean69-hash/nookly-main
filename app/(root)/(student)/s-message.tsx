@@ -616,7 +616,7 @@ const ChatSupport = () => {
               Nookly Assistant
             </Text>
             <View className="flex-row items-center">
-              <View className="w-2 h-2 rounded-full bg-green-400 mr-1" />
+              <View className="w-2 h-2 rounded-full bg-blue-700400 mr-1" />
               <Text className="text-xs text-white/90">
                 Tenant Support • AI-Powered
               </Text>

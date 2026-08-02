@@ -712,7 +712,7 @@ export default function CalendarScreen() {
                   <>
                     <TouchableOpacity
                       onPress={() => handleStatusChange("completed")}
-                      className="flex-1 py-3 rounded-full bg-green-500"
+                      className="flex-1 py-3 rounded-full bg-blue-700500"
                     >
                       <Text className="text-white text-center font-rubik-medium">
                         Mark Complete
@@ -1461,7 +1461,7 @@ export default function CalendarScreen() {
                     )}
                   </View>
                   <View
-                    className={`px-2 py-1 rounded-full ${event.status === "upcoming" ? "bg-green-500/20" : "bg-gray-500/20"}`}
+                    className={`px-2 py-1 rounded-full ${event.status === "upcoming" ? "bg-blue-700500/20" : "bg-gray-500/20"}`}
                   >
                     <Text
                       className="text-xs capitalize"

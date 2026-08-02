@@ -248,8 +248,7 @@ const Property = () => {
   // OTHER STATE
   // ============================================================================
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [nearbyAmenitiesExpanded, setNearbyAmenitiesExpanded] =
-    useState(false);
+  const [nearbyAmenitiesExpanded, setNearbyAmenitiesExpanded] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmationModalVisible, setConfirmationModalVisible] =
     useState(false);
@@ -327,33 +326,30 @@ const Property = () => {
   // ============================================================================
   // CONTACT LANDLORD FUNCTION
   // ============================================================================
-const handleContactLandlord = () => {
-  if (!property) return;
+  const handleContactLandlord = () => {
+    if (!property) return;
 
-  const resolvedLandlord =
-    property.agent &&
-    typeof property.agent !== "string"
-      ? property.agent
-      : {
-          $id: property.creatorId || "",
-          name: property.creatorName || "Property Owner",
-          email:
-            property.creatorEmail ||
-            "Contact details unavailable",
-          phone: property.creatorPhone || null,
-          avatar: property.creatorAvatar || null,
-          isOrganization: false,
-        };
+    const resolvedLandlord =
+      property.agent && typeof property.agent !== "string"
+        ? property.agent
+        : {
+            $id: property.creatorId || "",
+            name: property.creatorName || "Property Owner",
+            email: property.creatorEmail || "Contact details unavailable",
+            phone: property.creatorPhone || null,
+            avatar: property.creatorAvatar || null,
+            isOrganization: false,
+          };
 
-  setLandlordContact({
-    name: resolvedLandlord.name,
-    email: resolvedLandlord.email,
-    phone: resolvedLandlord.phone || undefined,
-    avatar: resolvedLandlord.avatar || undefined,
-  });
+    setLandlordContact({
+      name: resolvedLandlord.name,
+      email: resolvedLandlord.email,
+      phone: resolvedLandlord.phone || undefined,
+      avatar: resolvedLandlord.avatar || undefined,
+    });
 
-  setContactModalVisible(true);
-};
+    setContactModalVisible(true);
+  };
 
   const handleDownloadImage = async (uri: string, index: number) => {
     if (downloadingMedia) return;
@@ -415,99 +411,87 @@ const handleContactLandlord = () => {
   const isLandlordOwner =
     user?.userMode === "landlord" && property?.creatorId === user?.accountId;
 
-  const {
-    data: cachedTenantsForProperty,
-    loading: cachedTenantsLoading,
-  } = useAppwrite({
-    fn: async (params: {
-      propertyId: string;
-    }): Promise<TenantWithProfile[]> => {
-      const tenantProfiles = await databases.listDocuments(
-        config.databaseId!,
-        config.tenantProfilesCollectionId!,
-        [
-          Query.equal("currentProperty", params.propertyId),
-          Query.limit(100),
-        ],
-      );
+  const { data: cachedTenantsForProperty, loading: cachedTenantsLoading } =
+    useAppwrite({
+      fn: async (params: {
+        propertyId: string;
+      }): Promise<TenantWithProfile[]> => {
+        const tenantProfiles = await databases.listDocuments(
+          config.databaseId!,
+          config.tenantProfilesCollectionId!,
+          [Query.equal("currentProperty", params.propertyId), Query.limit(100)],
+        );
 
-      if (tenantProfiles.documents.length === 0) {
-        return [];
-      }
+        if (tenantProfiles.documents.length === 0) {
+          return [];
+        }
 
-      const userIds = [
-        ...new Set(
-          tenantProfiles.documents
-            .map((profile) => String(profile.userId || "").trim())
-            .filter(Boolean),
-        ),
-      ];
+        const userIds = [
+          ...new Set(
+            tenantProfiles.documents
+              .map((profile) => String(profile.userId || "").trim())
+              .filter(Boolean),
+          ),
+        ];
 
-      if (userIds.length === 0) {
-        return [];
-      }
+        if (userIds.length === 0) {
+          return [];
+        }
 
-      const usersResult = await databases.listDocuments(
-        config.databaseId!,
-        config.usersCollectionId!,
-        [
-          Query.equal("accountId", userIds),
-          Query.limit(Math.min(100, userIds.length)),
-        ],
-      );
+        const usersResult = await databases.listDocuments(
+          config.databaseId!,
+          config.usersCollectionId!,
+          [
+            Query.equal("accountId", userIds),
+            Query.limit(Math.min(100, userIds.length)),
+          ],
+        );
 
-      const usersByAccountId = new Map(
-        usersResult.documents.map((userDocument) => [
-          String(userDocument.accountId || ""),
-          userDocument,
-        ]),
-      );
+        const usersByAccountId = new Map(
+          usersResult.documents.map((userDocument) => [
+            String(userDocument.accountId || ""),
+            userDocument,
+          ]),
+        );
 
-      return tenantProfiles.documents.reduce<TenantWithProfile[]>(
-        (tenants, profile) => {
-          const userDocument = usersByAccountId.get(
-            String(profile.userId || ""),
-          );
+        return tenantProfiles.documents.reduce<TenantWithProfile[]>(
+          (tenants, profile) => {
+            const userDocument = usersByAccountId.get(
+              String(profile.userId || ""),
+            );
 
-          if (!userDocument) {
+            if (!userDocument) {
+              return tenants;
+            }
+
+            tenants.push({
+              userId: String(profile.userId || ""),
+              name: userDocument.name || "Tenant",
+              email: userDocument.email || "",
+              phone: userDocument.phone || undefined,
+              avatar:
+                userDocument.avatar || userDocument.customAvatar || undefined,
+              tenantScore: Number(profile.tenantScore || 0),
+              isIdVerified: Boolean(profile.isIdVerified),
+              currentProperty: profile.currentProperty || undefined,
+              tenantProfileId: profile.$id,
+            });
+
             return tenants;
-          }
-
-          tenants.push({
-            userId: String(profile.userId || ""),
-            name: userDocument.name || "Tenant",
-            email: userDocument.email || "",
-            phone: userDocument.phone || undefined,
-            avatar:
-              userDocument.avatar ||
-              userDocument.customAvatar ||
-              undefined,
-            tenantScore: Number(profile.tenantScore || 0),
-            isIdVerified: Boolean(profile.isIdVerified),
-            currentProperty: profile.currentProperty || undefined,
-            tenantProfileId: profile.$id,
-          });
-
-          return tenants;
-        },
-        [],
-      );
-    },
-    params: {
-      propertyId: property?.$id || "",
-    },
-    skip:
-      !property?.$id ||
-      user?.userMode !== "landlord" ||
-      !isLandlordOwner,
-    cacheKey: `property_current_tenants_${
-      property?.$id || "missing"
-    }`,
-    watchCollections: [
-      config.tenantProfilesCollectionId,
-      config.usersCollectionId,
-    ],
-  });
+          },
+          [],
+        );
+      },
+      params: {
+        propertyId: property?.$id || "",
+      },
+      skip: !property?.$id || user?.userMode !== "landlord" || !isLandlordOwner,
+      cacheKey: `property_current_tenants_${property?.$id || "missing"}`,
+      watchCollections: [
+        config.tenantProfilesCollectionId,
+        config.usersCollectionId,
+      ],
+    });
 
   const tenantsForProperty = cachedTenantsForProperty ?? [];
   const loadingTenants =
@@ -691,8 +675,7 @@ const handleContactLandlord = () => {
 
     setRequestStatus(cachedRequestStatus);
     setHasRequested(
-      cachedRequestStatus !== "none" &&
-        cachedRequestStatus !== "rejected",
+      cachedRequestStatus !== "none" && cachedRequestStatus !== "rejected",
     );
   }, [cachedRequestStatus]);
 
@@ -831,98 +814,83 @@ const handleContactLandlord = () => {
   };
 
   const handleFavoriteToggle = async () => {
-  if (!property) return;
+    if (!property) return;
 
-  try {
-    if (isFav) {
-      await removeFromFavorites(property.$id);
-      setIsFav(false);
+    try {
+      if (isFav) {
+        await removeFromFavorites(property.$id);
+        setIsFav(false);
 
-      await Haptics.impactAsync(
-        Haptics.ImpactFeedbackStyle.Light,
-      );
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+        setOperationSuccessConfig({
+          title: "Removed",
+          message: `${
+            property.propertyName || "Property"
+          } removed from favorites`,
+        });
+
+        setOperationSuccessVisible(true);
+        return;
+      }
+
+      const favoriteOwner =
+        property.agent && typeof property.agent === "object"
+          ? property.agent
+          : null;
+
+      const favoriteProperty = {
+        $id: property.$id,
+        propertyName: property.propertyName,
+        type: property.type,
+        organizationApproved: property.organizationApproved,
+        address: property.address,
+        price: property.price,
+        image1: property.image1,
+        image2: property.image2,
+        image3: property.image3,
+        rating: property.rating,
+        views: property.views,
+        bedrooms: property.bedrooms,
+        bathrooms: property.bathrooms,
+        facilities: property.facilities,
+        creatorId: property.creatorId,
+
+        creatorName:
+          favoriteOwner?.name || property.creatorName || "Property Owner",
+
+        creatorEmail:
+          favoriteOwner?.email || property.creatorEmail || undefined,
+
+        creatorPhone:
+          favoriteOwner?.phone || property.creatorPhone || undefined,
+
+        creatorAvatar:
+          favoriteOwner?.avatar || property.creatorAvatar || undefined,
+      };
+
+      await addToFavorites(favoriteProperty);
+      setIsFav(true);
+
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
       setOperationSuccessConfig({
-        title: "Removed",
-        message: `${
-          property.propertyName || "Property"
-        } removed from favorites`,
+        title: "Added",
+        message: `${property.propertyName || "Property"} saved to favorites`,
       });
 
       setOperationSuccessVisible(true);
-      return;
+    } catch (error) {
+      console.error("Error toggling favorite:", error);
+
+      setErrorModalConfig({
+        title: "Error",
+        message: "Failed to update favorites. Please try again.",
+      });
+
+      setErrorModalVisible(true);
     }
-
-    const favoriteOwner =
-      property.agent &&
-      typeof property.agent === "object"
-        ? property.agent
-        : null;
-
-    const favoriteProperty = {
-      $id: property.$id,
-      propertyName: property.propertyName,
-      type: property.type,
-      organizationApproved: property.organizationApproved,
-      address: property.address,
-      price: property.price,
-      image1: property.image1,
-      image2: property.image2,
-      image3: property.image3,
-      rating: property.rating,
-      views: property.views,
-      bedrooms: property.bedrooms,
-      bathrooms: property.bathrooms,
-      facilities: property.facilities,
-      creatorId: property.creatorId,
-
-      creatorName:
-        favoriteOwner?.name ||
-        property.creatorName ||
-        "Property Owner",
-
-      creatorEmail:
-        favoriteOwner?.email ||
-        property.creatorEmail ||
-        undefined,
-
-      creatorPhone:
-        favoriteOwner?.phone ||
-        property.creatorPhone ||
-        undefined,
-
-      creatorAvatar:
-        favoriteOwner?.avatar ||
-        property.creatorAvatar ||
-        undefined,
-    };
-
-    await addToFavorites(favoriteProperty);
-    setIsFav(true);
-
-    await Haptics.impactAsync(
-      Haptics.ImpactFeedbackStyle.Medium,
-    );
-
-    setOperationSuccessConfig({
-      title: "Added",
-      message: `${
-        property.propertyName || "Property"
-      } saved to favorites`,
-    });
-
-    setOperationSuccessVisible(true);
-  } catch (error) {
-    console.error("Error toggling favorite:", error);
-
-    setErrorModalConfig({
-      title: "Error",
-      message: "Failed to update favorites. Please try again.",
-    });
-
-    setErrorModalVisible(true);
-  }
-};
+  };
   // ============================================================================
   // LOAD REVIEWS WHEN PROPERTY LOADS
   // ============================================================================
@@ -943,10 +911,7 @@ const handleContactLandlord = () => {
   // CHECK LIKE STATUS WHEN PROPERTY LOADS
   // ============================================================================
   const { data: cachedLikeSummary } = useAppwrite({
-    fn: async (params: {
-      propertyId: string;
-      userId: string;
-    }) => {
+    fn: async (params: { propertyId: string; userId: string }) => {
       const [userLiked, count] = await Promise.all([
         checkUserLiked(params.propertyId, params.userId),
         getLikeCount(params.propertyId),
@@ -975,8 +940,7 @@ const handleContactLandlord = () => {
     setLikeCount(cachedLikeSummary.likeCount);
   }, [cachedLikeSummary]);
 
-
-const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (
@@ -1196,9 +1160,7 @@ const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const renderNearbyAmenities = () => {
     const poisWithinOneKm = pois.filter(
-      (poi) =>
-        Number.isFinite(poi.distanceKm) &&
-        poi.distanceKm <= 2,
+      (poi) => Number.isFinite(poi.distanceKm) && poi.distanceKm <= 2,
     );
 
     return (
@@ -1210,9 +1172,7 @@ const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
         }}
       >
         <TouchableOpacity
-          onPress={() =>
-            setNearbyAmenitiesExpanded((current) => !current)
-          }
+          onPress={() => setNearbyAmenitiesExpanded((current) => !current)}
           activeOpacity={0.78}
           className="flex-row items-center px-4 py-4"
           accessibilityRole="button"
@@ -1240,10 +1200,7 @@ const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
             >
               Nearby Amenities
             </Text>
-            <Text
-              className="mt-0.5 text-xs"
-              style={{ color: theme.muted }}
-            >
+            <Text className="mt-0.5 text-xs" style={{ color: theme.muted }}>
               {amenitiesLoading
                 ? "Finding places within 2 km..."
                 : amenitiesError && !amenities
@@ -1255,11 +1212,7 @@ const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
           </View>
 
           <Ionicons
-            name={
-              nearbyAmenitiesExpanded
-                ? "chevron-up"
-                : "chevron-down"
-            }
+            name={nearbyAmenitiesExpanded ? "chevron-up" : "chevron-down"}
             size={20}
             color={theme.muted}
           />
@@ -1476,17 +1429,17 @@ const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const priceHistory = buildPriceHistory(property);
 
-const creator =
-  property.agent && typeof property.agent === "object"
-    ? property.agent
-    : {
-        $id: property.creatorId || "",
-        name: property.creatorName || "Property Owner",
-        email: property.creatorEmail || "Contact details unavailable",
-        phone: property.creatorPhone || null,
-        avatar: property.creatorAvatar || null,
-        isOrganization: false,
-      };
+    const creator =
+      property.agent && typeof property.agent === "object"
+        ? property.agent
+        : {
+            $id: property.creatorId || "",
+            name: property.creatorName || "Property Owner",
+            email: property.creatorEmail || "Contact details unavailable",
+            phone: property.creatorPhone || null,
+            avatar: property.creatorAvatar || null,
+            isOrganization: false,
+          };
 
     return (
       <>
@@ -1543,7 +1496,7 @@ const creator =
               }
               className={`px-4 py-2 rounded-full ${
                 requestStatus === "accepted"
-                  ? "bg-green-500"
+                  ? "bg-blue-700500"
                   : requestStatus === "pending"
                     ? "bg-yellow-500"
                     : requestStatus === "rejected"
@@ -1621,7 +1574,7 @@ const creator =
                     className={`px-3 py-1.5 rounded-full flex-row items-center ${
                       property.new_price < property.price
                         ? "bg-red-100"
-                        : "bg-green-100"
+                        : "bg-blue-700100"
                     }`}
                     style={{
                       backgroundColor:
@@ -1647,7 +1600,7 @@ const creator =
                       className={`font-rubik-bold ml-1 ${
                         property.new_price < property.price
                           ? "text-red-600"
-                          : "text-green-600"
+                          : "text-blue-700"
                       }`}
                     >
                       {property.new_price < property.price ? "-" : "+"}$
@@ -2281,9 +2234,7 @@ const creator =
                         ? "rgba(250, 204, 21, 0.14)"
                         : theme.surface,
                       borderWidth: 1,
-                      borderColor: selected
-                        ? "#FACC15"
-                        : `${theme.muted}35`,
+                      borderColor: selected ? "#FACC15" : `${theme.muted}35`,
                     }}
                     accessibilityRole="button"
                     accessibilityLabel={`Rate ${star} star${star === 1 ? "" : "s"}`}
@@ -2397,7 +2348,7 @@ const creator =
                     className={`px-3 py-1.5 rounded-full flex-row items-center ${
                       property.new_price < property.price
                         ? "bg-red-100"
-                        : "bg-green-100"
+                        : "bg-blue-700100"
                     }`}
                     style={{
                       backgroundColor:
@@ -2423,7 +2374,7 @@ const creator =
                       className={`font-rubik-bold ml-1 ${
                         property.new_price < property.price
                           ? "text-red-600"
-                          : "text-green-600"
+                          : "text-blue-700"
                       }`}
                     >
                       {property.new_price < property.price ? "-" : "+"}$
@@ -2587,8 +2538,8 @@ const creator =
                             {tenant.name}
                           </Text>
                           {tenant.isIdVerified && (
-                            <View className="bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
-                              <Text className="text-[10px] text-green-700 dark:text-green-400 font-rubik-bold">
+                            <View className="bg-blue-700100 dark:bg-blue-700900/30 px-2 py-0.5 rounded-full">
+                              <Text className="text-[10px] text-blue-700700 dark:text-blue-700400 font-rubik-bold">
                                 ✅ Verified
                               </Text>
                             </View>
@@ -3409,7 +3360,9 @@ const creator =
                 <TouchableOpacity
                   onPress={toggleAvailability}
                   className={`flex-row items-center justify-between p-4 rounded-xl border ${
-                    editForm.isAvailable ? "border-green-300" : "border-red-300"
+                    editForm.isAvailable
+                      ? "border-blue-700300"
+                      : "border-red-300"
                   }`}
                   style={{
                     backgroundColor: editForm.isAvailable
@@ -3420,13 +3373,13 @@ const creator =
                   <View className="flex-row items-center">
                     <View
                       className={`w-10 h-10 rounded-full items-center justify-center ${
-                        editForm.isAvailable ? "bg-green-100" : "bg-red-100"
+                        editForm.isAvailable ? "bg-blue-700100" : "bg-red-100"
                       }`}
                     >
                       <Text
                         className={`text-xl ${
                           editForm.isAvailable
-                            ? "text-green-600"
+                            ? "text-blue-700"
                             : "text-red-600"
                         }`}
                       >
@@ -3452,7 +3405,7 @@ const creator =
 
                   <View
                     className={`w-12 h-6 rounded-full ${
-                      editForm.isAvailable ? "bg-green-500" : "bg-gray-300"
+                      editForm.isAvailable ? "bg-blue-700500" : "bg-gray-300"
                     }`}
                   >
                     <View
@@ -3602,9 +3555,7 @@ const creator =
                     ? "rgba(236, 72, 153, 0.14)"
                     : theme.surface,
                   borderWidth: 1,
-                  borderColor: liked
-                    ? "#EC4899"
-                    : `${theme.muted}35`,
+                  borderColor: liked ? "#EC4899" : `${theme.muted}35`,
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={
@@ -3699,5 +3650,3 @@ const creator =
 };
 
 export default Property;
-
-

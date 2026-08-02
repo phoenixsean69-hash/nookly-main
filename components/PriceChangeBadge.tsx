@@ -36,7 +36,7 @@ export const PriceChangeBadge = ({
       {/* Price change badge */}
       <View
         className={`px-3 py-1.5 rounded-full flex-row items-center ${
-          isDrop ? "bg-red-100" : "bg-green-100"
+          isDrop ? "bg-red-100" : "bg-blue-700100"
         }`}
         style={{
           backgroundColor: isDrop ? "#FEE2E2" : "#D1FAE5",
@@ -49,14 +49,14 @@ export const PriceChangeBadge = ({
         />
         <Text
           className={`font-rubik-bold text-sm ml-1 ${
-            isDrop ? "text-red-600" : "text-green-600"
+            isDrop ? "text-red-600" : "text-blue-700"
           }`}
         >
           {isDrop ? "-" : "+"}${Math.abs(priceDiff)}
         </Text>
         <Text
           className={`font-rubik-medium text-xs ml-1 ${
-            isDrop ? "text-red-500" : "text-green-500"
+            isDrop ? "text-red-500" : "text-blue-700500"
           }`}
         >
           ({percentChange}%)

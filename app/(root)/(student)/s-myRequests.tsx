@@ -914,10 +914,10 @@ export default function TenantRequests() {
               >
                 <Text className="text-2xl mr-3">🎉</Text>
                 <View className="flex-1">
-                  <Text className="font-rubik-bold text-green-700 text-base">
+                  <Text className="font-rubik-bold text-blue-700700 text-base">
                     Approved!
                   </Text>
-                  <Text className="text-green-600 text-sm mt-1">
+                  <Text className="text-blue-700 text-sm mt-1">
                     Your request has been approved. The landlord will contact
                     you soon.
                   </Text>
@@ -1504,10 +1504,10 @@ export default function TenantRequests() {
             className="flex-1 rounded-xl p-3 items-center"
             style={{ backgroundColor: "#10B98115" }}
           >
-            <Text className="text-2xl font-rubik-bold text-green-600">
+            <Text className="text-2xl font-rubik-bold text-blue-700">
               {acceptedCount}
             </Text>
-            <Text className="text-xs text-green-600">Approved</Text>
+            <Text className="text-xs text-blue-700">Approved</Text>
           </View>
           <View
             className="flex-1 rounded-xl p-3 items-center"

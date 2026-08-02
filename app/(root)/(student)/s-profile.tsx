@@ -10,12 +10,12 @@ import {
   uploadImage,
 } from "@/lib/appwrite";
 import { getFavorites } from "@/lib/localFavorites";
-import { getTenantScore } from "@/lib/tenantProfile";
 import {
   mergeProfilePageCache,
   peekProfilePageCache,
   readProfilePageCache,
 } from "@/lib/profilePageCache";
+import { getTenantScore } from "@/lib/tenantProfile";
 import useAuthStore from "@/store/auth.store";
 import { clearSavedAvatar } from "@/utils/avatarStorage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -93,19 +93,14 @@ const Profile = () => {
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [stats, setStats] = useState<TenantStats>(
-    () =>
-      initialProfileSnapshot?.stats ??
-      EMPTY_TENANT_STATS,
+    () => initialProfileSnapshot?.stats ?? EMPTY_TENANT_STATS,
   );
   const [loadingStats, setLoadingStats] = useState(false);
 
   // ✅ Tenant Score State
-  const [tenantScore, setTenantScore] =
-    useState<TenantScoreData | null>(
-      () =>
-        initialProfileSnapshot?.tenantScore ??
-        null,
-    );
+  const [tenantScore, setTenantScore] = useState<TenantScoreData | null>(
+    () => initialProfileSnapshot?.tenantScore ?? null,
+  );
   const [loadingScore, setLoadingScore] = useState(false);
 
   const colorScheme = useColorScheme();
@@ -130,12 +125,7 @@ const Profile = () => {
         setStats(snapshot.stats);
       }
 
-      if (
-        Object.prototype.hasOwnProperty.call(
-          snapshot,
-          "tenantScore",
-        )
-      ) {
+      if (Object.prototype.hasOwnProperty.call(snapshot, "tenantScore")) {
         setTenantScore(snapshot.tenantScore);
       }
     });
@@ -208,8 +198,7 @@ const Profile = () => {
 
     try {
       const score = await getTenantScore(user.accountId);
-      const nextScore =
-        score as TenantScoreData | null;
+      const nextScore = score as TenantScoreData | null;
 
       setTenantScore(nextScore);
 
@@ -223,7 +212,7 @@ const Profile = () => {
     } catch (error) {
       console.error("Error fetching tenant score:", error);
       // Keep the last cached score on refresh failure.
-} finally {
+    } finally {
       setLoadingScore(false);
     }
   }, [user?.accountId, user?.userMode]);
@@ -664,11 +653,11 @@ const Profile = () => {
                 </View>
 
                 {tenantScore.screeningStatus === "approved" && (
-                  <View className="mt-3 bg-green-100 dark:bg-green-900/30 px-3 py-2 rounded-lg">
-                    <Text className="text-green-700 dark:text-green-400 text-xs font-rubik-medium">
+                  <View className="mt-3 bg-blue-700100 dark:bg-blue-700900/30 px-3 py-2 rounded-lg">
+                    <Text className="text-blue-700700 dark:text-blue-700400 text-xs font-rubik-medium">
                       ✅ Screening Approved
                     </Text>
-                    <Text className="text-green-600 dark:text-green-300 text-[10px] mt-0.5">
+                    <Text className="text-blue-700 dark:text-blue-700300 text-[10px] mt-0.5">
                       Your profile has been verified and screened
                     </Text>
                   </View>

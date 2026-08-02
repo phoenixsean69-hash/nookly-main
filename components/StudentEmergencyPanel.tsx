@@ -143,7 +143,7 @@ const StudentEmergencyPanel = () => {
                   style={{ backgroundColor: "#10B98120" }}
                 >
                   <Ionicons name="call-outline" size={16} color="#10B981" />
-                  <Text className="ml-1 text-xs font-rubik-medium text-green-600">
+                  <Text className="ml-1 text-xs font-rubik-medium text-blue-700">
                     Call
                   </Text>
                 </TouchableOpacity>

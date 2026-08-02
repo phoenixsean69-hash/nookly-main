@@ -610,7 +610,7 @@ const AIChatModal: React.FC<AIChatModalProps> = ({ visible, onClose }) => {
                 Nookly AI Assistant
               </Text>
               <View className="flex-row items-center">
-                <View className="w-2 h-2 rounded-full bg-green-500 mr-1" />
+                <View className="w-2 h-2 rounded-full bg-blue-700500 mr-1" />
                 <Text className="text-xs" style={{ color: theme.muted }}>
                   Advanced AI • Always learning
                 </Text>

@@ -587,11 +587,11 @@ const Profile = () => {
                 </View>
 
                 {tenantScore.screeningStatus === "approved" && (
-                  <View className="mt-3 bg-green-100 dark:bg-green-900/30 px-3 py-2 rounded-lg">
-                    <Text className="text-green-700 dark:text-green-400 text-xs font-rubik-medium">
+                  <View className="mt-3 bg-blue-700100 dark:bg-blue-700900/30 px-3 py-2 rounded-lg">
+                    <Text className="text-blue-700700 dark:text-blue-700400 text-xs font-rubik-medium">
                       ✅ Screening Approved
                     </Text>
-                    <Text className="text-green-600 dark:text-green-300 text-[10px] mt-0.5">
+                    <Text className="text-blue-700 dark:text-blue-700300 text-[10px] mt-0.5">
                       Your profile has been verified and screened
                     </Text>
                   </View>
