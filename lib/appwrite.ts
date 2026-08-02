@@ -23,7 +23,9 @@ import {
   Databases,
   ID,
   OAuthProvider,
+  Permission,
   Query,
+  Role,
   Storage,
 } from "react-native-appwrite";
 import { isAccredited } from "./accreditation";
@@ -230,6 +232,48 @@ async function getUserDocumentByIdOrAccountId(
     console.error("Error resolving user document by ID or accountId:", error);
     return null;
   }
+}
+
+async function getActivityRowPermissions(
+  propertyId: string,
+  actorAccountId?: string,
+): Promise<string[]> {
+  const readableAccountIds = new Set<string>();
+
+  if (actorAccountId?.trim()) {
+    readableAccountIds.add(actorAccountId.trim());
+  }
+
+  try {
+    const property = await databases.getDocument(
+      config.databaseId!,
+      config.propertiesCollectionId!,
+      propertyId,
+    );
+
+    const ownerReference =
+      typeof property.creatorId === "string"
+        ? property.creatorId.trim()
+        : "";
+
+    if (ownerReference) {
+      const ownerUser = await getUserDocumentByIdOrAccountId(ownerReference);
+      const ownerAccountId = ownerUser?.accountId?.trim() || ownerReference;
+
+      if (ownerAccountId) {
+        readableAccountIds.add(ownerAccountId);
+      }
+    }
+  } catch (error) {
+    console.error(
+      "Error resolving activity row permissions for property:",
+      error,
+    );
+  }
+
+  return Array.from(readableAccountIds).map((accountId) =>
+    Permission.read(Role.user(accountId)),
+  );
 }
 
 // lib/appwrite.ts
@@ -1320,7 +1364,7 @@ export const addReview = async (
           "New Review Received!",
           `${currentUser.name || "Someone"} gave ${rating} star${rating !== 1 ? "s" : ""} to "${property.propertyName}"`,
           {
-            type: "review",
+            activityType: "review",
             propertyId: property.$id,
             rating: rating,
             screen: `/properties/${property.$id}`,
@@ -2296,6 +2340,19 @@ export async function getAgent(agentId: string) {
 // Track a property view
 export async function trackPropertyView(propertyId: string) {
   try {
+    let actorAccountId: string | undefined;
+
+    try {
+      actorAccountId = (await account.get()).$id;
+    } catch {
+      actorAccountId = undefined;
+    }
+
+    const permissions = await getActivityRowPermissions(
+      propertyId,
+      actorAccountId,
+    );
+
     const activity = await databases.createDocument(
       config.databaseId!,
       config.activitiesCollectionId!,
@@ -2306,6 +2363,7 @@ export async function trackPropertyView(propertyId: string) {
         message: "Property was viewed",
         count: 1,
       },
+      permissions,
     );
     return activity;
   } catch (error) {
@@ -2320,6 +2378,8 @@ export async function trackLikeActivity(
   action: "liked" | "unliked",
 ) {
   try {
+    const permissions = await getActivityRowPermissions(propertyId, userId);
+
     const activity = await databases.createDocument(
       config.databaseId!,
       config.activitiesCollectionId!,
@@ -2334,6 +2394,7 @@ export async function trackLikeActivity(
             : "Someone unliked your property",
         count: 1,
       },
+      permissions,
     );
     return activity;
   } catch (error) {
@@ -2347,6 +2408,19 @@ export async function trackReviewActivity(
   reviewId: string,
 ) {
   try {
+    let actorAccountId: string | undefined;
+
+    try {
+      actorAccountId = (await account.get()).$id;
+    } catch {
+      actorAccountId = undefined;
+    }
+
+    const permissions = await getActivityRowPermissions(
+      propertyId,
+      actorAccountId,
+    );
+
     const activity = await databases.createDocument(
       config.databaseId!,
       config.activitiesCollectionId!,
@@ -2357,6 +2431,7 @@ export async function trackReviewActivity(
         message: "New review received",
         count: 1,
       },
+      permissions,
     );
     return activity;
   } catch (error) {
