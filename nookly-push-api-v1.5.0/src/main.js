@@ -1,45 +1,24 @@
 import crypto from "node:crypto";
-import {
-  Client,
-  ID,
-  Permission,
-  Query,
-  Role,
-  TablesDB,
-} from "node-appwrite";
+import { Client, ID, Permission, Query, Role, TablesDB } from "node-appwrite";
 
 const EXPO_SEND_URL = "https://exp.host/--/api/v2/push/send";
-const EXPO_RECEIPTS_URL =
-  "https://exp.host/--/api/v2/push/getReceipts";
+const EXPO_RECEIPTS_URL = "https://exp.host/--/api/v2/push/getReceipts";
 
 const env = (name, fallback = "") =>
   String(process.env[name] ?? fallback).trim();
 
 const DATABASE_ID = env("NOOKLY_DATABASE_ID");
-const PUSH_TOKENS_TABLE_ID = env(
-  "NOOKLY_PUSH_TOKENS_COLLECTION_ID",
-);
+const PUSH_TOKENS_TABLE_ID = env("NOOKLY_PUSH_TOKENS_COLLECTION_ID");
 const USERS_TABLE_ID = env("NOOKLY_USERS_COLLECTION_ID");
-const NOTIFICATIONS_TABLE_ID = env(
-  "NOOKLY_NOTIFICATIONS_COLLECTION_ID",
-);
-const PROPERTIES_TABLE_ID = env(
-  "NOOKLY_PROPERTIES_COLLECTION_ID",
-);
-const LIKES_TABLE_ID = env(
-  "NOOKLY_LIKES_COLLECTION_ID",
-);
+const NOTIFICATIONS_TABLE_ID = env("NOOKLY_NOTIFICATIONS_COLLECTION_ID");
+const PROPERTIES_TABLE_ID = env("NOOKLY_PROPERTIES_COLLECTION_ID");
+const LIKES_TABLE_ID = env("NOOKLY_LIKES_COLLECTION_ID");
 const REQUESTS_TABLE_ID = env(
   "NOOKLY_REQUESTS_COLLECTION_ID",
   "69c3a9f30004facf9a4d",
 );
-const LEASE_BUCKET_ID = env(
-  "NOOKLY_LEASE_BUCKET_ID",
-  "69a20709002844cb4f69",
-);
-const CONSOLE_TEST_SECRET = env(
-  "NOOKLY_CONSOLE_TEST_SECRET",
-);
+const LEASE_BUCKET_ID = env("NOOKLY_LEASE_BUCKET_ID", "69a20709002844cb4f69");
+const CONSOLE_TEST_SECRET = env("NOOKLY_CONSOLE_TEST_SECRET");
 
 const RIDE_DRIVERS_TABLE_ID = env(
   "NOOKLY_RIDE_DRIVERS_TABLE_ID",
@@ -53,17 +32,9 @@ const RIDE_REQUESTS_TABLE_ID = env(
   "NOOKLY_RIDE_REQUESTS_TABLE_ID",
   "ride_requests",
 );
-const RIDE_OFFERS_TABLE_ID = env(
-  "NOOKLY_RIDE_OFFERS_TABLE_ID",
-  "ride_offers",
-);
-const RIDES_TABLE_ID = env(
-  "NOOKLY_RIDES_TABLE_ID",
-  "rides",
-);
-const RIDES_PUSH_SECRET = env(
-  "NOOKLY_RIDES_PUSH_SECRET",
-);
+const RIDE_OFFERS_TABLE_ID = env("NOOKLY_RIDE_OFFERS_TABLE_ID", "ride_offers");
+const RIDES_TABLE_ID = env("NOOKLY_RIDES_TABLE_ID", "rides");
+const RIDES_PUSH_SECRET = env("NOOKLY_RIDES_PUSH_SECRET");
 
 const ACTIVE_DRIVER_RELATIONSHIP_STATUSES = new Set([
   "active",
@@ -78,8 +49,7 @@ const DRIVER_RIDE_EVENT_TYPES = new Set([
   "offer_accepted",
 ]);
 
-const ok = (res, data, status = 200) =>
-  res.json({ ok: true, data }, status);
+const ok = (res, data, status = 200) => res.json({ ok: true, data }, status);
 
 const fail = (res, status, message, details) =>
   res.json(
@@ -120,9 +90,7 @@ const parseBody = (req) => {
 const normalizePath = (req) => {
   const raw = String(req.path ?? req.url ?? "/").trim();
   const withoutQuery = raw.split("?")[0] || "/";
-  return withoutQuery.startsWith("/")
-    ? withoutQuery
-    : `/${withoutQuery}`;
+  return withoutQuery.startsWith("/") ? withoutQuery : `/${withoutQuery}`;
 };
 
 const getHeader = (req, name) =>
@@ -137,10 +105,7 @@ const requireAuthenticatedUser = (req) => {
   const userId = getHeader(req, "x-appwrite-user-id");
 
   if (!userId) {
-    throw statusError(
-      401,
-      "Authentication is required for this route.",
-    );
+    throw statusError(401, "Authentication is required for this route.");
   }
 
   return userId;
@@ -154,14 +119,10 @@ const createAdminClient = (req) => {
 
   const projectId = env("APPWRITE_FUNCTION_PROJECT_ID");
   const apiKey =
-    getHeader(req, "x-appwrite-key") ||
-    env("APPWRITE_FUNCTION_API_KEY");
+    getHeader(req, "x-appwrite-key") || env("APPWRITE_FUNCTION_API_KEY");
 
   if (!projectId || !apiKey) {
-    throw statusError(
-      500,
-      "Appwrite function credentials are unavailable.",
-    );
+    throw statusError(500, "Appwrite function credentials are unavailable.");
   }
 
   return new Client()
@@ -170,8 +131,7 @@ const createAdminClient = (req) => {
     .setKey(apiKey);
 };
 
-const createTables = (req) =>
-  new TablesDB(createAdminClient(req));
+const createTables = (req) => new TablesDB(createAdminClient(req));
 
 const requireConfiguredTable = (tableId, label) => {
   if (!tableId) {
@@ -184,40 +144,24 @@ const requireConfiguredTable = (tableId, label) => {
   return tableId;
 };
 
-const listAllRows = async (
-  tables,
-  tableId,
-  queries = [],
-  maximum = 1000,
-) => {
+const listAllRows = async (tables, tableId, queries = [], maximum = 1000) => {
   const rows = [];
   const pageSize = Math.min(100, maximum);
 
-  for (
-    let offset = 0;
-    offset < maximum;
-    offset += pageSize
-  ) {
+  for (let offset = 0; offset < maximum; offset += pageSize) {
     const result = await tables.listRows({
       databaseId: DATABASE_ID,
       tableId,
-      queries: [
-        ...queries,
-        Query.limit(pageSize),
-        Query.offset(offset),
-      ],
+      queries: [...queries, Query.limit(pageSize), Query.offset(offset)],
     });
 
-    const pageRows = Array.isArray(result.rows)
-      ? result.rows
-      : [];
+    const pageRows = Array.isArray(result.rows) ? result.rows : [];
 
     rows.push(...pageRows);
 
     if (
       pageRows.length < pageSize ||
-      rows.length >=
-        Number(result.total ?? rows.length)
+      rows.length >= Number(result.total ?? rows.length)
     ) {
       break;
     }
@@ -226,11 +170,7 @@ const listAllRows = async (
   return rows.slice(0, maximum);
 };
 
-const getRowOrNull = async (
-  tables,
-  tableId,
-  rowId,
-) => {
+const getRowOrNull = async (tables, tableId, rowId) => {
   try {
     return await tables.getRow({
       databaseId: DATABASE_ID,
@@ -262,16 +202,10 @@ const deduplicateTokenRows = (rows) => {
     }
 
     const existingTime = new Date(
-      existing.$updatedAt ||
-        existing.$createdAt ||
-        0,
+      existing.$updatedAt || existing.$createdAt || 0,
     ).getTime();
 
-    const rowTime = new Date(
-      row.$updatedAt ||
-        row.$createdAt ||
-        0,
-    ).getTime();
+    const rowTime = new Date(row.$updatedAt || row.$createdAt || 0).getTime();
 
     if (rowTime >= existingTime) {
       byToken.set(token, row);
@@ -281,15 +215,10 @@ const deduplicateTokenRows = (rows) => {
   return [...byToken.values()];
 };
 
-const listActiveTokenRows = async (
-  tables,
-  userIds,
-) => {
+const listActiveTokenRows = async (tables, userIds) => {
   const uniqueUserIds = [
     ...new Set(
-      userIds
-        .map((value) => String(value ?? "").trim())
-        .filter(Boolean),
+      userIds.map((value) => String(value ?? "").trim()).filter(Boolean),
     ),
   ];
 
@@ -297,23 +226,13 @@ const listActiveTokenRows = async (
 
   const rows = [];
 
-  for (
-    let index = 0;
-    index < uniqueUserIds.length;
-    index += 100
-  ) {
-    const batch = uniqueUserIds.slice(
-      index,
-      index + 100,
-    );
+  for (let index = 0; index < uniqueUserIds.length; index += 100) {
+    const batch = uniqueUserIds.slice(index, index + 100);
 
     const batchRows = await listAllRows(
       tables,
       PUSH_TOKENS_TABLE_ID,
-      [
-        Query.equal("userId", batch),
-        Query.equal("isActive", true),
-      ],
+      [Query.equal("userId", batch), Query.equal("isActive", true)],
       5000,
     );
 
@@ -323,10 +242,7 @@ const listActiveTokenRows = async (
   return deduplicateTokenRows(rows);
 };
 
-const deactivateTokenRow = async (
-  tables,
-  rowId,
-) => {
+const deactivateTokenRow = async (tables, rowId) => {
   if (!rowId) return;
 
   await tables.updateRow({
@@ -339,11 +255,7 @@ const deactivateTokenRow = async (
   });
 };
 
-const sendExpoMessages = async (
-  tables,
-  tokenRows,
-  notification,
-) => {
+const sendExpoMessages = async (tables, tokenRows, notification) => {
   const messages = tokenRows.map((row) => ({
     to: row.token,
     sound: notification.sound || "default",
@@ -351,26 +263,15 @@ const sendExpoMessages = async (
     body: notification.body,
     data: notification.data || {},
     priority: notification.priority || "high",
-    channelId:
-      notification.channelId || "default",
+    channelId: notification.channelId || "default",
   }));
 
   const tickets = [];
   const failures = [];
 
-  for (
-    let index = 0;
-    index < messages.length;
-    index += 100
-  ) {
-    const chunk = messages.slice(
-      index,
-      index + 100,
-    );
-    const chunkRows = tokenRows.slice(
-      index,
-      index + 100,
-    );
+  for (let index = 0; index < messages.length; index += 100) {
+    const chunk = messages.slice(index, index + 100);
+    const chunkRows = tokenRows.slice(index, index + 100);
 
     const response = await fetch(EXPO_SEND_URL, {
       method: "POST",
@@ -381,9 +282,7 @@ const sendExpoMessages = async (
       body: JSON.stringify(chunk),
     });
 
-    const payload = await response
-      .json()
-      .catch(() => ({}));
+    const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       throw statusError(
@@ -419,15 +318,8 @@ const sendExpoMessages = async (
           details: ticket.details,
         });
 
-        if (
-          ticket?.details?.error ===
-            "DeviceNotRegistered" &&
-          tokenRow?.$id
-        ) {
-          await deactivateTokenRow(
-            tables,
-            tokenRow.$id,
-          ).catch(() => undefined);
+        if (ticket?.details?.error === "DeviceNotRegistered" && tokenRow?.$id) {
+          await deactivateTokenRow(tables, tokenRow.$id).catch(() => undefined);
         }
       }
     }
@@ -435,9 +327,7 @@ const sendExpoMessages = async (
 
   return {
     requested: messages.length,
-    accepted: tickets.filter(
-      (ticket) => ticket.status === "ok",
-    ).length,
+    accepted: tickets.filter((ticket) => ticket.status === "ok").length,
     failed: failures.length,
     tickets,
     failures,
@@ -454,23 +344,15 @@ const validateNotification = (body) => {
     .slice(0, 500);
 
   if (!title) {
-    throw statusError(
-      400,
-      "Notification title is required.",
-    );
+    throw statusError(400, "Notification title is required.");
   }
 
   if (!message) {
-    throw statusError(
-      400,
-      "Notification body is required.",
-    );
+    throw statusError(400, "Notification body is required.");
   }
 
   const data =
-    body.data &&
-    typeof body.data === "object" &&
-    !Array.isArray(body.data)
+    body.data && typeof body.data === "object" && !Array.isArray(body.data)
       ? body.data
       : {};
 
@@ -484,18 +366,10 @@ const validateNotification = (body) => {
   };
 };
 
-const getUserRowByAccountId = async (
-  tables,
-  accountId,
-) => {
-  requireConfiguredTable(
-    USERS_TABLE_ID,
-    "Users table",
-  );
+const getUserRowByAccountId = async (tables, accountId) => {
+  requireConfiguredTable(USERS_TABLE_ID, "Users table");
 
-  const normalizedAccountId = String(
-    accountId ?? "",
-  ).trim();
+  const normalizedAccountId = String(accountId ?? "").trim();
 
   if (!normalizedAccountId) return null;
 
@@ -517,13 +391,7 @@ const getUserRowByAccountId = async (
       const result = await tables.listRows({
         databaseId: DATABASE_ID,
         tableId: USERS_TABLE_ID,
-        queries: [
-          Query.equal(
-            attribute,
-            normalizedAccountId,
-          ),
-          Query.limit(1),
-        ],
+        queries: [Query.equal(attribute, normalizedAccountId), Query.limit(1)],
       });
 
       const row = result.rows?.[0] ?? null;
@@ -531,9 +399,7 @@ const getUserRowByAccountId = async (
     } catch (error) {
       // Some older Nookly user schemas do not expose both attributes. Ignore
       // an unavailable lookup field and continue with the next supported one.
-      const status = Number(
-        error?.code ?? error?.statusCode ?? 0,
-      );
+      const status = Number(error?.code ?? error?.statusCode ?? 0);
 
       if (status !== 400 && status !== 404) {
         throw error;
@@ -545,9 +411,7 @@ const getUserRowByAccountId = async (
 };
 
 const isPrivilegedUser = (userRow) => {
-  const mode = String(
-    userRow?.userMode ?? userRow?.role ?? "",
-  )
+  const mode = String(userRow?.userMode ?? userRow?.role ?? "")
     .trim()
     .toLowerCase();
 
@@ -560,15 +424,9 @@ const isPrivilegedUser = (userRow) => {
   ]).has(mode);
 };
 
-const requirePrivilegedUser = async (
-  req,
-  tables,
-) => {
+const requirePrivilegedUser = async (req, tables) => {
   const accountId = requireAuthenticatedUser(req);
-  const userRow = await getUserRowByAccountId(
-    tables,
-    accountId,
-  );
+  const userRow = await getUserRowByAccountId(tables, accountId);
 
   if (!userRow || !isPrivilegedUser(userRow)) {
     throw statusError(
@@ -580,28 +438,17 @@ const requirePrivilegedUser = async (
   return { accountId, userRow };
 };
 
-const registerDevice = async (
-  req,
-  tables,
-  body,
-) => {
+const registerDevice = async (req, tables, body) => {
   const userId = requireAuthenticatedUser(req);
   const token = String(body.token ?? "").trim();
 
-  const deviceType = String(
-    body.deviceType ??
-      body.platform ??
-      "android",
-  )
+  const deviceType = String(body.deviceType ?? body.platform ?? "android")
     .trim()
     .toLowerCase()
     .slice(0, 30);
 
   if (!isExpoPushToken(token)) {
-    throw statusError(
-      400,
-      "A valid Expo push token is required.",
-    );
+    throw statusError(400, "A valid Expo push token is required.");
   }
 
   // Expo tokens identify physical app installations and can remain the
@@ -623,16 +470,8 @@ const registerDevice = async (
   if (existingRows.length > 0) {
     const sorted = [...existingRows].sort(
       (left, right) =>
-        new Date(
-          right.$updatedAt ||
-            right.$createdAt ||
-            0,
-        ).getTime() -
-        new Date(
-          left.$updatedAt ||
-            left.$createdAt ||
-            0,
-        ).getTime(),
+        new Date(right.$updatedAt || right.$createdAt || 0).getTime() -
+        new Date(left.$updatedAt || left.$createdAt || 0).getTime(),
     );
 
     const primary = sorted[0];
@@ -651,18 +490,14 @@ const registerDevice = async (
     });
 
     for (const duplicate of sorted.slice(1)) {
-      await deactivateTokenRow(
-        tables,
-        duplicate.$id,
-      ).catch(() => undefined);
+      await deactivateTokenRow(tables, duplicate.$id).catch(() => undefined);
     }
 
     return {
       created: false,
       tokenRowId: updated.$id,
       isActive: true,
-      duplicatesDeactivated:
-        Math.max(0, sorted.length - 1),
+      duplicatesDeactivated: Math.max(0, sorted.length - 1),
     };
   }
 
@@ -687,11 +522,7 @@ const registerDevice = async (
   };
 };
 
-const deactivateDevice = async (
-  req,
-  tables,
-  body,
-) => {
+const deactivateDevice = async (req, tables, body) => {
   const userId = requireAuthenticatedUser(req);
   const token = String(body.token ?? "").trim();
 
@@ -704,18 +535,10 @@ const deactivateDevice = async (
     queries.push(Query.equal("token", token));
   }
 
-  const rows = await listAllRows(
-    tables,
-    PUSH_TOKENS_TABLE_ID,
-    queries,
-    100,
-  );
+  const rows = await listAllRows(tables, PUSH_TOKENS_TABLE_ID, queries, 100);
 
   for (const row of rows) {
-    await deactivateTokenRow(
-      tables,
-      row.$id,
-    );
+    await deactivateTokenRow(tables, row.$id);
   }
 
   return {
@@ -729,21 +552,13 @@ const sendToUser = async (
   notification,
   diagnosticLog = () => undefined,
 ) => {
-  const userId = String(
-    recipientUserId ?? "",
-  ).trim();
+  const userId = String(recipientUserId ?? "").trim();
 
   if (!userId) {
-    throw statusError(
-      400,
-      "recipientUserId is required.",
-    );
+    throw statusError(400, "recipientUserId is required.");
   }
 
-  const tokenRows = await listActiveTokenRows(
-    tables,
-    [userId],
-  );
+  const tokenRows = await listActiveTokenRows(tables, [userId]);
 
   diagnosticLog(
     JSON.stringify({
@@ -760,16 +575,11 @@ const sendToUser = async (
       failed: 0,
       tickets: [],
       failures: [],
-      message:
-        "No active push token was found for this user.",
+      message: "No active push token was found for this user.",
     };
   }
 
-  const result = await sendExpoMessages(
-    tables,
-    tokenRows,
-    notification,
-  );
+  const result = await sendExpoMessages(tables, tokenRows, notification);
 
   diagnosticLog(
     JSON.stringify({
@@ -777,54 +587,36 @@ const sendToUser = async (
       requested: result.requested,
       accepted: result.accepted,
       failed: result.failed,
-      ticketStatuses: result.tickets.map(
-        (ticket) => ({
-          status: ticket.status,
-          id: ticket.id ?? null,
-          error:
-            ticket.details?.error ?? null,
-          message: ticket.message ?? null,
-        }),
-      ),
+      ticketStatuses: result.tickets.map((ticket) => ({
+        status: ticket.status,
+        id: ticket.id ?? null,
+        error: ticket.details?.error ?? null,
+        message: ticket.message ?? null,
+      })),
     }),
   );
 
   return result;
 };
 
-const sendToUsers = async (
-  tables,
-  recipientUserIds,
-  notification,
-) => {
+const sendToUsers = async (tables, recipientUserIds, notification) => {
   if (!Array.isArray(recipientUserIds)) {
-    throw statusError(
-      400,
-      "recipientUserIds must be an array.",
-    );
+    throw statusError(400, "recipientUserIds must be an array.");
   }
 
   const userIds = [
     ...new Set(
       recipientUserIds
-        .map((value) =>
-          String(value ?? "").trim(),
-        )
+        .map((value) => String(value ?? "").trim())
         .filter(Boolean),
     ),
   ].slice(0, 1000);
 
   if (userIds.length === 0) {
-    throw statusError(
-      400,
-      "At least one recipient user ID is required.",
-    );
+    throw statusError(400, "At least one recipient user ID is required.");
   }
 
-  const tokenRows = await listActiveTokenRows(
-    tables,
-    userIds,
-  );
+  const tokenRows = await listActiveTokenRows(tables, userIds);
 
   if (tokenRows.length === 0) {
     return {
@@ -833,32 +625,20 @@ const sendToUsers = async (
       failed: 0,
       tickets: [],
       failures: [],
-      message:
-        "No active push tokens were found.",
+      message: "No active push tokens were found.",
     };
   }
 
-  return sendExpoMessages(
-    tables,
-    tokenRows,
-    notification,
-  );
+  return sendExpoMessages(tables, tokenRows, notification);
 };
 
-const sendToRole = async (
-  tables,
-  role,
-  notification,
-) => {
+const sendToRole = async (tables, role, notification) => {
   const normalizedRole = String(role ?? "")
     .trim()
     .toLowerCase();
 
   if (!normalizedRole) {
-    throw statusError(
-      400,
-      "role is required.",
-    );
+    throw statusError(400, "role is required.");
   }
 
   const users = await listAllRows(
@@ -869,39 +649,19 @@ const sendToRole = async (
   );
 
   const userIds = users
-    .map((row) =>
-      String(row.accountId ?? "").trim(),
-    )
+    .map((row) => String(row.accountId ?? "").trim())
     .filter(Boolean);
 
-  return sendToUsers(
-    tables,
-    userIds,
-    notification,
-  );
+  return sendToUsers(tables, userIds, notification);
 };
 
 const createInAppNotification = async (
   tables,
-  {
-    rowId,
-    recipientUserId,
-    title,
-    message,
-    type,
-    data,
-  },
+  { rowId, recipientUserId, title, message, type, data },
 ) => {
-  requireConfiguredTable(
-    NOTIFICATIONS_TABLE_ID,
-    "Notifications table",
-  );
+  requireConfiguredTable(NOTIFICATIONS_TABLE_ID, "Notifications table");
 
-  const existing = await getRowOrNull(
-    tables,
-    NOTIFICATIONS_TABLE_ID,
-    rowId,
-  );
+  const existing = await getRowOrNull(tables, NOTIFICATIONS_TABLE_ID, rowId);
 
   if (existing) {
     return {
@@ -924,15 +684,9 @@ const createInAppNotification = async (
         read: false,
       },
       permissions: [
-        Permission.read(
-          Role.user(recipientUserId),
-        ),
-        Permission.update(
-          Role.user(recipientUserId),
-        ),
-        Permission.delete(
-          Role.user(recipientUserId),
-        ),
+        Permission.read(Role.user(recipientUserId)),
+        Permission.update(Role.user(recipientUserId)),
+        Permission.delete(Role.user(recipientUserId)),
       ],
     });
 
@@ -941,11 +695,7 @@ const createInAppNotification = async (
       row: created,
     };
   } catch (error) {
-    if (
-      Number(
-        error?.code ?? error?.statusCode,
-      ) === 409
-    ) {
+    if (Number(error?.code ?? error?.statusCode) === 409) {
       const duplicate = await getRowOrNull(
         tables,
         NOTIFICATIONS_TABLE_ID,
@@ -962,64 +712,33 @@ const createInAppNotification = async (
   }
 };
 
-const notifyPropertyLike = async (
-  req,
-  tables,
-  body,
-  diagnosticLog,
-) => {
-  const likerAccountId =
-    requireAuthenticatedUser(req);
+const notifyPropertyLike = async (req, tables, body, diagnosticLog) => {
+  const likerAccountId = requireAuthenticatedUser(req);
 
-  const propertiesTableId =
-    requireConfiguredTable(
-      PROPERTIES_TABLE_ID,
-      "Properties table",
-    );
-
-  const likesTableId =
-    requireConfiguredTable(
-      LIKES_TABLE_ID,
-      "Likes table",
-    );
-
-  requireConfiguredTable(
-    USERS_TABLE_ID,
-    "Users table",
+  const propertiesTableId = requireConfiguredTable(
+    PROPERTIES_TABLE_ID,
+    "Properties table",
   );
 
-  requireConfiguredTable(
-    NOTIFICATIONS_TABLE_ID,
-    "Notifications table",
-  );
+  const likesTableId = requireConfiguredTable(LIKES_TABLE_ID, "Likes table");
 
-  const propertyId = String(
-    body.propertyId ?? "",
-  ).trim();
+  requireConfiguredTable(USERS_TABLE_ID, "Users table");
+
+  requireConfiguredTable(NOTIFICATIONS_TABLE_ID, "Notifications table");
+
+  const propertyId = String(body.propertyId ?? "").trim();
 
   if (!propertyId) {
-    throw statusError(
-      400,
-      "propertyId is required.",
-    );
+    throw statusError(400, "propertyId is required.");
   }
 
-  const property = await getRowOrNull(
-    tables,
-    propertiesTableId,
-    propertyId,
-  );
+  const property = await getRowOrNull(tables, propertiesTableId, propertyId);
 
   if (!property) {
-    throw statusError(
-      404,
-      "The requested property could not be found.",
-    );
+    throw statusError(404, "The requested property could not be found.");
   }
 
-  const ownerAccountId = String(
-    property.creatorId ?? "",
-  ).trim();
+  const ownerAccountId = String(property.creatorId ?? "").trim();
 
   if (!ownerAccountId) {
     throw statusError(
@@ -1031,8 +750,7 @@ const notifyPropertyLike = async (
   if (ownerAccountId === likerAccountId) {
     return {
       skipped: true,
-      reason:
-        "Property owners are not notified about their own likes.",
+      reason: "Property owners are not notified about their own likes.",
       recipientUserId: ownerAccountId,
       propertyId,
     };
@@ -1057,22 +775,14 @@ const notifyPropertyLike = async (
     );
   }
 
-  const likerUser = await getUserRowByAccountId(
-    tables,
-    likerAccountId,
-  );
+  const likerUser = await getUserRowByAccountId(tables, likerAccountId);
 
-  const likerName = String(
-    likerUser?.name ?? "Someone",
-  ).trim() || "Someone";
+  const likerName = String(likerUser?.name ?? "Someone").trim() || "Someone";
 
-  const propertyName = String(
-    property.propertyName ?? "Property",
-  ).trim() || "Property";
+  const propertyName =
+    String(property.propertyName ?? "Property").trim() || "Property";
 
-  const likeCount = Number(
-    property.likes ?? 0,
-  );
+  const likeCount = Number(property.likes ?? 0);
 
   const notificationData = {
     type: "like",
@@ -1085,23 +795,18 @@ const notifyPropertyLike = async (
   };
 
   const title = "New Like! ❤️";
-  const message =
-    `${likerName} liked your property "${propertyName}".`;
+  const message = `${likerName} liked your property "${propertyName}".`;
 
-  const notificationRowId =
-    `like_${String(likeRow.$id)}`.slice(0, 36);
+  const notificationRowId = `like_${String(likeRow.$id)}`.slice(0, 36);
 
-  const inApp = await createInAppNotification(
-    tables,
-    {
-      rowId: notificationRowId,
-      recipientUserId: ownerAccountId,
-      title,
-      message,
-      type: "like",
-      data: notificationData,
-    },
-  );
+  const inApp = await createInAppNotification(tables, {
+    rowId: notificationRowId,
+    recipientUserId: ownerAccountId,
+    title,
+    message,
+    type: "like",
+    data: notificationData,
+  });
 
   if (!inApp.created) {
     diagnosticLog(
@@ -1117,8 +822,7 @@ const notifyPropertyLike = async (
     return {
       skipped: true,
       duplicate: true,
-      reason:
-        "This like notification was already processed.",
+      reason: "This like notification was already processed.",
       notificationRowId,
       recipientUserId: ownerAccountId,
       propertyId,
@@ -1160,107 +864,64 @@ const parseJsonArray = (value) => {
   }
 };
 
-const getUserRowByReference = async (
-  tables,
-  reference,
-) => {
-  const normalized = String(
-    reference ?? "",
-  ).trim();
+const getUserRowByReference = async (tables, reference) => {
+  const normalized = String(reference ?? "").trim();
 
   if (!normalized) return null;
 
-  const direct = await getRowOrNull(
-    tables,
-    USERS_TABLE_ID,
-    normalized,
-  );
+  const direct = await getRowOrNull(tables, USERS_TABLE_ID, normalized);
 
   if (direct) return direct;
 
-  return getUserRowByAccountId(
-    tables,
-    normalized,
-  );
+  return getUserRowByAccountId(tables, normalized);
 };
 
 const sanitizeQuestions = (value) =>
   parseJsonArray(value)
     .map((item) =>
-      String(item ?? "").trim().slice(0, 250),
+      String(item ?? "")
+        .trim()
+        .slice(0, 250),
     )
     .filter(Boolean)
     .slice(0, 20);
 
-const notifyPropertyRequest = async (
-  req,
-  tables,
-  body,
-  diagnosticLog,
-) => {
-  const tenantAccountId =
-    requireAuthenticatedUser(req);
+const notifyPropertyRequest = async (req, tables, body, diagnosticLog) => {
+  const tenantAccountId = requireAuthenticatedUser(req);
 
-  const requestsTableId =
-    requireConfiguredTable(
-      REQUESTS_TABLE_ID,
-      "Requests table",
-    );
-
-  const propertiesTableId =
-    requireConfiguredTable(
-      PROPERTIES_TABLE_ID,
-      "Properties table",
-    );
-
-  requireConfiguredTable(
-    USERS_TABLE_ID,
-    "Users table",
+  const requestsTableId = requireConfiguredTable(
+    REQUESTS_TABLE_ID,
+    "Requests table",
   );
 
-  requireConfiguredTable(
-    NOTIFICATIONS_TABLE_ID,
-    "Notifications table",
+  const propertiesTableId = requireConfiguredTable(
+    PROPERTIES_TABLE_ID,
+    "Properties table",
   );
 
-  const requestId = String(
-    body.requestId ?? "",
-  ).trim();
+  requireConfiguredTable(USERS_TABLE_ID, "Users table");
 
-  const propertyId = String(
-    body.propertyId ?? "",
-  ).trim();
+  requireConfiguredTable(NOTIFICATIONS_TABLE_ID, "Notifications table");
+
+  const requestId = String(body.requestId ?? "").trim();
+
+  const propertyId = String(body.propertyId ?? "").trim();
 
   if (!requestId) {
-    throw statusError(
-      400,
-      "requestId is required.",
-    );
+    throw statusError(400, "requestId is required.");
   }
 
   if (!propertyId) {
-    throw statusError(
-      400,
-      "propertyId is required.",
-    );
+    throw statusError(400, "propertyId is required.");
   }
 
-  const requestRow = await getRowOrNull(
-    tables,
-    requestsTableId,
-    requestId,
-  );
+  const requestRow = await getRowOrNull(tables, requestsTableId, requestId);
 
   if (!requestRow) {
-    throw statusError(
-      404,
-      "The requested rental request could not be found.",
-    );
+    throw statusError(404, "The requested rental request could not be found.");
   }
 
-  const storedTenantId = String(
-    requestRow.tenantId ?? "",
-  ).trim();
+  const storedTenantId = String(requestRow.tenantId ?? "").trim();
 
   if (storedTenantId !== tenantAccountId) {
     throw statusError(
@@ -1269,9 +930,7 @@ const notifyPropertyRequest = async (
     );
   }
 
-  const storedPropertyId = String(
-    requestRow.propertyId ?? "",
-  ).trim();
+  const storedPropertyId = String(requestRow.propertyId ?? "").trim();
 
   if (storedPropertyId !== propertyId) {
     throw statusError(
@@ -1280,22 +939,13 @@ const notifyPropertyRequest = async (
     );
   }
 
-  const property = await getRowOrNull(
-    tables,
-    propertiesTableId,
-    propertyId,
-  );
+  const property = await getRowOrNull(tables, propertiesTableId, propertyId);
 
   if (!property) {
-    throw statusError(
-      404,
-      "The requested property could not be found.",
-    );
+    throw statusError(404, "The requested property could not be found.");
   }
 
-  const ownerAccountId = String(
-    property.creatorId ?? "",
-  ).trim();
+  const ownerAccountId = String(property.creatorId ?? "").trim();
 
   if (!ownerAccountId) {
     throw statusError(
@@ -1315,42 +965,26 @@ const notifyPropertyRequest = async (
     };
   }
 
-  const tenantUser =
-    await getUserRowByReference(
-      tables,
-      tenantAccountId,
-    );
+  const tenantUser = await getUserRowByReference(tables, tenantAccountId);
 
-  const tenantName = String(
-    requestRow.tenantName ??
-      tenantUser?.name ??
-      "A tenant",
-  ).trim() || "A tenant";
+  const tenantName =
+    String(requestRow.tenantName ?? tenantUser?.name ?? "A tenant").trim() ||
+    "A tenant";
 
-  const propertyName = String(
-    requestRow.propertyName ??
-      property.propertyName ??
-      "Property",
-  ).trim() || "Property";
+  const propertyName =
+    String(
+      requestRow.propertyName ?? property.propertyName ?? "Property",
+    ).trim() || "Property";
 
-  const proposedPriceRaw = Number(
-    requestRow.proposedPrice,
-  );
+  const proposedPriceRaw = Number(requestRow.proposedPrice);
 
-  const originalPriceRaw = Number(
-    requestRow.originalPrice ??
-      property.price,
-  );
+  const originalPriceRaw = Number(requestRow.originalPrice ?? property.price);
 
-  const proposedPrice = Number.isFinite(
-    proposedPriceRaw,
-  )
+  const proposedPrice = Number.isFinite(proposedPriceRaw)
     ? proposedPriceRaw
     : undefined;
 
-  const originalPrice = Number.isFinite(
-    originalPriceRaw,
-  )
+  const originalPrice = Number.isFinite(originalPriceRaw)
     ? originalPriceRaw
     : undefined;
 
@@ -1369,68 +1003,40 @@ const notifyPropertyRequest = async (
         "",
     ).trim(),
     tenantEmail: String(
-      requestRow.tenantEmail ??
-        tenantUser?.email ??
-        "",
+      requestRow.tenantEmail ?? tenantUser?.email ?? "",
     ).trim(),
     tenantPhone: String(
-      requestRow.tenantPhone ??
-        tenantUser?.phone ??
-        "",
+      requestRow.tenantPhone ?? tenantUser?.phone ?? "",
     ).trim(),
-    ...(proposedPrice !== undefined
-      ? { proposedPrice }
-      : {}),
-    ...(originalPrice !== undefined
-      ? { originalPrice }
-      : {}),
-    message: String(
-      requestRow.message ?? "",
-    ).trim().slice(0, 1000),
-    moveInDate: String(
-      requestRow.moveInDate ?? "",
-    ).trim(),
-    leaseDuration: String(
-      requestRow.leaseDuration ?? "",
-    ).trim(),
-    questions: sanitizeQuestions(
-      requestRow.questions,
-    ),
-    status: String(
-      requestRow.status ?? "pending",
-    ).trim() || "pending",
-    requestedAt:
-      requestRow.$createdAt ?? undefined,
+    ...(proposedPrice !== undefined ? { proposedPrice } : {}),
+    ...(originalPrice !== undefined ? { originalPrice } : {}),
+    message: String(requestRow.message ?? "")
+      .trim()
+      .slice(0, 1000),
+    moveInDate: String(requestRow.moveInDate ?? "").trim(),
+    leaseDuration: String(requestRow.leaseDuration ?? "").trim(),
+    questions: sanitizeQuestions(requestRow.questions),
+    status: String(requestRow.status ?? "pending").trim() || "pending",
+    requestedAt: requestRow.$createdAt ?? undefined,
   };
 
   const priceText =
-    proposedPrice !== undefined
-      ? " at $" + proposedPrice + "/month"
-      : "";
+    proposedPrice !== undefined ? " at $" + proposedPrice + "/month" : "";
 
   const title = "New Property Request 📋";
   const message =
-    tenantName +
-    ' requested "' +
-    propertyName +
-    '"' +
-    priceText +
-    ".";
+    tenantName + ' requested "' + propertyName + '"' + priceText + ".";
 
-  const notificationRowId =
-    ("request_" + requestId).slice(0, 36);
+  const notificationRowId = ("request_" + requestId).slice(0, 36);
 
-  const inApp = await createInAppNotification(
-    tables,
-    {
-      rowId: notificationRowId,
-      recipientUserId: ownerAccountId,
-      title,
-      message,
-      type: "request",
-      data: notificationData,
-    },
-  );
+  const inApp = await createInAppNotification(tables, {
+    rowId: notificationRowId,
+    recipientUserId: ownerAccountId,
+    title,
+    message,
+    type: "request",
+    data: notificationData,
+  });
 
   if (!inApp.created) {
     diagnosticLog(
@@ -1447,8 +1053,7 @@ const notifyPropertyRequest = async (
     return {
       skipped: true,
       duplicate: true,
-      reason:
-        "This property-request notification was already processed.",
+      reason: "This property-request notification was already processed.",
       notificationRowId,
       recipientUserId: ownerAccountId,
       propertyId,
@@ -1481,69 +1086,37 @@ const notifyPropertyRequest = async (
   };
 };
 
-const notifyPropertyReview = async (
-  req,
-  tables,
-  body,
-  diagnosticLog,
-) => {
-  const reviewerAccountId =
-    requireAuthenticatedUser(req);
+const notifyPropertyReview = async (req, tables, body, diagnosticLog) => {
+  const reviewerAccountId = requireAuthenticatedUser(req);
 
-  const propertiesTableId =
-    requireConfiguredTable(
-      PROPERTIES_TABLE_ID,
-      "Properties table",
-    );
-
-  requireConfiguredTable(
-    USERS_TABLE_ID,
-    "Users table",
+  const propertiesTableId = requireConfiguredTable(
+    PROPERTIES_TABLE_ID,
+    "Properties table",
   );
 
-  requireConfiguredTable(
-    NOTIFICATIONS_TABLE_ID,
-    "Notifications table",
-  );
+  requireConfiguredTable(USERS_TABLE_ID, "Users table");
 
-  const propertyId = String(
-    body.propertyId ?? "",
-  ).trim();
+  requireConfiguredTable(NOTIFICATIONS_TABLE_ID, "Notifications table");
 
-  const reviewId = String(
-    body.reviewId ?? "",
-  ).trim();
+  const propertyId = String(body.propertyId ?? "").trim();
+
+  const reviewId = String(body.reviewId ?? "").trim();
 
   if (!propertyId) {
-    throw statusError(
-      400,
-      "propertyId is required.",
-    );
+    throw statusError(400, "propertyId is required.");
   }
 
   if (!reviewId) {
-    throw statusError(
-      400,
-      "reviewId is required.",
-    );
+    throw statusError(400, "reviewId is required.");
   }
 
-  const property = await getRowOrNull(
-    tables,
-    propertiesTableId,
-    propertyId,
-  );
+  const property = await getRowOrNull(tables, propertiesTableId, propertyId);
 
   if (!property) {
-    throw statusError(
-      404,
-      "The requested property could not be found.",
-    );
+    throw statusError(404, "The requested property could not be found.");
   }
 
-  const ownerAccountId = String(
-    property.creatorId ?? "",
-  ).trim();
+  const ownerAccountId = String(property.creatorId ?? "").trim();
 
   if (!ownerAccountId) {
     throw statusError(
@@ -1563,13 +1136,10 @@ const notifyPropertyReview = async (
     };
   }
 
-  const reviews = parseJsonArray(
-    property.reviews,
-  );
+  const reviews = parseJsonArray(property.reviews);
 
   const review = reviews.find(
-    (item) =>
-      String(item?.id ?? "").trim() === reviewId,
+    (item) => String(item?.id ?? "").trim() === reviewId,
   );
 
   if (!review) {
@@ -1580,9 +1150,7 @@ const notifyPropertyReview = async (
   }
 
   const storedReviewerId = String(
-    review.reviewerId ??
-      review.userId ??
-      "",
+    review.reviewerId ?? review.userId ?? "",
   ).trim();
 
   if (!storedReviewerId) {
@@ -1593,32 +1161,23 @@ const notifyPropertyReview = async (
   }
 
   if (storedReviewerId !== reviewerAccountId) {
-    throw statusError(
-      403,
-      "The authenticated user does not own this review.",
-    );
+    throw statusError(403, "The authenticated user does not own this review.");
   }
 
-  const reviewerUser =
-    await getUserRowByReference(
-      tables,
-      reviewerAccountId,
-    );
+  const reviewerUser = await getUserRowByReference(tables, reviewerAccountId);
 
-  const reviewerName = String(
-    review.userName ??
-      review.reviewerName ??
-      reviewerUser?.name ??
-      "A tenant",
-  ).trim() || "A tenant";
+  const reviewerName =
+    String(
+      review.userName ??
+        review.reviewerName ??
+        reviewerUser?.name ??
+        "A tenant",
+    ).trim() || "A tenant";
 
-  const propertyName = String(
-    property.propertyName ?? "Property",
-  ).trim() || "Property";
+  const propertyName =
+    String(property.propertyName ?? "Property").trim() || "Property";
 
-  const rawRating = Number(
-    review.rating,
-  );
+  const rawRating = Number(review.rating);
 
   const rating = Number.isFinite(rawRating)
     ? Math.min(5, Math.max(1, rawRating))
@@ -1626,15 +1185,10 @@ const notifyPropertyReview = async (
 
   const roundedRating = Math.round(rating);
 
-  const stars =
-    "★".repeat(roundedRating) +
-    "☆".repeat(5 - roundedRating);
+  const stars = "★".repeat(roundedRating) + "☆".repeat(5 - roundedRating);
 
   const reviewText = String(
-    review.review ??
-      review.reviewText ??
-      review.text ??
-      "",
+    review.review ?? review.reviewText ?? review.text ?? "",
   )
     .trim()
     .slice(0, 1500);
@@ -1654,19 +1208,12 @@ const notifyPropertyReview = async (
         reviewerUser?.avatar ??
         "",
     ).trim(),
-    reviewerEmail: String(
-      reviewerUser?.email ?? "",
-    ).trim(),
-    reviewerPhone: String(
-      reviewerUser?.phone ?? "",
-    ).trim(),
+    reviewerEmail: String(reviewerUser?.email ?? "").trim(),
+    reviewerPhone: String(reviewerUser?.phone ?? "").trim(),
     rating,
     stars,
     reviewText,
-    reviewedAt:
-      review.date ??
-      review.reviewedAt ??
-      undefined,
+    reviewedAt: review.date ?? review.reviewedAt ?? undefined,
   };
 
   const textPreview = reviewText
@@ -1687,20 +1234,16 @@ const notifyPropertyReview = async (
     stars +
     textPreview;
 
-  const notificationRowId =
-    ("review_" + reviewId).slice(0, 36);
+  const notificationRowId = ("review_" + reviewId).slice(0, 36);
 
-  const inApp = await createInAppNotification(
-    tables,
-    {
-      rowId: notificationRowId,
-      recipientUserId: ownerAccountId,
-      title,
-      message,
-      type: "review",
-      data: notificationData,
-    },
-  );
+  const inApp = await createInAppNotification(tables, {
+    rowId: notificationRowId,
+    recipientUserId: ownerAccountId,
+    title,
+    message,
+    type: "review",
+    data: notificationData,
+  });
 
   if (!inApp.created) {
     diagnosticLog(
@@ -1717,8 +1260,7 @@ const notifyPropertyReview = async (
     return {
       skipped: true,
       duplicate: true,
-      reason:
-        "This property-review notification was already processed.",
+      reason: "This property-review notification was already processed.",
       notificationRowId,
       recipientUserId: ownerAccountId,
       propertyId,
@@ -1751,97 +1293,53 @@ const notifyPropertyReview = async (
   };
 };
 
-const notifyLeaseSent = async (
-  req,
-  tables,
-  body,
-  diagnosticLog,
-) => {
-  const landlordAccountId =
-    requireAuthenticatedUser(req);
+const notifyLeaseSent = async (req, tables, body, diagnosticLog) => {
+  const landlordAccountId = requireAuthenticatedUser(req);
 
-  const requestsTableId =
-    requireConfiguredTable(
-      REQUESTS_TABLE_ID,
-      "Requests table",
-    );
-
-  const propertiesTableId =
-    requireConfiguredTable(
-      PROPERTIES_TABLE_ID,
-      "Properties table",
-    );
-
-  requireConfiguredTable(
-    USERS_TABLE_ID,
-    "Users table",
+  const requestsTableId = requireConfiguredTable(
+    REQUESTS_TABLE_ID,
+    "Requests table",
   );
 
-  requireConfiguredTable(
-    NOTIFICATIONS_TABLE_ID,
-    "Notifications table",
+  const propertiesTableId = requireConfiguredTable(
+    PROPERTIES_TABLE_ID,
+    "Properties table",
   );
 
-  const requestId = String(
-    body.requestId ?? "",
-  ).trim();
+  requireConfiguredTable(USERS_TABLE_ID, "Users table");
+
+  requireConfiguredTable(NOTIFICATIONS_TABLE_ID, "Notifications table");
+
+  const requestId = String(body.requestId ?? "").trim();
 
   if (!requestId) {
-    throw statusError(
-      400,
-      "requestId is required.",
-    );
+    throw statusError(400, "requestId is required.");
   }
 
-  const requestRow =
-    await getRowOrNull(
-      tables,
-      requestsTableId,
-      requestId,
-    );
+  const requestRow = await getRowOrNull(tables, requestsTableId, requestId);
 
   if (!requestRow) {
-    throw statusError(
-      404,
-      "The rental request could not be found.",
-    );
+    throw statusError(404, "The rental request could not be found.");
   }
 
-  const propertyId = String(
-    requestRow.propertyId ?? "",
-  ).trim();
+  const propertyId = String(requestRow.propertyId ?? "").trim();
 
-  const property = await getRowOrNull(
-    tables,
-    propertiesTableId,
-    propertyId,
-  );
+  const property = await getRowOrNull(tables, propertiesTableId, propertyId);
 
   if (!property) {
-    throw statusError(
-      404,
-      "The requested property could not be found.",
-    );
+    throw statusError(404, "The requested property could not be found.");
   }
 
-  const ownerAccountId = String(
-    property.creatorId ?? "",
-  ).trim();
+  const ownerAccountId = String(property.creatorId ?? "").trim();
 
-  if (
-    !ownerAccountId ||
-    ownerAccountId !==
-      landlordAccountId
-  ) {
+  if (!ownerAccountId || ownerAccountId !== landlordAccountId) {
     throw statusError(
       403,
       "Only the property owner can send this lease document.",
     );
   }
 
-  const status = String(
-    requestRow.status ?? "",
-  )
+  const status = String(requestRow.status ?? "")
     .trim()
     .toLowerCase();
 
@@ -1852,9 +1350,7 @@ const notifyLeaseSent = async (
     );
   }
 
-  const tenantAccountId = String(
-    requestRow.tenantId ?? "",
-  ).trim();
+  const tenantAccountId = String(requestRow.tenantId ?? "").trim();
 
   if (!tenantAccountId) {
     throw statusError(
@@ -1863,18 +1359,14 @@ const notifyLeaseSent = async (
     );
   }
 
-  const documentId = String(
-    requestRow.leaseDocumentId ?? "",
-  ).trim();
+  const documentId = String(requestRow.leaseDocumentId ?? "").trim();
 
-  const documentName = String(
-    requestRow.leaseDocumentName ??
-      "lease_document.pdf",
-  ).trim() || "lease_document.pdf";
+  const documentName =
+    String(requestRow.leaseDocumentName ?? "lease_document.pdf").trim() ||
+    "lease_document.pdf";
 
   const sentAt = String(
-    requestRow.leaseSentAt ??
-      new Date().toISOString(),
+    requestRow.leaseSentAt ?? new Date().toISOString(),
   ).trim();
 
   if (!documentId) {
@@ -1884,49 +1376,28 @@ const notifyLeaseSent = async (
     );
   }
 
-  if (
-    !documentName
-      .toLowerCase()
-      .endsWith(".pdf")
-  ) {
-    throw statusError(
-      409,
-      "The saved lease document must be a PDF.",
-    );
+  if (!documentName.toLowerCase().endsWith(".pdf")) {
+    throw statusError(409, "The saved lease document must be a PDF.");
   }
 
-  const landlordUser =
-    await getUserRowByReference(
-      tables,
-      landlordAccountId,
-    );
+  const landlordUser = await getUserRowByReference(tables, landlordAccountId);
 
-  const tenantUser =
-    await getUserRowByReference(
-      tables,
-      tenantAccountId,
-    );
+  const tenantUser = await getUserRowByReference(tables, tenantAccountId);
 
-  const landlordName = String(
-    landlordUser?.name ??
-      "Landlord",
-  ).trim() || "Landlord";
+  const landlordName =
+    String(landlordUser?.name ?? "Landlord").trim() || "Landlord";
 
-  const tenantName = String(
-    requestRow.tenantName ??
-      tenantUser?.name ??
-      "Tenant",
-  ).trim() || "Tenant";
+  const tenantName =
+    String(requestRow.tenantName ?? tenantUser?.name ?? "Tenant").trim() ||
+    "Tenant";
 
-  const propertyName = String(
-    requestRow.propertyName ??
-      property.propertyName ??
-      "Property",
-  ).trim() || "Property";
+  const propertyName =
+    String(
+      requestRow.propertyName ?? property.propertyName ?? "Property",
+    ).trim() || "Property";
 
   const leaseMessage = String(
-    body.leaseMessage ??
-      "Please review this lease carefully before signing.",
+    body.leaseMessage ?? "Please review this lease carefully before signing.",
   )
     .trim()
     .slice(0, 500);
@@ -1939,20 +1410,17 @@ const notifyLeaseSent = async (
     propertyName,
     tenantId: tenantAccountId,
     tenantName,
-    landlordId:
-      landlordAccountId,
+    landlordId: landlordAccountId,
     landlordName,
     documentId,
     documentName,
     documentSize: 0,
-    mimeType:
-      "application/pdf",
+    mimeType: "application/pdf",
     leaseMessage,
     sentAt,
   };
 
-  const title =
-    "Lease Document Ready 📄";
+  const title = "Lease Document Ready 📄";
 
   const message =
     landlordName +
@@ -1969,36 +1437,26 @@ const notifyLeaseSent = async (
     documentId.slice(0, 14)
   ).slice(0, 36);
 
-  const inApp =
-    await createInAppNotification(
-      tables,
-      {
-        rowId:
-          notificationRowId,
-        recipientUserId:
-          tenantAccountId,
-        title,
-        message,
-        type: "lease",
-        data:
-          notificationData,
-      },
-    );
+  const inApp = await createInAppNotification(tables, {
+    rowId: notificationRowId,
+    recipientUserId: tenantAccountId,
+    title,
+    message,
+    type: "lease",
+    data: notificationData,
+  });
 
   if (!inApp.created) {
     return {
       skipped: true,
       duplicate: true,
-      reason:
-        "This lease notification was already processed.",
+      reason: "This lease notification was already processed.",
       notificationRowId,
-      recipientUserId:
-        tenantAccountId,
+      recipientUserId: tenantAccountId,
       requestId,
       propertyId,
       documentId,
-      data:
-        notificationData,
+      data: notificationData,
     };
   }
 
@@ -2008,8 +1466,7 @@ const notifyLeaseSent = async (
     validateNotification({
       title,
       body: message,
-      data:
-        notificationData,
+      data: notificationData,
     }),
     diagnosticLog,
   );
@@ -2017,176 +1474,111 @@ const notifyLeaseSent = async (
   return {
     skipped: false,
     duplicate: false,
-    notificationCreated:
-      true,
+    notificationCreated: true,
     notificationRowId,
-    recipientUserId:
-      tenantAccountId,
+    recipientUserId: tenantAccountId,
     requestId,
     propertyId,
     documentId,
-    data:
-      notificationData,
+    data: notificationData,
     push,
   };
 };
 
-const issueLeaseAccess = async (
-  req,
-  tables,
-  body,
-) => {
-  const tenantAccountId =
-    requireAuthenticatedUser(req);
+const issueLeaseAccess = async (req, tables, body) => {
+  const tenantAccountId = requireAuthenticatedUser(req);
 
-  const requestsTableId =
-    requireConfiguredTable(
-      REQUESTS_TABLE_ID,
-      "Requests table",
-    );
+  const requestsTableId = requireConfiguredTable(
+    REQUESTS_TABLE_ID,
+    "Requests table",
+  );
 
-  const requestId = String(
-    body.requestId ?? "",
-  ).trim();
+  const requestId = String(body.requestId ?? "").trim();
 
   if (!requestId) {
-    throw statusError(
-      400,
-      "requestId is required.",
-    );
+    throw statusError(400, "requestId is required.");
   }
 
-  const requestRow =
-    await getRowOrNull(
-      tables,
-      requestsTableId,
-      requestId,
-    );
+  const requestRow = await getRowOrNull(tables, requestsTableId, requestId);
 
   if (!requestRow) {
-    throw statusError(
-      404,
-      "The rental request could not be found.",
-    );
+    throw statusError(404, "The rental request could not be found.");
   }
 
-  const requestTenantId = String(
-    requestRow.tenantId ?? "",
-  ).trim();
+  const requestTenantId = String(requestRow.tenantId ?? "").trim();
 
-  if (
-    requestTenantId !==
-    tenantAccountId
-  ) {
+  if (requestTenantId !== tenantAccountId) {
     throw statusError(
       403,
       "Only the tenant named on this request can open its lease from Nookly.",
     );
   }
 
-  const documentId = String(
-    requestRow.leaseDocumentId ?? "",
-  ).trim();
+  const documentId = String(requestRow.leaseDocumentId ?? "").trim();
 
   if (!documentId) {
-    throw statusError(
-      404,
-      "No lease document has been sent for this request.",
-    );
+    throw statusError(404, "No lease document has been sent for this request.");
   }
 
-  const documentName = String(
-    requestRow.leaseDocumentName ??
-      "lease_document.pdf",
-  ).trim() || "lease_document.pdf";
+  const documentName =
+    String(requestRow.leaseDocumentName ?? "lease_document.pdf").trim() ||
+    "lease_document.pdf";
 
   const endpoint =
     env("APPWRITE_FUNCTION_API_ENDPOINT") ||
     env("APPWRITE_ENDPOINT") ||
     "https://fra.cloud.appwrite.io/v1";
 
-  const projectId =
-    env(
-      "APPWRITE_FUNCTION_PROJECT_ID",
-    );
+  const projectId = env("APPWRITE_FUNCTION_PROJECT_ID");
 
   const baseUrl =
     endpoint.replace(/\/$/, "") +
     "/storage/buckets/" +
-    encodeURIComponent(
-      LEASE_BUCKET_ID,
-    ) +
+    encodeURIComponent(LEASE_BUCKET_ID) +
     "/files/" +
-    encodeURIComponent(
-      documentId,
-    );
+    encodeURIComponent(documentId);
 
-  const query =
-    "?project=" +
-    encodeURIComponent(
-      projectId,
-    );
+  const query = "?project=" + encodeURIComponent(projectId);
 
   // The existing storage bucket has public read access and
   // file security disabled, so these URLs do not need tokens.
   return {
     requestId,
-    propertyId: String(
-      requestRow.propertyId ?? "",
-    ).trim(),
-    propertyName: String(
-      requestRow.propertyName ??
-        "Property",
-    ).trim() || "Property",
+    propertyId: String(requestRow.propertyId ?? "").trim(),
+    propertyName:
+      String(requestRow.propertyName ?? "Property").trim() || "Property",
     documentId,
     documentName,
     documentSize: 0,
-    mimeType:
-      "application/pdf",
+    mimeType: "application/pdf",
     expiresAt: "",
-    viewUrl:
-      baseUrl +
-      "/view" +
-      query,
-    downloadUrl:
-      baseUrl +
-      "/download" +
-      query,
+    viewUrl: baseUrl + "/view" + query,
+    downloadUrl: baseUrl + "/download" + query,
   };
 };
 
 const checkReceipts = async (body) => {
   const ids = Array.isArray(body.ids)
     ? body.ids
-        .map((value) =>
-          String(value ?? "").trim(),
-        )
+        .map((value) => String(value ?? "").trim())
         .filter(Boolean)
         .slice(0, 1000)
     : [];
 
   if (ids.length === 0) {
-    throw statusError(
-      400,
-      "At least one Expo ticket ID is required.",
-    );
+    throw statusError(400, "At least one Expo ticket ID is required.");
   }
 
-  const response = await fetch(
-    EXPO_RECEIPTS_URL,
-    {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ ids }),
+  const response = await fetch(EXPO_RECEIPTS_URL, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
     },
-  );
+    body: JSON.stringify({ ids }),
+  });
 
-  const payload = await response
-    .json()
-    .catch(() => ({}));
+  const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     throw statusError(
@@ -2199,52 +1591,26 @@ const checkReceipts = async (body) => {
   return payload;
 };
 
-
-const timingSafeSecretMatch = (
-  supplied,
-  expected,
-) => {
-  const suppliedBuffer = Buffer.from(
-    String(supplied ?? ""),
-  );
-  const expectedBuffer = Buffer.from(
-    String(expected ?? ""),
-  );
+const timingSafeSecretMatch = (supplied, expected) => {
+  const suppliedBuffer = Buffer.from(String(supplied ?? ""));
+  const expectedBuffer = Buffer.from(String(expected ?? ""));
 
   return (
-    suppliedBuffer.length ===
-      expectedBuffer.length &&
+    suppliedBuffer.length === expectedBuffer.length &&
     suppliedBuffer.length > 0 &&
-    crypto.timingSafeEqual(
-      suppliedBuffer,
-      expectedBuffer,
-    )
+    crypto.timingSafeEqual(suppliedBuffer, expectedBuffer)
   );
 };
 
 const requireRidesPushSecret = (req) => {
   if (!RIDES_PUSH_SECRET) {
-    throw statusError(
-      500,
-      "NOOKLY_RIDES_PUSH_SECRET is not configured.",
-    );
+    throw statusError(500, "NOOKLY_RIDES_PUSH_SECRET is not configured.");
   }
 
-  const supplied = getHeader(
-    req,
-    "x-nookly-rides-secret",
-  );
+  const supplied = getHeader(req, "x-nookly-rides-secret");
 
-  if (
-    !timingSafeSecretMatch(
-      supplied,
-      RIDES_PUSH_SECRET,
-    )
-  ) {
-    throw statusError(
-      403,
-      "The ride notification request is not authorized.",
-    );
+  if (!timingSafeSecretMatch(supplied, RIDES_PUSH_SECRET)) {
+    throw statusError(403, "The ride notification request is not authorized.");
   }
 };
 
@@ -2255,14 +1621,7 @@ const deterministicRideNotificationId = (
 ) => {
   const digest = crypto
     .createHash("sha256")
-    .update(
-      [
-        "driver-ride",
-        eventType,
-        requestId,
-        recipientUserId,
-      ].join(":"),
-    )
+    .update(["driver-ride", eventType, requestId, recipientUserId].join(":"))
     .digest("hex")
     .slice(0, 30);
 
@@ -2274,24 +1633,13 @@ const normalizeRideStatus = (value) =>
     .trim()
     .toLowerCase();
 
-const getRideRequestOrThrow = async (
-  tables,
-  requestId,
-) => {
-  requireConfiguredTable(
-    RIDE_REQUESTS_TABLE_ID,
-    "Ride requests table",
-  );
+const getRideRequestOrThrow = async (tables, requestId) => {
+  requireConfiguredTable(RIDE_REQUESTS_TABLE_ID, "Ride requests table");
 
-  const normalizedRequestId = String(
-    requestId ?? "",
-  ).trim();
+  const normalizedRequestId = String(requestId ?? "").trim();
 
   if (!normalizedRequestId) {
-    throw statusError(
-      400,
-      "requestId is required.",
-    );
+    throw statusError(400, "requestId is required.");
   }
 
   const request = await getRowOrNull(
@@ -2301,33 +1649,19 @@ const getRideRequestOrThrow = async (
   );
 
   if (!request) {
-    throw statusError(
-      404,
-      "The ride request could not be found.",
-    );
+    throw statusError(404, "The ride request could not be found.");
   }
 
   return request;
 };
 
-const getRideOfferOrThrow = async (
-  tables,
-  offerId,
-) => {
-  requireConfiguredTable(
-    RIDE_OFFERS_TABLE_ID,
-    "Ride offers table",
-  );
+const getRideOfferOrThrow = async (tables, offerId) => {
+  requireConfiguredTable(RIDE_OFFERS_TABLE_ID, "Ride offers table");
 
-  const normalizedOfferId = String(
-    offerId ?? "",
-  ).trim();
+  const normalizedOfferId = String(offerId ?? "").trim();
 
   if (!normalizedOfferId) {
-    throw statusError(
-      400,
-      "offerId is required.",
-    );
+    throw statusError(400, "offerId is required.");
   }
 
   const offer = await getRowOrNull(
@@ -2337,31 +1671,20 @@ const getRideOfferOrThrow = async (
   );
 
   if (!offer) {
-    throw statusError(
-      404,
-      "The ride offer could not be found.",
-    );
+    throw statusError(404, "The ride offer could not be found.");
   }
 
   return offer;
 };
 
-const getDriverAccountId = async (
-  tables,
-  driverId,
-) => {
+const getDriverAccountId = async (tables, driverId) => {
   const driver = await getRowOrNull(
     tables,
-    requireConfiguredTable(
-      RIDE_DRIVERS_TABLE_ID,
-      "Ride drivers table",
-    ),
+    requireConfiguredTable(RIDE_DRIVERS_TABLE_ID, "Ride drivers table"),
     String(driverId ?? "").trim(),
   );
 
-  const accountId = String(
-    driver?.userId ?? "",
-  ).trim();
+  const accountId = String(driver?.userId ?? "").trim();
 
   return {
     driver,
@@ -2369,13 +1692,8 @@ const getDriverAccountId = async (
   };
 };
 
-const listEligibleDriverAccountIds = async (
-  tables,
-  organizationId,
-) => {
-  const normalizedOrganizationId = String(
-    organizationId ?? "",
-  ).trim();
+const listEligibleDriverAccountIds = async (tables, organizationId) => {
+  const normalizedOrganizationId = String(organizationId ?? "").trim();
 
   if (!normalizedOrganizationId) return [];
 
@@ -2385,12 +1703,7 @@ const listEligibleDriverAccountIds = async (
       RIDE_DRIVER_INSTITUTIONS_TABLE_ID,
       "Driver institutions table",
     ),
-    [
-      Query.equal(
-        "organizationId",
-        normalizedOrganizationId,
-      ),
-    ],
+    [Query.equal("organizationId", normalizedOrganizationId)],
     5000,
   );
 
@@ -2399,27 +1712,17 @@ const listEligibleDriverAccountIds = async (
       relationships
         .filter((relationship) =>
           ACTIVE_DRIVER_RELATIONSHIP_STATUSES.has(
-            normalizeRideStatus(
-              relationship.status,
-            ),
+            normalizeRideStatus(relationship.status),
           ),
         )
-        .map((relationship) =>
-          String(
-            relationship.driverId ?? "",
-          ).trim(),
-        )
+        .map((relationship) => String(relationship.driverId ?? "").trim())
         .filter(Boolean),
     ),
   ];
 
   const driverRows = await Promise.all(
     driverIds.map((driverId) =>
-      getRowOrNull(
-        tables,
-        RIDE_DRIVERS_TABLE_ID,
-        driverId,
-      ),
+      getRowOrNull(tables, RIDE_DRIVERS_TABLE_ID, driverId),
     ),
   );
 
@@ -2429,81 +1732,45 @@ const listEligibleDriverAccountIds = async (
         .filter(
           (driver) =>
             driver &&
-            normalizeRideStatus(
-              driver.status,
-            ) === "active" &&
-            normalizeRideStatus(
-              driver.verificationStatus,
-            ) === "verified",
+            normalizeRideStatus(driver.status) === "active" &&
+            normalizeRideStatus(driver.verificationStatus) === "verified",
         )
-        .map((driver) =>
-          String(
-            driver.userId ?? "",
-          ).trim(),
-        )
+        .map((driver) => String(driver.userId ?? "").trim())
         .filter(Boolean),
     ),
   ];
 };
 
-const listOfferDriverAccountIds = async (
-  tables,
-  requestId,
-) => {
+const listOfferDriverAccountIds = async (tables, requestId) => {
   const offers = await listAllRows(
     tables,
-    requireConfiguredTable(
-      RIDE_OFFERS_TABLE_ID,
-      "Ride offers table",
-    ),
-    [
-      Query.equal(
-        "requestId",
-        String(requestId ?? "").trim(),
-      ),
-    ],
+    requireConfiguredTable(RIDE_OFFERS_TABLE_ID, "Ride offers table"),
+    [Query.equal("requestId", String(requestId ?? "").trim())],
     1000,
   );
 
   const driverIds = [
     ...new Set(
       offers
-        .map((offer) =>
-          String(
-            offer.driverId ?? "",
-          ).trim(),
-        )
+        .map((offer) => String(offer.driverId ?? "").trim())
         .filter(Boolean),
     ),
   ];
 
   const recipients = await Promise.all(
     driverIds.map(async (driverId) => {
-      const result =
-        await getDriverAccountId(
-          tables,
-          driverId,
-        );
+      const result = await getDriverAccountId(tables, driverId);
 
       return result.accountId;
     }),
   );
 
-  return [
-    ...new Set(
-      recipients.filter(Boolean),
-    ),
-  ];
+  return [...new Set(recipients.filter(Boolean))];
 };
 
-const formatRideMoney = (
-  amount,
-  currency,
-) => {
+const formatRideMoney = (amount, currency) => {
   const value = Number(amount);
-  const safeValue = Number.isFinite(value)
-    ? value
-    : 0;
+  const safeValue = Number.isFinite(value) ? value : 0;
 
   return `${
     String(currency || "USD")
@@ -2512,83 +1779,48 @@ const formatRideMoney = (
   } ${safeValue.toFixed(2)}`;
 };
 
-const buildDriverRideNotification = async (
-  tables,
-  eventType,
-  body,
-) => {
-  if (
-    !DRIVER_RIDE_EVENT_TYPES.has(eventType)
-  ) {
+const buildDriverRideNotification = async (tables, eventType, body) => {
+  if (!DRIVER_RIDE_EVENT_TYPES.has(eventType)) {
     throw statusError(
       400,
       `Unsupported driver ride event: ${eventType || "missing"}.`,
     );
   }
 
-  const request =
-    await getRideRequestOrThrow(
-      tables,
-      body.requestId,
-    );
+  const request = await getRideRequestOrThrow(tables, body.requestId);
 
   const baseData = {
     type: "driver_ride",
     rideEvent: eventType,
     screen: "/driver-rides",
     requestId: request.$id,
-    organizationId:
-      request.organizationId,
+    organizationId: request.organizationId,
     studentId: request.studentId,
     studentName:
-      String(
-        request.studentName ??
-          "A passenger",
-      ).trim() || "A passenger",
-    pickupAddress:
-      String(
-        request.pickupAddress ?? "",
-      ).trim(),
-    destinationAddress:
-      String(
-        request.destinationAddress ?? "",
-      ).trim(),
-    requestedDepartureTime:
-      request.requestedDepartureTime,
-    passengerCount: Number(
-      request.passengerCount ?? 1,
-    ),
-    ridePreference:
-      request.ridePreference,
-    currency:
-      request.currency || "USD",
+      String(request.studentName ?? "A passenger").trim() || "A passenger",
+    pickupAddress: String(request.pickupAddress ?? "").trim(),
+    destinationAddress: String(request.destinationAddress ?? "").trim(),
+    requestedDepartureTime: request.requestedDepartureTime,
+    passengerCount: Number(request.passengerCount ?? 1),
+    ridePreference: request.ridePreference,
+    currency: request.currency || "USD",
   };
 
   if (eventType === "request_created") {
-    if (
-      !["pending", "quoted"].includes(
-        normalizeRideStatus(
-          request.status,
-        ),
-      )
-    ) {
+    if (!["pending", "quoted"].includes(normalizeRideStatus(request.status))) {
       throw statusError(
         409,
         `The ride request is ${request.status} and is not open.`,
       );
     }
 
-    const recipients =
-      await listEligibleDriverAccountIds(
-        tables,
-        request.organizationId,
-      );
+    const recipients = await listEligibleDriverAccountIds(
+      tables,
+      request.organizationId,
+    );
 
     const rideType =
-      request.ridePreference ===
-      "requested_shared"
-        ? "shared"
-        : "private";
+      request.ridePreference === "requested_shared" ? "shared" : "private";
 
     return {
       recipients,
@@ -2599,35 +1831,19 @@ const buildDriverRideNotification = async (
       data: {
         ...baseData,
         section: "requests",
-        proposedBudget:
-          Number.isFinite(
-            Number(request.proposedBudget),
-          )
-            ? Number(
-                request.proposedBudget,
-              )
-            : undefined,
+        proposedBudget: Number.isFinite(Number(request.proposedBudget))
+          ? Number(request.proposedBudget)
+          : undefined,
       },
     };
   }
 
   if (eventType === "request_cancelled") {
-    if (
-      normalizeRideStatus(
-        request.status,
-      ) !== "cancelled"
-    ) {
-      throw statusError(
-        409,
-        "The ride request has not been cancelled.",
-      );
+    if (normalizeRideStatus(request.status) !== "cancelled") {
+      throw statusError(409, "The ride request has not been cancelled.");
     }
 
-    const recipients =
-      await listOfferDriverAccountIds(
-        tables,
-        request.$id,
-      );
+    const recipients = await listOfferDriverAccountIds(tables, request.$id);
 
     return {
       recipients,
@@ -2642,16 +1858,9 @@ const buildDriverRideNotification = async (
     };
   }
 
-  const offer =
-    await getRideOfferOrThrow(
-      tables,
-      body.offerId,
-    );
+  const offer = await getRideOfferOrThrow(tables, body.offerId);
 
-  if (
-    String(offer.requestId ?? "") !==
-    String(request.$id)
-  ) {
+  if (String(offer.requestId ?? "") !== String(request.$id)) {
     throw statusError(
       409,
       "The accepted offer does not belong to this ride request.",
@@ -2659,27 +1868,17 @@ const buildDriverRideNotification = async (
   }
 
   if (
-    normalizeRideStatus(
-      request.status,
-    ) !== "confirmed" ||
-    normalizeRideStatus(
-      offer.status,
-    ) !== "accepted" ||
-    String(
-      request.selectedOfferId ?? "",
-    ) !== String(offer.$id)
+    normalizeRideStatus(request.status) !== "confirmed" ||
+    normalizeRideStatus(offer.status) !== "accepted" ||
+    String(request.selectedOfferId ?? "") !== String(offer.$id)
   ) {
-    throw statusError(
-      409,
-      "The ride offer is not confirmed as accepted.",
-    );
+    throw statusError(409, "The ride offer is not confirmed as accepted.");
   }
 
-  const { accountId: driverAccountId } =
-    await getDriverAccountId(
-      tables,
-      offer.driverId,
-    );
+  const { accountId: driverAccountId } = await getDriverAccountId(
+    tables,
+    offer.driverId,
+  );
 
   if (!driverAccountId) {
     throw statusError(
@@ -2688,25 +1887,16 @@ const buildDriverRideNotification = async (
     );
   }
 
-  const rideId = String(
-    body.rideId ?? "",
-  ).trim();
+  const rideId = String(body.rideId ?? "").trim();
 
   if (rideId) {
     const ride = await getRowOrNull(
       tables,
-      requireConfiguredTable(
-        RIDES_TABLE_ID,
-        "Rides table",
-      ),
+      requireConfiguredTable(RIDES_TABLE_ID, "Rides table"),
       rideId,
     );
 
-    if (
-      !ride ||
-      String(ride.driverId ?? "") !==
-        String(offer.driverId ?? "")
-    ) {
+    if (!ride || String(ride.driverId ?? "") !== String(offer.driverId ?? "")) {
       throw statusError(
         409,
         "The confirmed ride does not belong to the accepted driver.",
@@ -2728,49 +1918,30 @@ const buildDriverRideNotification = async (
       section: "confirmed",
       offerId: offer.$id,
       rideId: rideId || undefined,
-      quotedFare: Number(
-        offer.quotedFare ?? 0,
-      ),
-      estimatedPickupMinutes: Number(
-        offer.estimatedPickupMinutes ?? 0,
-      ),
-      estimatedJourneyMinutes: Number(
-        offer.estimatedJourneyMinutes ?? 0,
-      ),
+      quotedFare: Number(offer.quotedFare ?? 0),
+      estimatedPickupMinutes: Number(offer.estimatedPickupMinutes ?? 0),
+      estimatedJourneyMinutes: Number(offer.estimatedJourneyMinutes ?? 0),
     },
   };
 };
 
-const notifyDriverRideEvent = async (
-  req,
-  tables,
-  body,
-  diagnosticLog,
-) => {
+const notifyDriverRideEvent = async (req, tables, body, diagnosticLog) => {
   requireRidesPushSecret(req);
 
-  requireConfiguredTable(
-    NOTIFICATIONS_TABLE_ID,
-    "Notifications table",
-  );
+  requireConfiguredTable(NOTIFICATIONS_TABLE_ID, "Notifications table");
 
-  const eventType = normalizeRideStatus(
-    body.eventType,
-  );
+  const eventType = normalizeRideStatus(body.eventType);
 
-  const notification =
-    await buildDriverRideNotification(
-      tables,
-      eventType,
-      body,
-    );
+  const notification = await buildDriverRideNotification(
+    tables,
+    eventType,
+    body,
+  );
 
   const recipients = [
     ...new Set(
       notification.recipients
-        .map((value) =>
-          String(value ?? "").trim(),
-        )
+        .map((value) => String(value ?? "").trim())
         .filter(Boolean),
     ),
   ];
@@ -2781,8 +1952,7 @@ const notifyDriverRideEvent = async (
       eventType,
       recipientCount: 0,
       notificationCreated: 0,
-      reason:
-        "No eligible driver accounts were found for this ride event.",
+      reason: "No eligible driver accounts were found for this ride event.",
     };
   }
 
@@ -2790,38 +1960,25 @@ const notifyDriverRideEvent = async (
   const notificationRowIds = [];
 
   for (const recipientUserId of recipients) {
-    const notificationRowId =
-      deterministicRideNotificationId(
-        eventType,
-        body.requestId,
-        recipientUserId,
-      );
-
-    const inApp =
-      await createInAppNotification(
-        tables,
-        {
-          rowId:
-            notificationRowId,
-          recipientUserId,
-          title:
-            notification.title,
-          message:
-            notification.message,
-          type: "driver_ride",
-          data:
-            notification.data,
-        },
-      );
-
-    notificationRowIds.push(
-      notificationRowId,
+    const notificationRowId = deterministicRideNotificationId(
+      eventType,
+      body.requestId,
+      recipientUserId,
     );
 
+    const inApp = await createInAppNotification(tables, {
+      rowId: notificationRowId,
+      recipientUserId,
+      title: notification.title,
+      message: notification.message,
+      type: "driver_ride",
+      data: notification.data,
+    });
+
+    notificationRowIds.push(notificationRowId);
+
     if (inApp.created) {
-      newRecipients.push(
-        recipientUserId,
-      );
+      newRecipients.push(recipientUserId);
     }
   }
 
@@ -2830,12 +1987,10 @@ const notifyDriverRideEvent = async (
       skipped: true,
       duplicate: true,
       eventType,
-      recipientCount:
-        recipients.length,
+      recipientCount: recipients.length,
       notificationCreated: 0,
       notificationRowIds,
-      reason:
-        "This driver ride notification was already processed.",
+      reason: "This driver ride notification was already processed.",
     };
   }
 
@@ -2843,32 +1998,30 @@ const notifyDriverRideEvent = async (
     tables,
     newRecipients,
     validateNotification({
-      title:
-        notification.title,
-      body:
-        notification.message,
-      data:
-        notification.data,
+      title: notification.title,
+      body: notification.message,
+      data: notification.data,
     }),
   );
 
   diagnosticLog(
     JSON.stringify({
-      event:
-        "driver-ride-notification",
+      event: "driver-ride-notification",
       eventType,
-      requestId:
-        body.requestId,
-      recipientCount:
-        recipients.length,
-      newlyNotified:
-        newRecipients.length,
-      pushRequested:
-        push.requested,
-      pushAccepted:
-        push.accepted,
-      pushFailed:
-        push.failed,
+      requestId: body.requestId,
+      recipientCount: recipients.length,
+      newlyNotified: newRecipients.length,
+      pushRequested: push.requested,
+      pushAccepted: push.accepted,
+      pushFailed: push.failed,
+      recipientUserIds: newRecipients,
+      ticketDiagnostics: push.tickets.map((ticket) => ({
+        tokenRowId: ticket.tokenRowId ?? null,
+        ticketId: ticket.id ?? null,
+        status: ticket.status ?? null,
+        error: ticket.details?.error ?? null,
+        message: ticket.message ?? null,
+      })),
     }),
   );
 
@@ -2876,41 +2029,24 @@ const notifyDriverRideEvent = async (
     skipped: false,
     duplicate: false,
     eventType,
-    recipientCount:
-      recipients.length,
-    notificationCreated:
-      newRecipients.length,
+    recipientCount: recipients.length,
+    notificationCreated: newRecipients.length,
     notificationRowIds,
     push,
   };
 };
 
-const resolveTestRecipient = (
-  req,
-  body,
-  diagnosticLog,
-) => {
-  const authenticatedUserId = getHeader(
-    req,
-    "x-appwrite-user-id",
-  );
+const resolveTestRecipient = (req, body, diagnosticLog) => {
+  const authenticatedUserId = getHeader(req, "x-appwrite-user-id");
 
   const suppliedSecret =
-    getHeader(
-      req,
-      "x-nookly-test-secret",
-    ) ||
-    String(
-      body.consoleTestSecret ?? "",
-    ).trim();
+    getHeader(req, "x-nookly-test-secret") ||
+    String(body.consoleTestSecret ?? "").trim();
 
-  const requestedRecipient = String(
-    body.recipientUserId ?? "",
-  ).trim();
+  const requestedRecipient = String(body.recipientUserId ?? "").trim();
 
   const hasValidConsoleSecret =
-    Boolean(CONSOLE_TEST_SECRET) &&
-    suppliedSecret === CONSOLE_TEST_SECRET;
+    Boolean(CONSOLE_TEST_SECRET) && suppliedSecret === CONSOLE_TEST_SECRET;
 
   if (hasValidConsoleSecret) {
     if (!requestedRecipient) {
@@ -2922,13 +2058,10 @@ const resolveTestRecipient = (
 
     diagnosticLog(
       JSON.stringify({
-        event:
-          "test-recipient-resolution",
+        event: "test-recipient-resolution",
         mode: "console-secret",
-        authenticatedUserId:
-          authenticatedUserId || null,
-        recipientUserId:
-          requestedRecipient,
+        authenticatedUserId: authenticatedUserId || null,
+        recipientUserId: requestedRecipient,
       }),
     );
 
@@ -2938,93 +2071,52 @@ const resolveTestRecipient = (
   if (authenticatedUserId) {
     diagnosticLog(
       JSON.stringify({
-        event:
-          "test-recipient-resolution",
+        event: "test-recipient-resolution",
         mode: "authenticated-user",
         authenticatedUserId,
-        recipientUserId:
-          authenticatedUserId,
+        recipientUserId: authenticatedUserId,
       }),
     );
 
     return authenticatedUserId;
   }
 
-  throw statusError(
-    401,
-    "Authentication is required for this route.",
-  );
+  throw statusError(401, "Authentication is required for this route.");
 };
 
-export default async ({
-  req,
-  res,
-  log,
-  error,
-}) => {
-  const method = String(
-    req.method ?? "GET",
-  ).toUpperCase();
+export default async ({ req, res, log, error }) => {
+  const method = String(req.method ?? "GET").toUpperCase();
 
   const path = normalizePath(req);
 
   try {
-    if (
-      method === "GET" &&
-      path === "/health"
-    ) {
+    if (method === "GET" && path === "/health") {
       return ok(res, {
         service: "nookly-push-api",
         version: "1.5.0",
         status: "healthy",
-        functionId:
-          "6a31d988001bf962fb57",
+        functionId: "6a31d988001bf962fb57",
         configuration: {
           database: Boolean(DATABASE_ID),
-          pushTokens: Boolean(
-            PUSH_TOKENS_TABLE_ID,
-          ),
+          pushTokens: Boolean(PUSH_TOKENS_TABLE_ID),
           users: Boolean(USERS_TABLE_ID),
-          notifications: Boolean(
-            NOTIFICATIONS_TABLE_ID,
-          ),
-          properties: Boolean(
-            PROPERTIES_TABLE_ID,
-          ),
+          notifications: Boolean(NOTIFICATIONS_TABLE_ID),
+          properties: Boolean(PROPERTIES_TABLE_ID),
           likes: Boolean(LIKES_TABLE_ID),
-          requests: Boolean(
-            REQUESTS_TABLE_ID,
-          ),
-          rideDrivers: Boolean(
-            RIDE_DRIVERS_TABLE_ID,
-          ),
-          rideDriverInstitutions: Boolean(
-            RIDE_DRIVER_INSTITUTIONS_TABLE_ID,
-          ),
-          rideRequests: Boolean(
-            RIDE_REQUESTS_TABLE_ID,
-          ),
-          rideOffers: Boolean(
-            RIDE_OFFERS_TABLE_ID,
-          ),
-          rides: Boolean(
-            RIDES_TABLE_ID,
-          ),
-          ridesPushSecret: Boolean(
-            RIDES_PUSH_SECRET,
-          ),
-          consoleTestSecret: Boolean(
-            CONSOLE_TEST_SECRET,
-          ),
+          requests: Boolean(REQUESTS_TABLE_ID),
+          rideDrivers: Boolean(RIDE_DRIVERS_TABLE_ID),
+          rideDriverInstitutions: Boolean(RIDE_DRIVER_INSTITUTIONS_TABLE_ID),
+          rideRequests: Boolean(RIDE_REQUESTS_TABLE_ID),
+          rideOffers: Boolean(RIDE_OFFERS_TABLE_ID),
+          rides: Boolean(RIDES_TABLE_ID),
+          ridesPushSecret: Boolean(RIDES_PUSH_SECRET),
+          consoleTestSecret: Boolean(CONSOLE_TEST_SECRET),
         },
         time: new Date().toISOString(),
       });
     }
 
-    if (
-      !DATABASE_ID ||
-      !PUSH_TOKENS_TABLE_ID
-    ) {
+    if (!DATABASE_ID || !PUSH_TOKENS_TABLE_ID) {
       return fail(
         res,
         500,
@@ -3035,254 +2127,95 @@ export default async ({
     const tables = createTables(req);
     const body = parseBody(req);
 
-    if (
-      method === "POST" &&
-      path === "/register-device"
-    ) {
-      return ok(
-        res,
-        await registerDevice(
-          req,
-          tables,
-          body,
-        ),
-        201,
-      );
+    if (method === "POST" && path === "/register-device") {
+      return ok(res, await registerDevice(req, tables, body), 201);
     }
 
-    if (
-      method === "POST" &&
-      path === "/deactivate-device"
-    ) {
-      return ok(
-        res,
-        await deactivateDevice(
-          req,
-          tables,
-          body,
-        ),
-      );
+    if (method === "POST" && path === "/deactivate-device") {
+      return ok(res, await deactivateDevice(req, tables, body));
     }
 
-    if (
-      method === "POST" &&
-      path === "/test"
-    ) {
-      const recipientUserId =
-        resolveTestRecipient(
-          req,
-          body,
-          log,
-        );
+    if (method === "POST" && path === "/test") {
+      const recipientUserId = resolveTestRecipient(req, body, log);
 
-      const notification =
-        validateNotification({
-          title:
-            body.title ||
-            "Nookly Push Test",
-          body:
-            body.body ||
-            "The secure Nookly Push API is working.",
-          data:
-            body.data || {
-              type: "alert",
-              source:
-                "nookly-push-api",
-            },
-        });
+      const notification = validateNotification({
+        title: body.title || "Nookly Push Test",
+        body: body.body || "The secure Nookly Push API is working.",
+        data: body.data || {
+          type: "alert",
+          source: "nookly-push-api",
+        },
+      });
 
       return ok(
         res,
-        await sendToUser(
-          tables,
-          recipientUserId,
-          notification,
-          log,
-        ),
+        await sendToUser(tables, recipientUserId, notification, log),
       );
     }
 
-    if (
-      method === "POST" &&
-      path === "/rides/event"
-    ) {
-      return ok(
-        res,
-        await notifyDriverRideEvent(
-          req,
-          tables,
-          body,
-          log,
-        ),
-      );
+    if (method === "POST" && path === "/rides/event") {
+      return ok(res, await notifyDriverRideEvent(req, tables, body, log));
     }
 
-    if (
-      method === "POST" &&
-      path === "/property-request"
-    ) {
-      return ok(
-        res,
-        await notifyPropertyRequest(
-          req,
-          tables,
-          body,
-          log,
-        ),
-      );
+    if (method === "POST" && path === "/property-request") {
+      return ok(res, await notifyPropertyRequest(req, tables, body, log));
     }
 
-    if (
-      method === "POST" &&
-      path === "/property-review"
-    ) {
-      return ok(
-        res,
-        await notifyPropertyReview(
-          req,
-          tables,
-          body,
-          log,
-        ),
-      );
+    if (method === "POST" && path === "/property-review") {
+      return ok(res, await notifyPropertyReview(req, tables, body, log));
     }
 
-    if (
-      method === "POST" &&
-      path === "/lease-sent"
-    ) {
-      return ok(
-        res,
-        await notifyLeaseSent(
-          req,
-          tables,
-          body,
-          log,
-        ),
-      );
+    if (method === "POST" && path === "/lease-sent") {
+      return ok(res, await notifyLeaseSent(req, tables, body, log));
     }
 
-    if (
-      method === "POST" &&
-      path === "/lease-access"
-    ) {
-      return ok(
-        res,
-        await issueLeaseAccess(
-          req,
-          tables,
-          body,
-        ),
-      );
+    if (method === "POST" && path === "/lease-access") {
+      return ok(res, await issueLeaseAccess(req, tables, body));
     }
 
-    if (
-      method === "POST" &&
-      path === "/property-like"
-    ) {
-      return ok(
-        res,
-        await notifyPropertyLike(
-          req,
-          tables,
-          body,
-          log,
-        ),
-      );
+    if (method === "POST" && path === "/property-like") {
+      return ok(res, await notifyPropertyLike(req, tables, body, log));
     }
 
-    if (
-      method === "POST" &&
-      path === "/send-to-user"
-    ) {
-      await requirePrivilegedUser(
-        req,
-        tables,
-      );
+    if (method === "POST" && path === "/send-to-user") {
+      await requirePrivilegedUser(req, tables);
 
-      const notification =
-        validateNotification(body);
+      const notification = validateNotification(body);
 
       return ok(
         res,
-        await sendToUser(
-          tables,
-          body.recipientUserId,
-          notification,
-        ),
+        await sendToUser(tables, body.recipientUserId, notification),
       );
     }
 
-    if (
-      method === "POST" &&
-      path === "/send-to-users"
-    ) {
-      await requirePrivilegedUser(
-        req,
-        tables,
-      );
+    if (method === "POST" && path === "/send-to-users") {
+      await requirePrivilegedUser(req, tables);
 
-      const notification =
-        validateNotification(body);
+      const notification = validateNotification(body);
 
       return ok(
         res,
-        await sendToUsers(
-          tables,
-          body.recipientUserIds,
-          notification,
-        ),
+        await sendToUsers(tables, body.recipientUserIds, notification),
       );
     }
 
-    if (
-      method === "POST" &&
-      path === "/send-to-role"
-    ) {
-      await requirePrivilegedUser(
-        req,
-        tables,
-      );
+    if (method === "POST" && path === "/send-to-role") {
+      await requirePrivilegedUser(req, tables);
 
-      const notification =
-        validateNotification(body);
+      const notification = validateNotification(body);
 
-      return ok(
-        res,
-        await sendToRole(
-          tables,
-          body.role,
-          notification,
-        ),
-      );
+      return ok(res, await sendToRole(tables, body.role, notification));
     }
 
-    if (
-      method === "POST" &&
-      path === "/receipts/check"
-    ) {
-      await requirePrivilegedUser(
-        req,
-        tables,
-      );
+    if (method === "POST" && path === "/receipts/check") {
+      await requirePrivilegedUser(req, tables);
 
-      return ok(
-        res,
-        await checkReceipts(body),
-      );
+      return ok(res, await checkReceipts(body));
     }
 
-    return fail(
-      res,
-      404,
-      `Route not found: ${method} ${path}`,
-    );
+    return fail(res, 404, `Route not found: ${method} ${path}`);
   } catch (caught) {
-    const status = Number(
-      caught?.statusCode ??
-        caught?.code ??
-        500,
-    );
+    const status = Number(caught?.statusCode ?? caught?.code ?? 500);
 
     const message =
       caught instanceof Error
@@ -3299,13 +2232,7 @@ export default async ({
       }),
     );
 
-    return fail(
-      res,
-      status >= 400 && status <= 599
-        ? status
-        : 500,
-      message,
-    );
+    return fail(res, status >= 400 && status <= 599 ? status : 500, message);
   } finally {
     log(
       JSON.stringify({

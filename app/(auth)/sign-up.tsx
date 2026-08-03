@@ -5,11 +5,7 @@ import SearchableInstitutionPicker from "@/components/SearchableInstitutionPicke
 import { Colors } from "@/constants/Colors";
 import images from "@/constants/images";
 import { uploadImage } from "@/lib/appwrite";
-import {
-  getUserHomeRoute,
-  PrimaryUserMode,
-  TenantType,
-} from "@/lib/userMode";
+import { getUserHomeRoute, PrimaryUserMode, TenantType } from "@/lib/userMode";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -30,7 +26,6 @@ import {
   View,
 } from "react-native";
 
-
 interface FormData {
   name: string;
   userMode: PrimaryUserMode | "";
@@ -41,6 +36,7 @@ interface FormData {
   confirmPassword: string;
   avatar: string;
   schoolLocation: string;
+  organizationId: string;
 }
 
 interface ValidationError {
@@ -99,8 +95,7 @@ const MODE_OPTIONS: ModeOption[] = [
   {
     value: "driver",
     title: "Driver",
-    description:
-      "Manage assigned rides after your driver profile is verified.",
+    description: "Manage assigned rides after your driver profile is verified.",
     icon: require("../../assets/icons/driver.png"),
   },
 ];
@@ -151,6 +146,7 @@ export default function SignUp() {
     confirmPassword: "",
     avatar: "",
     schoolLocation: "",
+    organizationId: "",
   });
 
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>(
@@ -232,7 +228,7 @@ export default function SignUp() {
     if (
       formData.userMode === "tenant" &&
       formData.tenantType === "student" &&
-      !formData.schoolLocation.trim()
+      (!formData.schoolLocation.trim() || !formData.organizationId.trim())
     ) {
       errors.push({
         field: "schoolLocation",
@@ -325,17 +321,18 @@ export default function SignUp() {
             ? formData.tenantType
             : undefined,
         schoolLocation:
-          formData.userMode === "tenant" &&
-          formData.tenantType === "student"
+          formData.userMode === "tenant" && formData.tenantType === "student"
             ? formData.schoolLocation.trim()
+            : undefined,
+        organizationId:
+          formData.userMode === "tenant" && formData.tenantType === "student"
+            ? formData.organizationId.trim()
             : undefined,
         avatar: undefined,
       });
 
       if (!signupResult.success) {
-        throw new Error(
-          signupResult.error || "Could not create your account.",
-        );
+        throw new Error(signupResult.error || "Could not create your account.");
       }
 
       // Upload the optional avatar only after Appwrite has created the session.
@@ -350,10 +347,9 @@ export default function SignUp() {
             mimeType: "image/jpeg",
           });
 
-          const avatarUpdateResult =
-            await useAuthStore.getState().updateUser({
-              avatar: uploadedAvatarUrl,
-            });
+          const avatarUpdateResult = await useAuthStore.getState().updateUser({
+            avatar: uploadedAvatarUrl,
+          });
 
           if (!avatarUpdateResult.success) {
             console.warn(
@@ -376,8 +372,7 @@ export default function SignUp() {
         ...(formData.userMode === "tenant" && formData.tenantType
           ? { tenantType: formData.tenantType }
           : {}),
-        ...(formData.userMode === "tenant" &&
-        formData.tenantType === "student"
+        ...(formData.userMode === "tenant" && formData.tenantType === "student"
           ? { schoolLocation: formData.schoolLocation.trim() }
           : {}),
       };
@@ -638,14 +633,10 @@ export default function SignUp() {
 
                           <Ionicons
                             name={
-                              selected
-                                ? "checkmark-circle"
-                                : "ellipse-outline"
+                              selected ? "checkmark-circle" : "ellipse-outline"
                             }
                             size={22}
-                            color={
-                              selected ? theme.primary[300] : theme.muted
-                            }
+                            color={selected ? theme.primary[300] : theme.muted}
                           />
                         </TouchableOpacity>
                       );
@@ -674,8 +665,7 @@ export default function SignUp() {
 
                     <View className="gap-3">
                       {TENANT_OPTIONS.map((option) => {
-                        const selected =
-                          formData.tenantType === option.value;
+                        const selected = formData.tenantType === option.value;
 
                         return (
                           <TouchableOpacity
@@ -716,9 +706,7 @@ export default function SignUp() {
                                 name={option.icon}
                                 size={22}
                                 color={
-                                  colorScheme === "dark"
-                                    ? "#FFFFFF"
-                                    : "#0B2A5B"
+                                  colorScheme === "dark" ? "#FFFFFF" : "#0B2A5B"
                                 }
                               />
                             </View>
@@ -766,8 +754,10 @@ export default function SignUp() {
                   formData.tenantType === "student" && (
                     <SearchableInstitutionPicker
                       value={formData.schoolLocation}
-                      onChange={(value) =>
-                        updateField("schoolLocation", value)
+                      organizationId={formData.organizationId}
+                      onChange={(value) => updateField("schoolLocation", value)}
+                      onOrganizationChange={(organization) =>
+                        updateField("organizationId", organization?.$id || "")
                       }
                       error={getFieldError("schoolLocation")}
                     />

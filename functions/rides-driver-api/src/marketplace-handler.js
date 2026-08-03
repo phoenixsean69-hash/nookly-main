@@ -1,15 +1,8 @@
 ﻿import crypto from "node:crypto";
-import {
-  Client,
-  Databases,
-  ID,
-  Query,
-  TablesDB,
-} from "node-appwrite";
+import { Client, Databases, ID, Query, TablesDB } from "node-appwrite";
 import { queueDriverRidePushEvent } from "./ride-push-events.js";
 
-const env = (name, fallback = "") =>
-  process.env[name]?.trim() || fallback;
+const env = (name, fallback = "") => process.env[name]?.trim() || fallback;
 
 const DATABASE_ID = env(
   "APPWRITE_DATABASE_ID",
@@ -26,24 +19,14 @@ const ORGANIZATIONS_COLLECTION_ID = env(
   env("EXPO_PUBLIC_APPWRITE_ORGANIZATIONS_COLLECTION_ID"),
 );
 
-const DEFAULT_ORGANIZATION_ID = env(
-  "APPWRITE_RIDES_DEFAULT_ORGANIZATION_ID",
-);
-
 const REQUEST_EXPIRY_HOURS = Math.max(
   1,
-  Math.min(
-    48,
-    Number(env("APPWRITE_RIDES_REQUEST_EXPIRY_HOURS", "12")) || 12,
-  ),
+  Math.min(48, Number(env("APPWRITE_RIDES_REQUEST_EXPIRY_HOURS", "12")) || 12),
 );
 
 const OFFER_EXPIRY_MINUTES = Math.max(
   10,
-  Math.min(
-    180,
-    Number(env("APPWRITE_RIDES_OFFER_EXPIRY_MINUTES", "45")) || 45,
-  ),
+  Math.min(180, Number(env("APPWRITE_RIDES_OFFER_EXPIRY_MINUTES", "45")) || 45),
 );
 
 const NEARBY_DRIVER_RADIUS_KM = 1;
@@ -52,12 +35,7 @@ const NEARBY_DRIVER_LOCATION_MAX_AGE_MINUTES = Math.max(
   1,
   Math.min(
     60,
-    Number(
-      env(
-        "APPWRITE_RIDES_NEARBY_LOCATION_MAX_AGE_MINUTES",
-        "15",
-      ),
-    ) || 15,
+    Number(env("APPWRITE_RIDES_NEARBY_LOCATION_MAX_AGE_MINUTES", "15")) || 15,
   ),
 );
 
@@ -65,18 +43,13 @@ const NEARBY_DRIVER_SCAN_LIMIT = Math.max(
   100,
   Math.min(
     5000,
-    Number(env("APPWRITE_RIDES_NEARBY_SCAN_LIMIT", "2000")) ||
-      2000,
+    Number(env("APPWRITE_RIDES_NEARBY_SCAN_LIMIT", "2000")) || 2000,
   ),
 );
 
 const NEARBY_DRIVER_RESULT_LIMIT = Math.max(
   1,
-  Math.min(
-    100,
-    Number(env("APPWRITE_RIDES_NEARBY_RESULT_LIMIT", "50")) ||
-      50,
-  ),
+  Math.min(100, Number(env("APPWRITE_RIDES_NEARBY_RESULT_LIMIT", "50")) || 50),
 );
 
 const TABLES = {
@@ -89,14 +62,8 @@ const TABLES = {
     "ride_driver_institutions",
   ),
   rides: env("APPWRITE_RIDES_TABLE_ID", "rides"),
-  bookings: env(
-    "APPWRITE_RIDE_BOOKINGS_TABLE_ID",
-    "ride_bookings",
-  ),
-  tripCore: env(
-    "APPWRITE_RIDE_TRIP_CORE_TABLE_ID",
-    "ride_trip_core",
-  ),
+  bookings: env("APPWRITE_RIDE_BOOKINGS_TABLE_ID", "ride_bookings"),
+  tripCore: env("APPWRITE_RIDE_TRIP_CORE_TABLE_ID", "ride_trip_core"),
   tripWaypoints: env(
     "APPWRITE_RIDE_TRIP_WAYPOINTS_TABLE_ID",
     "ride_trip_waypoints",
@@ -108,11 +75,7 @@ const TABLES = {
   events: env("APPWRITE_RIDE_EVENTS_TABLE_ID", "ride_events"),
 };
 
-const OPEN_REQUEST_STATUSES = new Set([
-  "pending",
-  "quoted",
-  "confirming",
-]);
+const OPEN_REQUEST_STATUSES = new Set(["pending", "quoted", "confirming"]);
 
 const OPEN_OFFER_STATUSES = new Set(["submitted"]);
 
@@ -123,8 +86,7 @@ const DRIVER_INSTITUTION_STATUSES = new Set([
   "verified",
 ]);
 
-const ok = (res, data, status = 200) =>
-  res.json({ ok: true, data }, status);
+const ok = (res, data, status = 200) => res.json({ ok: true, data }, status);
 
 const fail = (res, status, message) =>
   res.json({ ok: false, error: message }, status);
@@ -138,8 +100,7 @@ const normalize = (value) =>
     .replace(/\s+/g, " ");
 
 const parseBody = (req) => {
-  const bodyText =
-    typeof req.bodyText === "string" ? req.bodyText.trim() : "";
+  const bodyText = typeof req.bodyText === "string" ? req.bodyText.trim() : "";
 
   if (!bodyText) return {};
 
@@ -152,9 +113,7 @@ const parseBody = (req) => {
 
 const cleanData = (value) =>
   Object.fromEntries(
-    Object.entries(value).filter(
-      ([, item]) => item !== undefined,
-    ),
+    Object.entries(value).filter(([, item]) => item !== undefined),
   );
 
 const statusError = (statusCode, message) =>
@@ -176,11 +135,7 @@ const requireNumber = (
 ) => {
   const parsed = Number(value);
 
-  if (
-    !Number.isFinite(parsed) ||
-    parsed < min ||
-    parsed > max
-  ) {
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
     throw statusError(400, `${label} is invalid.`);
   }
 
@@ -283,19 +238,14 @@ const haversineKm = (lat1, lon1, lat2, lon2) => {
 };
 
 const assertRequiredConfig = () => {
-  if (!DATABASE_ID || !USERS_COLLECTION_ID) {
+  if (!DATABASE_ID || !USERS_COLLECTION_ID || !ORGANIZATIONS_COLLECTION_ID) {
     throw new Error(
-      "The rides marketplace function is missing APPWRITE_DATABASE_ID or APPWRITE_USERS_COLLECTION_ID.",
+      "The rides marketplace function is missing database, users, or organizations configuration.",
     );
   }
 };
 
-const listAllRows = async (
-  tablesDB,
-  tableId,
-  queries = [],
-  limit = 500,
-) => {
+const listAllRows = async (tablesDB, tableId, queries = [], limit = 500) => {
   const rows = [];
   const pageSize = Math.min(100, limit);
 
@@ -303,11 +253,7 @@ const listAllRows = async (
     const response = await tablesDB.listRows({
       databaseId: DATABASE_ID,
       tableId,
-      queries: [
-        ...queries,
-        Query.limit(pageSize),
-        Query.offset(offset),
-      ],
+      queries: [...queries, Query.limit(pageSize), Query.offset(offset)],
     });
 
     rows.push(...response.rows);
@@ -336,12 +282,7 @@ const getRowOrNull = async (tablesDB, tableId, rowId) => {
   }
 };
 
-const createOrGetRow = async (
-  tablesDB,
-  tableId,
-  rowId,
-  data,
-) => {
+const createOrGetRow = async (tablesDB, tableId, rowId, data) => {
   try {
     return await tablesDB.createRow({
       databaseId: DATABASE_ID,
@@ -352,11 +293,7 @@ const createOrGetRow = async (
   } catch (error) {
     if (Number(error?.code) !== 409) throw error;
 
-    const existing = await getRowOrNull(
-      tablesDB,
-      tableId,
-      rowId,
-    );
+    const existing = await getRowOrNull(tablesDB, tableId, rowId);
 
     if (!existing) throw error;
     return existing;
@@ -367,19 +304,13 @@ const getCurrentUser = async (databases, accountId) => {
   const result = await databases.listDocuments({
     databaseId: DATABASE_ID,
     collectionId: USERS_COLLECTION_ID,
-    queries: [
-      Query.equal("accountId", accountId),
-      Query.limit(1),
-    ],
+    queries: [Query.equal("accountId", accountId), Query.limit(1)],
   });
 
   const user = result.documents[0];
 
   if (!user) {
-    throw statusError(
-      403,
-      "No Nookly user profile is linked to this account.",
-    );
+    throw statusError(403, "No Nookly user profile is linked to this account.");
   }
 
   return user;
@@ -395,81 +326,69 @@ const isStudentUser = (user) => {
   );
 };
 
-const isDriverUser = (user) =>
-  normalize(user.userMode) === "driver";
+const isDriverUser = (user) => normalize(user.userMode) === "driver";
 
-const resolveStudentOrganizationId = async (
-  databases,
-  user,
-) => {
-  const directId = String(
-    user.organizationId || user.institutionId || "",
-  ).trim();
+const EDUCATION_ORGANIZATION_TYPES = new Set([
+  "school",
+  "university",
+  "college",
+  "polytechnic",
+  "teachers college",
+  "teacher training college",
+  "tertiary college",
+  "tertiary institution",
+  "institution",
+]);
 
-  if (directId) return directId;
+const isEligibleRideOrganization = (organization) => {
+  const isActive = organization?.isActive !== false;
 
-  const schoolLocation = String(user.schoolLocation || "").trim();
-
-  if (
-    ORGANIZATIONS_COLLECTION_ID &&
-    schoolLocation
-  ) {
-    const organizations = [];
-    const pageSize = 100;
-
-    for (let offset = 0; offset < 1000; offset += pageSize) {
-      const response = await databases.listDocuments({
-        databaseId: DATABASE_ID,
-        collectionId: ORGANIZATIONS_COLLECTION_ID,
-        queries: [
-          Query.limit(pageSize),
-          Query.offset(offset),
-        ],
-      });
-
-      organizations.push(...response.documents);
-
-      if (
-        response.documents.length < pageSize ||
-        organizations.length >=
-          Number(response.total ?? organizations.length)
-      ) {
-        break;
-      }
-    }
-
-    const target = normalize(schoolLocation);
-
-    const match = organizations.find((organization) => {
-      const names = [
-        organization.name,
-        organization.organizationName,
-        organization.institutionName,
-        organization.schoolName,
-      ]
-        .map(normalize)
-        .filter(Boolean);
-
-      return names.includes(target);
-    });
-
-    if (match?.$id) return match.$id;
-  }
-
-  if (DEFAULT_ORGANIZATION_ID) {
-    return DEFAULT_ORGANIZATION_ID;
-  }
-
-  throw statusError(
-    409,
-    "Your institution is not linked to a Nookly organization yet. Ask the institution to complete its Nookly setup.",
+  const organizationType = normalize(
+    organization?.type_of ||
+      organization?.type ||
+      organization?.organizationType ||
+      organization?.category,
   );
+
+  return isActive && EDUCATION_ORGANIZATION_TYPES.has(organizationType);
 };
 
-const getDriverProfile = async (
-  tablesDB,
-  accountId,
-) => {
+const resolveStudentOrganizationId = async (databases, user) => {
+  const organizationId = String(user.organizationId || "").trim();
+
+  if (!organizationId) {
+    throw statusError(
+      409,
+      "Your student account is not linked to a registered institution. Open your student setup and select your institution again.",
+    );
+  }
+
+  let organization;
+
+  try {
+    organization = await databases.getDocument({
+      databaseId: DATABASE_ID,
+      collectionId: ORGANIZATIONS_COLLECTION_ID,
+      documentId: organizationId,
+    });
+  } catch {
+    throw statusError(
+      409,
+      "Your linked institution is no longer available on Nookly. Open your student setup and select an institution again.",
+    );
+  }
+
+  if (!isEligibleRideOrganization(organization)) {
+    throw statusError(
+      409,
+      "Your linked organization is not an active education institution registered for Nookly Rides.",
+    );
+  }
+
+  return String(organization.$id).trim();
+};
+
+const getDriverProfile = async (tablesDB, accountId) => {
   const rows = await listAllRows(
     tablesDB,
     TABLES.drivers,
@@ -480,17 +399,11 @@ const getDriverProfile = async (
   const driver = rows[0];
 
   if (!driver) {
-    throw statusError(
-      403,
-      "No driver profile is linked to this account.",
-    );
+    throw statusError(403, "No driver profile is linked to this account.");
   }
 
   if (normalize(driver.status) !== "active") {
-    throw statusError(
-      403,
-      `Driver account is ${driver.status || "inactive"}.`,
-    );
+    throw statusError(403, `Driver account is ${driver.status || "inactive"}.`);
   }
 
   if (normalize(driver.verificationStatus) !== "verified") {
@@ -503,10 +416,7 @@ const getDriverProfile = async (
   return driver;
 };
 
-const getDriverOrganizationIds = async (
-  tablesDB,
-  driver,
-) => {
+const getDriverOrganizationIds = async (tablesDB, driver) => {
   const organizationIds = new Set();
 
   const relationships = await listAllRows(
@@ -518,14 +428,10 @@ const getDriverOrganizationIds = async (
 
   relationships.forEach((relationship) => {
     if (
-      DRIVER_INSTITUTION_STATUSES.has(
-        normalize(relationship.status),
-      ) &&
+      DRIVER_INSTITUTION_STATUSES.has(normalize(relationship.status)) &&
       String(relationship.organizationId || "").trim()
     ) {
-      organizationIds.add(
-        String(relationship.organizationId).trim(),
-      );
+      organizationIds.add(String(relationship.organizationId).trim());
     }
   });
 
@@ -547,10 +453,7 @@ const ensureDriverCanServeOrganization = async (
   driver,
   organizationId,
 ) => {
-  const organizationIds = await getDriverOrganizationIds(
-    tablesDB,
-    driver,
-  );
+  const organizationIds = await getDriverOrganizationIds(tablesDB, driver);
 
   if (!organizationIds.has(organizationId)) {
     throw statusError(
@@ -560,10 +463,7 @@ const ensureDriverCanServeOrganization = async (
   }
 };
 
-const getActiveDriverVehicles = async (
-  tablesDB,
-  driverId,
-) => {
+const getActiveDriverVehicles = async (tablesDB, driverId) => {
   const vehicles = await listAllRows(
     tablesDB,
     TABLES.vehicles,
@@ -571,9 +471,7 @@ const getActiveDriverVehicles = async (
     100,
   );
 
-  return vehicles.filter(
-    (vehicle) => normalize(vehicle.status) === "active",
-  );
+  return vehicles.filter((vehicle) => normalize(vehicle.status) === "active");
 };
 
 const vehicleCapacity = (vehicle) =>
@@ -632,13 +530,11 @@ const sanitizeVehicleSummary = (vehicle) => ({
       ? undefined
       : Number(vehicle.passengerCapacity),
   availableSeats:
-    vehicle.availableSeats === null ||
-    vehicle.availableSeats === undefined
+    vehicle.availableSeats === null || vehicle.availableSeats === undefined
       ? undefined
       : Number(vehicle.availableSeats),
   vehicleType: vehicle.vehicleType || undefined,
-  hasAirConditioning:
-    vehicle.hasAirConditioning ?? undefined,
+  hasAirConditioning: vehicle.hasAirConditioning ?? undefined,
   hasSeatbelts: vehicle.hasSeatbelts ?? undefined,
   allowsLuggage: vehicle.allowsLuggage ?? undefined,
 });
@@ -648,8 +544,7 @@ const isDemoDriver = (driver) => {
   const email = normalize(driver.email);
 
   return (
-    licenceNumber.startsWith("nookly-demo-") ||
-    email.endsWith("@nookly.local")
+    licenceNumber.startsWith("nookly-demo-") || email.endsWith("@nookly.local")
   );
 };
 
@@ -660,18 +555,8 @@ const getNearbyDriversForStudent = async (
   longitude,
 ) => {
   const [drivers, vehicles, relationships] = await Promise.all([
-    listAllRows(
-      tablesDB,
-      TABLES.drivers,
-      [],
-      NEARBY_DRIVER_SCAN_LIMIT,
-    ),
-    listAllRows(
-      tablesDB,
-      TABLES.vehicles,
-      [],
-      NEARBY_DRIVER_SCAN_LIMIT,
-    ),
+    listAllRows(tablesDB, TABLES.drivers, [], NEARBY_DRIVER_SCAN_LIMIT),
+    listAllRows(tablesDB, TABLES.vehicles, [], NEARBY_DRIVER_SCAN_LIMIT),
     listAllRows(
       tablesDB,
       TABLES.driverInstitutions,
@@ -684,24 +569,16 @@ const getNearbyDriversForStudent = async (
 
   relationships.forEach((relationship) => {
     if (
-      String(relationship.organizationId || "").trim() ===
-        organizationId &&
-      DRIVER_INSTITUTION_STATUSES.has(
-        normalize(relationship.status),
-      ) &&
+      String(relationship.organizationId || "").trim() === organizationId &&
+      DRIVER_INSTITUTION_STATUSES.has(normalize(relationship.status)) &&
       String(relationship.driverId || "").trim()
     ) {
-      permittedDriverIds.add(
-        String(relationship.driverId).trim(),
-      );
+      permittedDriverIds.add(String(relationship.driverId).trim());
     }
   });
 
   drivers.forEach((driver) => {
-    if (
-      String(driver.organizationId || "").trim() ===
-      organizationId
-    ) {
+    if (String(driver.organizationId || "").trim() === organizationId) {
       permittedDriverIds.add(driver.$id);
     }
   });
@@ -723,15 +600,13 @@ const getNearbyDriversForStudent = async (
 
     if (
       !existing ||
-      vehicleAvailableSeats(vehicle) >
-        vehicleAvailableSeats(existing)
+      vehicleAvailableSeats(vehicle) > vehicleAvailableSeats(existing)
     ) {
       activeVehicleByDriverId.set(driverId, vehicle);
     }
   });
 
-  const maximumLocationAgeMs =
-    NEARBY_DRIVER_LOCATION_MAX_AGE_MINUTES * 60_000;
+  const maximumLocationAgeMs = NEARBY_DRIVER_LOCATION_MAX_AGE_MINUTES * 60_000;
   const timestamp = Date.now();
 
   return drivers
@@ -744,15 +619,9 @@ const getNearbyDriversForStudent = async (
         !String(driver.currentRideId || "").trim(),
     )
     .map((driver) => {
-      const driverLatitude = numberOrNull(
-        driver.currentLatitude,
-      );
-      const driverLongitude = numberOrNull(
-        driver.currentLongitude,
-      );
-      const locationTime = new Date(
-        driver.currentLocationAt || 0,
-      ).getTime();
+      const driverLatitude = numberOrNull(driver.currentLatitude);
+      const driverLongitude = numberOrNull(driver.currentLongitude);
+      const locationTime = new Date(driver.currentLocationAt || 0).getTime();
       const demo = isDemoDriver(driver);
 
       if (
@@ -767,10 +636,7 @@ const getNearbyDriversForStudent = async (
         return null;
       }
 
-      const locationAgeMs = Math.max(
-        0,
-        timestamp - locationTime,
-      );
+      const locationAgeMs = Math.max(0, timestamp - locationTime);
 
       if (
         !demo &&
@@ -794,9 +660,7 @@ const getNearbyDriversForStudent = async (
         return null;
       }
 
-      const vehicle = activeVehicleByDriverId.get(
-        driver.$id,
-      );
+      const vehicle = activeVehicleByDriverId.get(driver.$id);
 
       if (!vehicle) {
         return null;
@@ -808,25 +672,19 @@ const getNearbyDriversForStudent = async (
         isDemo: demo,
         distanceKm: Number(distanceKm.toFixed(3)),
         distanceMeters: Math.round(distanceKm * 1000),
-        estimatedPickupMinutes: Math.max(
-          1,
-          Math.ceil((distanceKm / 24) * 60),
-        ),
+        estimatedPickupMinutes: Math.max(1, Math.ceil((distanceKm / 24) * 60)),
         location: {
           latitude: driverLatitude,
           longitude: driverLongitude,
           accuracyMeters:
-            numberOrNull(driver.currentAccuracyMeters) ??
-            undefined,
+            numberOrNull(driver.currentAccuracyMeters) ?? undefined,
           updatedAt: driver.currentLocationAt,
           ageSeconds: Math.round(locationAgeMs / 1000),
         },
         pricing: {
           model: driver.pricingModel || undefined,
-          baseFare:
-            numberOrNull(driver.baseFare) ?? undefined,
-          pricePerKm:
-            numberOrNull(driver.pricePerKm) ?? undefined,
+          baseFare: numberOrNull(driver.baseFare) ?? undefined,
+          pricePerKm: numberOrNull(driver.pricePerKm) ?? undefined,
         },
         vehicle: sanitizeVehicleSummary(vehicle),
       };
@@ -835,21 +693,13 @@ const getNearbyDriversForStudent = async (
     .sort(
       (left, right) =>
         left.distanceKm - right.distanceKm ||
-        Number(right.rating || 0) -
-          Number(left.rating || 0),
+        Number(right.rating || 0) - Number(left.rating || 0),
     )
     .slice(0, NEARBY_DRIVER_RESULT_LIMIT);
 };
 
-const getRequestOrThrow = async (
-  tablesDB,
-  requestId,
-) => {
-  const request = await getRowOrNull(
-    tablesDB,
-    TABLES.requests,
-    requestId,
-  );
+const getRequestOrThrow = async (tablesDB, requestId) => {
+  const request = await getRowOrNull(tablesDB, TABLES.requests, requestId);
 
   if (!request) {
     throw statusError(404, "Ride request was not found.");
@@ -858,15 +708,8 @@ const getRequestOrThrow = async (
   return request;
 };
 
-const getOfferOrThrow = async (
-  tablesDB,
-  offerId,
-) => {
-  const offer = await getRowOrNull(
-    tablesDB,
-    TABLES.offers,
-    offerId,
-  );
+const getOfferOrThrow = async (tablesDB, offerId) => {
+  const offer = await getRowOrNull(tablesDB, TABLES.offers, offerId);
 
   if (!offer) {
     throw statusError(404, "Ride offer was not found.");
@@ -875,10 +718,7 @@ const getOfferOrThrow = async (
   return offer;
 };
 
-const getOffersForRequest = async (
-  tablesDB,
-  requestId,
-) =>
+const getOffersForRequest = async (tablesDB, requestId) =>
   listAllRows(
     tablesDB,
     TABLES.offers,
@@ -886,10 +726,7 @@ const getOffersForRequest = async (
     200,
   );
 
-const enrichOfferForStudent = async (
-  tablesDB,
-  offer,
-) => {
+const enrichOfferForStudent = async (tablesDB, offer) => {
   const [driver, vehicle] = await Promise.all([
     getRowOrNull(tablesDB, TABLES.drivers, offer.driverId),
     getRowOrNull(tablesDB, TABLES.vehicles, offer.vehicleId),
@@ -903,11 +740,7 @@ const enrichOfferForStudent = async (
   };
 };
 
-const getTripReferences = async (
-  tablesDB,
-  requestId,
-  studentId,
-) => {
+const getTripReferences = async (tablesDB, requestId, studentId) => {
   const [tripRows, bookingRows] = await Promise.all([
     listAllRows(
       tablesDB,
@@ -971,13 +804,7 @@ const createRideEvent = async (
   });
 };
 
-const confirmOffer = async (
-  tablesDB,
-  request,
-  offer,
-  user,
-  accountId,
-) => {
+const confirmOffer = async (tablesDB, request, offer, user, accountId) => {
   const existingReferences = await getTripReferences(
     tablesDB,
     request.$id,
@@ -1005,10 +832,7 @@ const confirmOffer = async (
   }
 
   if (effectiveRequestStatus(request) === "expired") {
-    throw statusError(
-      409,
-      "This ride request has expired.",
-    );
+    throw statusError(409, "This ride request has expired.");
   }
 
   if (offer.requestId !== request.$id) {
@@ -1035,17 +859,11 @@ const confirmOffer = async (
     normalize(driver.status) !== "active" ||
     normalize(driver.verificationStatus) !== "verified"
   ) {
-    throw statusError(
-      409,
-      "The selected driver is no longer available.",
-    );
+    throw statusError(409, "The selected driver is no longer available.");
   }
 
   if (!vehicle || normalize(vehicle.status) !== "active") {
-    throw statusError(
-      409,
-      "The selected vehicle is no longer available.",
-    );
+    throw statusError(409, "The selected vehicle is no longer available.");
   }
 
   if (vehicle.driverId !== driver.$id) {
@@ -1061,16 +879,10 @@ const confirmOffer = async (
     request.organizationId,
   );
 
-  const passengerCount = Math.max(
-    1,
-    Number(request.passengerCount || 1),
-  );
+  const passengerCount = Math.max(1, Number(request.passengerCount || 1));
 
   if (passengerCount > vehicleCapacity(vehicle)) {
-    throw statusError(
-      409,
-      "The selected vehicle cannot carry all passengers.",
-    );
+    throw statusError(409, "The selected vehicle cannot carry all passengers.");
   }
 
   const timestamp = nowIso();
@@ -1090,40 +902,23 @@ const confirmOffer = async (
   const rideId = deterministicId("r_", request.$id);
   const bookingId = deterministicId("b_", request.$id);
   const tripCoreId = deterministicId("t_", request.$id);
-  const pickupWaypointId = deterministicId(
-    "w_",
-    request.$id,
-    "pickup",
-  );
+  const pickupWaypointId = deterministicId("w_", request.$id, "pickup");
   const destinationWaypointId = deterministicId(
     "w_",
     request.$id,
     "destination",
   );
-  const firstRoutePointId = deterministicId(
-    "p_",
-    request.$id,
-    "0",
-  );
-  const lastRoutePointId = deterministicId(
-    "p_",
-    request.$id,
-    "1",
-  );
+  const firstRoutePointId = deterministicId("p_", request.$id, "0");
+  const lastRoutePointId = deterministicId("p_", request.$id, "1");
 
-  const departureTime = new Date(
-    request.requestedDepartureTime,
-  ).toISOString();
+  const departureTime = new Date(request.requestedDepartureTime).toISOString();
 
   const journeyMinutes = Math.max(
     1,
     Number(offer.estimatedJourneyMinutes || 1),
   );
 
-  const estimatedArrivalTime = addMinutes(
-    departureTime,
-    journeyMinutes,
-  );
+  const estimatedArrivalTime = addMinutes(departureTime, journeyMinutes);
 
   const capacity = vehicleCapacity(vehicle);
   const totalFare = Number(offer.quotedFare || 0);
@@ -1136,176 +931,134 @@ const confirmOffer = async (
   );
 
   const estimatedDistanceKm = Number(
-    Math.max(straightLineDistance * 1.25, straightLineDistance)
-      .toFixed(2),
+    Math.max(straightLineDistance * 1.25, straightLineDistance).toFixed(2),
   );
 
-  const ride = await createOrGetRow(
-    tablesDB,
-    TABLES.rides,
-    rideId,
-    {
-      organizationId: request.organizationId,
-      schoolLocation: safeOptionalString(user.schoolLocation, 255),
-      routeId: undefined,
-      driverId: driver.$id,
-      vehicleId: vehicle.$id,
-      driverName: driver.name,
-      driverAvatar: driver.avatar || undefined,
-      vehicleRegistration: vehicle.registrationNumber,
-      vehicleMake: vehicle.make,
-      vehicleModel: vehicle.model,
-      vehicleColor: vehicle.color,
-      vehicleCapacity: capacity,
-      externalReference: createReference("NR"),
-      departureTime,
-      estimatedArrivalTime,
-      fare: totalFare,
-      currency: offer.currency || request.currency || "USD",
-      totalSeats: capacity,
-      bookedSeats: passengerCount,
-      availableSeats: Math.max(0, capacity - passengerCount),
-      status: "scheduled",
-      bookingOpen: false,
-      createdBy: accountId,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    },
-  );
+  const ride = await createOrGetRow(tablesDB, TABLES.rides, rideId, {
+    organizationId: request.organizationId,
+    schoolLocation: safeOptionalString(user.schoolLocation, 255),
+    routeId: undefined,
+    driverId: driver.$id,
+    vehicleId: vehicle.$id,
+    driverName: driver.name,
+    driverAvatar: driver.avatar || undefined,
+    vehicleRegistration: vehicle.registrationNumber,
+    vehicleMake: vehicle.make,
+    vehicleModel: vehicle.model,
+    vehicleColor: vehicle.color,
+    vehicleCapacity: capacity,
+    externalReference: createReference("NR"),
+    departureTime,
+    estimatedArrivalTime,
+    fare: totalFare,
+    currency: offer.currency || request.currency || "USD",
+    totalSeats: capacity,
+    bookedSeats: passengerCount,
+    availableSeats: Math.max(0, capacity - passengerCount),
+    status: "scheduled",
+    bookingOpen: false,
+    createdBy: accountId,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
 
-  const booking = await createOrGetRow(
-    tablesDB,
-    TABLES.bookings,
-    bookingId,
-    {
-      rideId: ride.$id,
-      organizationId: request.organizationId,
-      studentId: accountId,
-      studentName: user.name || request.studentName,
-      studentPhone: requireString(
-        user.phone || request.studentPhone,
-        "Student phone",
-        32,
-      ),
-      pickupStopId: undefined,
-      dropoffStopId: undefined,
-      seatCount: passengerCount,
-      amount: totalFare,
-      currency: offer.currency || request.currency || "USD",
-      paymentStatus: "pending",
-      status: "confirmed",
-      bookingReference: createReference("NB"),
-      bookedAt: timestamp,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      requestId: request.$id,
-      offerId: offer.$id,
-      pickupAddress: request.pickupAddress,
-      pickupLatitude: Number(request.pickupLatitude),
-      pickupLongitude: Number(request.pickupLongitude),
-      destinationAddress: request.destinationAddress,
-      destinationLatitude: Number(request.destinationLatitude),
-      destinationLongitude: Number(request.destinationLongitude),
-      passengerCount,
-    },
-  );
+  const booking = await createOrGetRow(tablesDB, TABLES.bookings, bookingId, {
+    rideId: ride.$id,
+    organizationId: request.organizationId,
+    studentId: accountId,
+    studentName: user.name || request.studentName,
+    studentPhone: requireString(
+      user.phone || request.studentPhone,
+      "Student phone",
+      32,
+    ),
+    pickupStopId: undefined,
+    dropoffStopId: undefined,
+    seatCount: passengerCount,
+    amount: totalFare,
+    currency: offer.currency || request.currency || "USD",
+    paymentStatus: "pending",
+    status: "confirmed",
+    bookingReference: createReference("NB"),
+    bookedAt: timestamp,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    requestId: request.$id,
+    offerId: offer.$id,
+    pickupAddress: request.pickupAddress,
+    pickupLatitude: Number(request.pickupLatitude),
+    pickupLongitude: Number(request.pickupLongitude),
+    destinationAddress: request.destinationAddress,
+    destinationLatitude: Number(request.destinationLatitude),
+    destinationLongitude: Number(request.destinationLongitude),
+    passengerCount,
+  });
 
-  await createOrGetRow(
-    tablesDB,
-    TABLES.tripCore,
-    tripCoreId,
-    {
-      rideId: ride.$id,
-      requestId: request.$id,
-      offerId: offer.$id,
-      studentId: accountId,
-      organizationId: request.organizationId,
-      rideType:
-        request.ridePreference || "requested_private",
-      passengerCount,
-      expectedDistanceKm: estimatedDistanceKm,
-      expectedDurationMinutes: journeyMinutes,
-      routeCorridorMeters: 300,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    },
-  );
+  await createOrGetRow(tablesDB, TABLES.tripCore, tripCoreId, {
+    rideId: ride.$id,
+    requestId: request.$id,
+    offerId: offer.$id,
+    studentId: accountId,
+    organizationId: request.organizationId,
+    rideType: request.ridePreference || "requested_private",
+    passengerCount,
+    expectedDistanceKm: estimatedDistanceKm,
+    expectedDurationMinutes: journeyMinutes,
+    routeCorridorMeters: 300,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
 
   await Promise.all([
-    createOrGetRow(
-      tablesDB,
-      TABLES.tripWaypoints,
-      pickupWaypointId,
-      {
-        rideId: ride.$id,
-        organizationId: request.organizationId,
-        waypointType: "pickup",
-        address: request.pickupAddress,
-        latitude: Number(request.pickupLatitude),
-        longitude: Number(request.pickupLongitude),
-        stopOrder: 0,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      },
-    ),
-    createOrGetRow(
-      tablesDB,
-      TABLES.tripWaypoints,
-      destinationWaypointId,
-      {
-        rideId: ride.$id,
-        organizationId: request.organizationId,
-        waypointType: "destination",
-        address: request.destinationAddress,
-        latitude: Number(request.destinationLatitude),
-        longitude: Number(request.destinationLongitude),
-        stopOrder: 1,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      },
-    ),
+    createOrGetRow(tablesDB, TABLES.tripWaypoints, pickupWaypointId, {
+      rideId: ride.$id,
+      organizationId: request.organizationId,
+      waypointType: "pickup",
+      address: request.pickupAddress,
+      latitude: Number(request.pickupLatitude),
+      longitude: Number(request.pickupLongitude),
+      stopOrder: 0,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }),
+    createOrGetRow(tablesDB, TABLES.tripWaypoints, destinationWaypointId, {
+      rideId: ride.$id,
+      organizationId: request.organizationId,
+      waypointType: "destination",
+      address: request.destinationAddress,
+      latitude: Number(request.destinationLatitude),
+      longitude: Number(request.destinationLongitude),
+      stopOrder: 1,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    }),
   ]);
 
   await Promise.all([
-    createOrGetRow(
-      tablesDB,
-      TABLES.expectedRoutePoints,
-      firstRoutePointId,
-      {
-        rideId: ride.$id,
-        sequence: 0,
-        latitude: Number(request.pickupLatitude),
-        longitude: Number(request.pickupLongitude),
-        createdAt: timestamp,
-      },
-    ),
-    createOrGetRow(
-      tablesDB,
-      TABLES.expectedRoutePoints,
-      lastRoutePointId,
-      {
-        rideId: ride.$id,
-        sequence: 1,
-        latitude: Number(request.destinationLatitude),
-        longitude: Number(request.destinationLongitude),
-        createdAt: timestamp,
-      },
-    ),
+    createOrGetRow(tablesDB, TABLES.expectedRoutePoints, firstRoutePointId, {
+      rideId: ride.$id,
+      sequence: 0,
+      latitude: Number(request.pickupLatitude),
+      longitude: Number(request.pickupLongitude),
+      createdAt: timestamp,
+    }),
+    createOrGetRow(tablesDB, TABLES.expectedRoutePoints, lastRoutePointId, {
+      rideId: ride.$id,
+      sequence: 1,
+      latitude: Number(request.destinationLatitude),
+      longitude: Number(request.destinationLongitude),
+      createdAt: timestamp,
+    }),
   ]);
 
-  const requestOffers = await getOffersForRequest(
-    tablesDB,
-    request.$id,
-  );
+  const requestOffers = await getOffersForRequest(tablesDB, request.$id);
 
   await Promise.all(
     requestOffers.map(async (requestOffer) => {
       const nextStatus =
         requestOffer.$id === offer.$id
           ? "accepted"
-          : OPEN_OFFER_STATUSES.has(
-                effectiveOfferStatus(requestOffer),
-              )
+          : OPEN_OFFER_STATUSES.has(effectiveOfferStatus(requestOffer))
             ? "declined"
             : requestOffer.status;
 
@@ -1368,8 +1121,7 @@ const confirmOffer = async (
     driverId: driver.$id,
     data: {
       source: "rides-driver-api",
-      rideType:
-        request.ridePreference || "requested_private",
+      rideType: request.ridePreference || "requested_private",
     },
   });
 
@@ -1385,21 +1137,15 @@ export default async ({ req, res, log, error }) => {
   try {
     assertRequiredConfig();
 
-    const accountId = String(
-      req.headers["x-appwrite-user-id"] || "",
-    ).trim();
+    const accountId = String(req.headers["x-appwrite-user-id"] || "").trim();
 
     if (!accountId) {
       return fail(res, 401, "Sign in to continue.");
     }
 
     const client = new Client()
-      .setEndpoint(
-        process.env.APPWRITE_FUNCTION_API_ENDPOINT,
-      )
-      .setProject(
-        process.env.APPWRITE_FUNCTION_PROJECT_ID,
-      )
+      .setEndpoint(process.env.APPWRITE_FUNCTION_API_ENDPOINT)
+      .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
       .setKey(req.headers["x-appwrite-key"]);
 
     const databases = new Databases(client);
@@ -1408,8 +1154,7 @@ export default async ({ req, res, log, error }) => {
     const user = await getCurrentUser(databases, accountId);
 
     const method = String(req.method || "GET").toUpperCase();
-    const path =
-      String(req.path || "/").replace(/\/+$/, "") || "/";
+    const path = String(req.path || "/").replace(/\/+$/, "") || "/";
     const parts = path.split("/").filter(Boolean);
     const body = parseBody(req);
 
@@ -1433,41 +1178,32 @@ export default async ({ req, res, log, error }) => {
       return getDriverProfile(tablesDB, accountId);
     };
 
-    if (
-      method === "POST" &&
-      path === "/student/nearby-drivers"
-    ) {
+    if (method === "POST" && path === "/student/nearby-drivers") {
       requireStudent();
 
       const latitude = requireNumber(
-        body.latitude ??
-          body.currentLatitude ??
-          body.location?.latitude,
+        body.latitude ?? body.currentLatitude ?? body.location?.latitude,
         "Current latitude",
         { min: -90, max: 90 },
       );
 
       const longitude = requireNumber(
-        body.longitude ??
-          body.currentLongitude ??
-          body.location?.longitude,
+        body.longitude ?? body.currentLongitude ?? body.location?.longitude,
         "Current longitude",
         { min: -180, max: 180 },
       );
 
-      const organizationId =
-        await resolveStudentOrganizationId(
-          databases,
-          user,
-        );
+      const organizationId = await resolveStudentOrganizationId(
+        databases,
+        user,
+      );
 
-      const nearbyDrivers =
-        await getNearbyDriversForStudent(
-          tablesDB,
-          organizationId,
-          latitude,
-          longitude,
-        );
+      const nearbyDrivers = await getNearbyDriversForStudent(
+        tablesDB,
+        organizationId,
+        latitude,
+        longitude,
+      );
 
       log?.(
         `Nearby drivers: ${nearbyDrivers.length} within ${NEARBY_DRIVER_RADIUS_KM} km for organization ${organizationId}.`,
@@ -1486,17 +1222,13 @@ export default async ({ req, res, log, error }) => {
       });
     }
 
-    if (
-      method === "POST" &&
-      path === "/student/requests"
-    ) {
+    if (method === "POST" && path === "/student/requests") {
       requireStudent();
 
-      const organizationId =
-        await resolveStudentOrganizationId(
-          databases,
-          user,
-        );
+      const organizationId = await resolveStudentOrganizationId(
+        databases,
+        user,
+      );
 
       const pickupAddress = requireString(
         body.pickupAddress,
@@ -1549,62 +1281,40 @@ export default async ({ req, res, log, error }) => {
       );
 
       if (Number.isNaN(requestedDeparture.getTime())) {
-        throw statusError(
-          400,
-          "Requested departure time is invalid.",
-        );
+        throw statusError(400, "Requested departure time is invalid.");
       }
 
-      if (
-        requestedDeparture.getTime() <
-        Date.now() - 5 * 60_000
-      ) {
+      if (requestedDeparture.getTime() < Date.now() - 5 * 60_000) {
         throw statusError(
           400,
           "Requested departure time cannot be in the past.",
         );
       }
 
-      const ridePreference = [
-        "requested_private",
-        "requested_shared",
-      ].includes(String(body.ridePreference))
+      const ridePreference = ["requested_private", "requested_shared"].includes(
+        String(body.ridePreference),
+      )
         ? String(body.ridePreference)
         : "requested_private";
 
-      const proposedBudget = numberOrNull(
-        body.proposedBudget,
-      );
+      const proposedBudget = numberOrNull(body.proposedBudget);
 
-      if (
-        proposedBudget !== null &&
-        proposedBudget < 0
-      ) {
-        throw statusError(
-          400,
-          "Proposed budget cannot be negative.",
-        );
+      if (proposedBudget !== null && proposedBudget < 0) {
+        throw statusError(400, "Proposed budget cannot be negative.");
       }
 
-      const currency =
-        requireString(
-          body.currency || "USD",
-          "Currency",
-          8,
-        ).toUpperCase();
+      const currency = requireString(
+        body.currency || "USD",
+        "Currency",
+        8,
+      ).toUpperCase();
 
       const timestamp = nowIso();
       const requestId = ID.unique();
 
-      const requestedExpiry = addHours(
-        timestamp,
-        REQUEST_EXPIRY_HOURS,
-      );
+      const requestedExpiry = addHours(timestamp, REQUEST_EXPIRY_HOURS);
 
-      const departureExpiry = addMinutes(
-        requestedDeparture.toISOString(),
-        60,
-      );
+      const departureExpiry = addMinutes(requestedDeparture.toISOString(), 60);
 
       const expiresAt =
         new Date(requestedExpiry).getTime() <
@@ -1619,12 +1329,8 @@ export default async ({ req, res, log, error }) => {
         data: cleanData({
           organizationId,
           studentId: accountId,
-          studentName:
-            requireString(user.name, "Student name", 128),
-          studentPhone: safeOptionalString(
-            user.phone,
-            32,
-          ),
+          studentName: requireString(user.name, "Student name", 128),
+          studentPhone: safeOptionalString(user.phone, 32),
           pickupAddress,
           pickupLatitude,
           pickupLongitude,
@@ -1632,13 +1338,9 @@ export default async ({ req, res, log, error }) => {
           destinationLatitude,
           destinationLongitude,
           passengerCount: Math.round(passengerCount),
-          requestedDepartureTime:
-            requestedDeparture.toISOString(),
+          requestedDepartureTime: requestedDeparture.toISOString(),
           ridePreference,
-          proposedBudget:
-            proposedBudget === null
-              ? undefined
-              : proposedBudget,
+          proposedBudget: proposedBudget === null ? undefined : proposedBudget,
           currency,
           notes: safeOptionalString(body.notes, 1000),
           status: "pending",
@@ -1655,16 +1357,17 @@ export default async ({ req, res, log, error }) => {
         { log, error },
       );
 
-      return ok(res, {
-        ...request,
-        offerCount: 0,
-      }, 201);
+      return ok(
+        res,
+        {
+          ...request,
+          offerCount: 0,
+        },
+        201,
+      );
     }
 
-    if (
-      method === "GET" &&
-      path === "/student/requests"
-    ) {
+    if (method === "GET" && path === "/student/requests") {
       requireStudent();
 
       const requests = await listAllRows(
@@ -1676,18 +1379,13 @@ export default async ({ req, res, log, error }) => {
 
       const enriched = await Promise.all(
         requests.map(async (request) => {
-          const offers = await getOffersForRequest(
-            tablesDB,
-            request.$id,
-          );
+          const offers = await getOffersForRequest(tablesDB, request.$id);
 
           return {
             ...request,
             status: effectiveRequestStatus(request),
             offerCount: offers.filter(
-              (offer) =>
-                effectiveOfferStatus(offer) ===
-                "submitted",
+              (offer) => effectiveOfferStatus(offer) === "submitted",
             ).length,
           };
         }),
@@ -1710,33 +1408,21 @@ export default async ({ req, res, log, error }) => {
     ) {
       requireStudent();
 
-      const request = await getRequestOrThrow(
-        tablesDB,
-        parts[2],
-      );
+      const request = await getRequestOrThrow(tablesDB, parts[2]);
 
       if (request.studentId !== accountId) {
-        throw statusError(
-          403,
-          "This ride request belongs to another student.",
-        );
+        throw statusError(403, "This ride request belongs to another student.");
       }
 
-      const offers = await getOffersForRequest(
-        tablesDB,
-        request.$id,
-      );
+      const offers = await getOffersForRequest(tablesDB, request.$id);
 
       const enrichedOffers = await Promise.all(
-        offers.map((offer) =>
-          enrichOfferForStudent(tablesDB, offer),
-        ),
+        offers.map((offer) => enrichOfferForStudent(tablesDB, offer)),
       );
 
       enrichedOffers.sort(
         (left, right) =>
-          Number(left.quotedFare || 0) -
-          Number(right.quotedFare || 0),
+          Number(left.quotedFare || 0) - Number(right.quotedFare || 0),
       );
 
       const references = await getTripReferences(
@@ -1767,23 +1453,13 @@ export default async ({ req, res, log, error }) => {
     ) {
       requireStudent();
 
-      const request = await getRequestOrThrow(
-        tablesDB,
-        parts[2],
-      );
+      const request = await getRequestOrThrow(tablesDB, parts[2]);
 
       if (request.studentId !== accountId) {
-        throw statusError(
-          403,
-          "This ride request belongs to another student.",
-        );
+        throw statusError(403, "This ride request belongs to another student.");
       }
 
-      if (
-        !["pending", "quoted"].includes(
-          effectiveRequestStatus(request),
-        )
-      ) {
+      if (!["pending", "quoted"].includes(effectiveRequestStatus(request))) {
         throw statusError(
           409,
           `A ${effectiveRequestStatus(request)} request cannot be cancelled here.`,
@@ -1802,18 +1478,11 @@ export default async ({ req, res, log, error }) => {
         },
       });
 
-      const offers = await getOffersForRequest(
-        tablesDB,
-        request.$id,
-      );
+      const offers = await getOffersForRequest(tablesDB, request.$id);
 
       await Promise.all(
         offers
-          .filter(
-            (offer) =>
-              effectiveOfferStatus(offer) ===
-              "submitted",
-          )
+          .filter((offer) => effectiveOfferStatus(offer) === "submitted")
           .map((offer) =>
             tablesDB.updateRow({
               databaseId: DATABASE_ID,
@@ -1846,28 +1515,15 @@ export default async ({ req, res, log, error }) => {
     ) {
       requireStudent();
 
-      const request = await getRequestOrThrow(
-        tablesDB,
-        parts[2],
-      );
+      const request = await getRequestOrThrow(tablesDB, parts[2]);
 
       if (request.studentId !== accountId) {
-        throw statusError(
-          403,
-          "This ride request belongs to another student.",
-        );
+        throw statusError(403, "This ride request belongs to another student.");
       }
 
-      const offerId = requireString(
-        body.offerId,
-        "Offer ID",
-        36,
-      );
+      const offerId = requireString(body.offerId, "Offer ID", 36);
 
-      const offer = await getOfferOrThrow(
-        tablesDB,
-        offerId,
-      );
+      const offer = await getOfferOrThrow(tablesDB, offerId);
 
       const result = await confirmOffer(
         tablesDB,
@@ -1891,55 +1547,32 @@ export default async ({ req, res, log, error }) => {
       return ok(res, result);
     }
 
-    if (
-      method === "GET" &&
-      path === "/driver/requests"
-    ) {
+    if (method === "GET" && path === "/driver/requests") {
       const driver = await requireDriver();
-      const organizationIds =
-        await getDriverOrganizationIds(
-          tablesDB,
-          driver,
-        );
+      const organizationIds = await getDriverOrganizationIds(tablesDB, driver);
 
       if (organizationIds.size === 0) {
         return ok(res, []);
       }
 
-      const requests = await listAllRows(
-        tablesDB,
-        TABLES.requests,
-        [],
-        500,
-      );
+      const requests = await listAllRows(tablesDB, TABLES.requests, [], 500);
 
       const visible = requests
+        .filter((request) => organizationIds.has(request.organizationId))
         .filter((request) =>
-          organizationIds.has(request.organizationId),
-        )
-        .filter((request) =>
-          ["pending", "quoted"].includes(
-            effectiveRequestStatus(request),
-          ),
+          ["pending", "quoted"].includes(effectiveRequestStatus(request)),
         )
         .map(sanitizeRequestForDriver)
         .sort(
           (left, right) =>
-            new Date(
-              left.requestedDepartureTime,
-            ).getTime() -
-            new Date(
-              right.requestedDepartureTime,
-            ).getTime(),
+            new Date(left.requestedDepartureTime).getTime() -
+            new Date(right.requestedDepartureTime).getTime(),
         );
 
       return ok(res, visible);
     }
 
-    if (
-      method === "GET" &&
-      path === "/driver/offers"
-    ) {
+    if (method === "GET" && path === "/driver/offers") {
       const driver = await requireDriver();
 
       const offers = await listAllRows(
@@ -1951,29 +1584,16 @@ export default async ({ req, res, log, error }) => {
 
       const enriched = await Promise.all(
         offers.map(async (offer) => {
-          const [request, vehicle] =
-            await Promise.all([
-              getRowOrNull(
-                tablesDB,
-                TABLES.requests,
-                offer.requestId,
-              ),
-              getRowOrNull(
-                tablesDB,
-                TABLES.vehicles,
-                offer.vehicleId,
-              ),
-            ]);
+          const [request, vehicle] = await Promise.all([
+            getRowOrNull(tablesDB, TABLES.requests, offer.requestId),
+            getRowOrNull(tablesDB, TABLES.vehicles, offer.vehicleId),
+          ]);
 
           return {
             ...offer,
             status: effectiveOfferStatus(offer),
-            request: request
-              ? sanitizeRequestForDriver(request)
-              : null,
-            vehicle: vehicle
-              ? sanitizeVehicleSummary(vehicle)
-              : null,
+            request: request ? sanitizeRequestForDriver(request) : null,
+            vehicle: vehicle ? sanitizeVehicleSummary(vehicle) : null,
           };
         }),
       );
@@ -1994,10 +1614,7 @@ export default async ({ req, res, log, error }) => {
       parts[1] === "requests"
     ) {
       const driver = await requireDriver();
-      const request = await getRequestOrThrow(
-        tablesDB,
-        parts[2],
-      );
+      const request = await getRequestOrThrow(tablesDB, parts[2]);
 
       await ensureDriverCanServeOrganization(
         tablesDB,
@@ -2011,9 +1628,7 @@ export default async ({ req, res, log, error }) => {
       ]);
 
       const myOffer =
-        offers.find(
-          (offer) => offer.driverId === driver.$id,
-        ) ?? null;
+        offers.find((offer) => offer.driverId === driver.$id) ?? null;
 
       return ok(res, {
         request: sanitizeRequestForDriver(request),
@@ -2023,9 +1638,7 @@ export default async ({ req, res, log, error }) => {
               status: effectiveOfferStatus(myOffer),
             }
           : null,
-        vehicles: vehicles.map(
-          sanitizeVehicleSummary,
-        ),
+        vehicles: vehicles.map(sanitizeVehicleSummary),
       });
     }
 
@@ -2037,10 +1650,7 @@ export default async ({ req, res, log, error }) => {
       parts[3] === "offers"
     ) {
       const driver = await requireDriver();
-      const request = await getRequestOrThrow(
-        tablesDB,
-        parts[2],
-      );
+      const request = await getRequestOrThrow(tablesDB, parts[2]);
 
       await ensureDriverCanServeOrganization(
         tablesDB,
@@ -2048,59 +1658,41 @@ export default async ({ req, res, log, error }) => {
         request.organizationId,
       );
 
-      if (
-        !["pending", "quoted"].includes(
-          effectiveRequestStatus(request),
-        )
-      ) {
+      if (!["pending", "quoted"].includes(effectiveRequestStatus(request))) {
         throw statusError(
           409,
           `This request is ${effectiveRequestStatus(request)} and is not accepting offers.`,
         );
       }
 
-      const vehicleId = requireString(
-        body.vehicleId,
-        "Vehicle",
-        36,
-      );
+      const vehicleId = requireString(body.vehicleId, "Vehicle", 36);
 
-      const vehicle = await getRowOrNull(
-        tablesDB,
-        TABLES.vehicles,
-        vehicleId,
-      );
+      const vehicle = await getRowOrNull(tablesDB, TABLES.vehicles, vehicleId);
 
       if (
         !vehicle ||
         vehicle.driverId !== driver.$id ||
         normalize(vehicle.status) !== "active"
       ) {
-        throw statusError(
-          400,
-          "Select one of your active vehicles.",
-        );
+        throw statusError(400, "Select one of your active vehicles.");
       }
 
-      const quotedFare = requireNumber(
-        body.quotedFare,
-        "Quoted fare",
-        { min: 0, max: 1_000_000 },
+      const quotedFare = requireNumber(body.quotedFare, "Quoted fare", {
+        min: 0,
+        max: 1_000_000,
+      });
+
+      const estimatedPickupMinutes = requireNumber(
+        body.estimatedPickupMinutes,
+        "Estimated pickup time",
+        { min: 0, max: 720 },
       );
 
-      const estimatedPickupMinutes =
-        requireNumber(
-          body.estimatedPickupMinutes,
-          "Estimated pickup time",
-          { min: 0, max: 720 },
-        );
-
-      const estimatedJourneyMinutes =
-        requireNumber(
-          body.estimatedJourneyMinutes,
-          "Estimated journey time",
-          { min: 1, max: 1440 },
-        );
+      const estimatedJourneyMinutes = requireNumber(
+        body.estimatedJourneyMinutes,
+        "Estimated journey time",
+        { min: 1, max: 1440 },
+      );
 
       const availableSeats = requireNumber(
         body.availableSeats,
@@ -2111,49 +1703,35 @@ export default async ({ req, res, log, error }) => {
         },
       );
 
-      if (
-        availableSeats >
-        vehicleAvailableSeats(vehicle)
-      ) {
+      if (availableSeats > vehicleAvailableSeats(vehicle)) {
         throw statusError(
           400,
           "Available seats exceed the vehicle's current availability.",
         );
       }
 
-      const currency =
-        requireString(
-          body.currency ||
-            request.currency ||
-            "USD",
-          "Currency",
-          8,
-        ).toUpperCase();
+      const currency = requireString(
+        body.currency || request.currency || "USD",
+        "Currency",
+        8,
+      ).toUpperCase();
 
       const timestamp = nowIso();
 
-      const existingOffers =
-        await getOffersForRequest(
-          tablesDB,
-          request.$id,
-        );
+      const existingOffers = await getOffersForRequest(tablesDB, request.$id);
 
       const existing = existingOffers.find(
         (offer) => offer.driverId === driver.$id,
       );
 
-      const expiresAtCandidate = addMinutes(
-        timestamp,
-        OFFER_EXPIRY_MINUTES,
-      );
+      const expiresAtCandidate = addMinutes(timestamp, OFFER_EXPIRY_MINUTES);
 
       const requestExpiryTime = new Date(
         request.expiresAt || expiresAtCandidate,
       ).getTime();
 
       const expiresAt =
-        requestExpiryTime <
-        new Date(expiresAtCandidate).getTime()
+        requestExpiryTime < new Date(expiresAtCandidate).getTime()
           ? new Date(requestExpiryTime).toISOString()
           : expiresAtCandidate;
 
@@ -2164,17 +1742,10 @@ export default async ({ req, res, log, error }) => {
         vehicleId: vehicle.$id,
         quotedFare,
         currency,
-        estimatedPickupMinutes: Math.round(
-          estimatedPickupMinutes,
-        ),
-        estimatedJourneyMinutes: Math.round(
-          estimatedJourneyMinutes,
-        ),
+        estimatedPickupMinutes: Math.round(estimatedPickupMinutes),
+        estimatedJourneyMinutes: Math.round(estimatedJourneyMinutes),
         availableSeats: Math.round(availableSeats),
-        message: safeOptionalString(
-          body.message,
-          1000,
-        ),
+        message: safeOptionalString(body.message, 1000),
         status: "submitted",
         expiresAt,
         updatedAt: timestamp,
@@ -2183,11 +1754,7 @@ export default async ({ req, res, log, error }) => {
       let offer;
 
       if (existing) {
-        if (
-          ["accepted", "declined"].includes(
-            effectiveOfferStatus(existing),
-          )
-        ) {
+        if (["accepted", "declined"].includes(effectiveOfferStatus(existing))) {
           throw statusError(
             409,
             `This offer is already ${effectiveOfferStatus(existing)}.`,
@@ -2242,21 +1809,13 @@ export default async ({ req, res, log, error }) => {
       parts[3] === "withdraw"
     ) {
       const driver = await requireDriver();
-      const offer = await getOfferOrThrow(
-        tablesDB,
-        parts[2],
-      );
+      const offer = await getOfferOrThrow(tablesDB, parts[2]);
 
       if (offer.driverId !== driver.$id) {
-        throw statusError(
-          403,
-          "This offer belongs to another driver.",
-        );
+        throw statusError(403, "This offer belongs to another driver.");
       }
 
-      if (
-        effectiveOfferStatus(offer) !== "submitted"
-      ) {
+      if (effectiveOfferStatus(offer) !== "submitted") {
         throw statusError(
           409,
           `A ${effectiveOfferStatus(offer)} offer cannot be withdrawn.`,
@@ -2281,20 +1840,13 @@ export default async ({ req, res, log, error }) => {
         offer.requestId,
       );
 
-      if (
-        request &&
-        request.status === "quoted"
-      ) {
-        const offers = await getOffersForRequest(
-          tablesDB,
-          request.$id,
-        );
+      if (request && request.status === "quoted") {
+        const offers = await getOffersForRequest(tablesDB, request.$id);
 
         const remaining = offers.some(
           (item) =>
             item.$id !== offer.$id &&
-            effectiveOfferStatus(item) ===
-              "submitted",
+            effectiveOfferStatus(item) === "submitted",
         );
 
         if (!remaining) {
@@ -2313,18 +1865,13 @@ export default async ({ req, res, log, error }) => {
       return ok(res, updated);
     }
 
-    return fail(
-      res,
-      404,
-      "Nookly Rides marketplace endpoint not found.",
-    );
+    return fail(res, 404, "Nookly Rides marketplace endpoint not found.");
   } catch (caughtError) {
     error?.(caughtError);
 
     const statusCode = Number(
       caughtError?.statusCode ||
-        (Number(caughtError?.code) >= 400 &&
-        Number(caughtError?.code) <= 599
+        (Number(caughtError?.code) >= 400 && Number(caughtError?.code) <= 599
           ? caughtError.code
           : 500),
     );
@@ -2332,8 +1879,7 @@ export default async ({ req, res, log, error }) => {
     const message =
       statusCode >= 500
         ? "The Nookly Rides service could not complete this request."
-        : caughtError?.message ||
-          "The Nookly Rides request failed.";
+        : caughtError?.message || "The Nookly Rides request failed.";
 
     log?.(
       JSON.stringify({

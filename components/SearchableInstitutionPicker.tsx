@@ -1,64 +1,102 @@
 import { Colors } from "@/constants/Colors";
-import {
-    searchZimbabweInstitutions,
-    ZimbabweTertiaryInstitution,
-} from "@/constants/zimbabweTertiaryInstitutions";
+import { getDriverOrganizations } from "@/services/driver.service";
+import type { DriverOrganizationOption } from "@/types/driver";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    FlatList,
-    Keyboard,
-    Modal,
-    Pressable,
-    SafeAreaView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    useColorScheme,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Keyboard,
+  Modal,
+  Pressable,
+  SafeAreaView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  useColorScheme,
+  View,
 } from "react-native";
 
 interface SearchableInstitutionPickerProps {
   value: string;
+  organizationId?: string;
   onChange: (institutionName: string) => void;
+  onOrganizationChange?: (
+    organization: DriverOrganizationOption | null,
+  ) => void;
   label?: string;
   placeholder?: string;
   error?: string;
   disabled?: boolean;
 }
 
-const categoryIcon = (
-  category: ZimbabweTertiaryInstitution["category"],
-): keyof typeof Ionicons.glyphMap => {
-  switch (category) {
-    case "University":
-      return "school-outline";
-    case "Polytechnic":
-      return "construct-outline";
-    case "Teachers College":
-      return "book-outline";
-    default:
-      return "build-outline";
-  }
-};
+const normalize = (value: unknown): string =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
 
 export default function SearchableInstitutionPicker({
   value,
+  organizationId = "",
   onChange,
+  onOrganizationChange,
   label = "University, polytechnic or tertiary college",
-  placeholder = "Search Zimbabwean institutions",
+  placeholder = "Select a registered institution",
   error,
   disabled = false,
 }: SearchableInstitutionPickerProps) {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
+
   const [visible, setVisible] = useState(false);
   const [query, setQuery] = useState("");
+  const [organizations, setOrganizations] = useState<
+    DriverOrganizationOption[]
+  >([]);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
-  const results = useMemo(
-    () => searchZimbabweInstitutions(query),
-    [query],
-  );
+  const loadOrganizations = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+
+    try {
+      const result = await getDriverOrganizations();
+      setOrganizations(result);
+    } catch (caughtError) {
+      setOrganizations([]);
+      setLoadError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not load registered institutions.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadOrganizations();
+  }, [loadOrganizations]);
+
+  const results = useMemo(() => {
+    const target = normalize(query);
+
+    if (!target) {
+      return organizations;
+    }
+
+    return organizations.filter((organization) =>
+      [
+        organization.name,
+        organization.city,
+        organization.email,
+        organization.phone,
+      ]
+        .map(normalize)
+        .some((candidate) => candidate.includes(target)),
+    );
+  }, [organizations, query]);
 
   const close = () => {
     Keyboard.dismiss();
@@ -66,16 +104,32 @@ export default function SearchableInstitutionPicker({
     setQuery("");
   };
 
-  const selectInstitution = (item: ZimbabweTertiaryInstitution) => {
-    onChange(item.name);
+  const open = () => {
+    setVisible(true);
+
+    if (!loading && organizations.length === 0) {
+      void loadOrganizations();
+    }
+  };
+
+  const clearSelection = () => {
+    onChange("");
+    onOrganizationChange?.(null);
+  };
+
+  const selectOrganization = (organization: DriverOrganizationOption) => {
+    onChange(organization.name);
+    onOrganizationChange?.(organization);
     close();
   };
 
   return (
     <View>
       <Text
-        className="text-sm font-rubik-medium mb-2"
-        style={{ color: error ? "#EF4444" : theme.muted }}
+        className="mb-2 text-sm font-rubik-medium"
+        style={{
+          color: error ? "#EF4444" : theme.muted,
+        }}
       >
         {label}
       </Text>
@@ -83,8 +137,8 @@ export default function SearchableInstitutionPicker({
       <TouchableOpacity
         activeOpacity={0.85}
         disabled={disabled}
-        onPress={() => setVisible(true)}
-        className="min-h-[56px] rounded-2xl px-4 flex-row items-center"
+        onPress={open}
+        className="min-h-[56px] flex-row items-center rounded-2xl px-4"
         style={{
           backgroundColor: theme.surface,
           borderWidth: 1.5,
@@ -93,20 +147,28 @@ export default function SearchableInstitutionPicker({
         }}
       >
         <View
-          className="w-9 h-9 rounded-xl items-center justify-center mr-3"
-          style={{ backgroundColor: `${theme.primary[300]}14` }}
+          className="mr-3 h-9 w-9 items-center justify-center rounded-xl"
+          style={{
+            backgroundColor: `${theme.primary[300]}14`,
+          }}
         >
-          <Ionicons
-            name="school-outline"
-            size={20}
-            color={theme.primary[300]}
-          />
+          {loading ? (
+            <ActivityIndicator size="small" color={theme.primary[300]} />
+          ) : (
+            <Ionicons
+              name="school-outline"
+              size={21}
+              color={theme.primary[300]}
+            />
+          )}
         </View>
 
         <Text
           numberOfLines={2}
           className="flex-1 text-base font-rubik"
-          style={{ color: value ? theme.text : theme.muted }}
+          style={{
+            color: value ? theme.text : theme.muted,
+          }}
         >
           {value || placeholder}
         </Text>
@@ -116,7 +178,7 @@ export default function SearchableInstitutionPicker({
             hitSlop={10}
             onPress={(event) => {
               event.stopPropagation();
-              onChange("");
+              clearSelection();
             }}
           >
             <Ionicons name="close-circle" size={22} color={theme.muted} />
@@ -126,9 +188,12 @@ export default function SearchableInstitutionPicker({
         )}
       </TouchableOpacity>
 
-      {!!error && (
-        <Text className="text-red-500 text-xs mt-2">{error}</Text>
-      )}
+      {!!error && <Text className="mt-2 text-xs text-red-500">{error}</Text>}
+
+      <Text className="mt-2 text-xs" style={{ color: theme.muted }}>
+        Only active educational institutions registered on Nookly Web appear
+        here.
+      </Text>
 
       <Modal
         visible={visible}
@@ -137,10 +202,13 @@ export default function SearchableInstitutionPicker({
         onRequestClose={close}
       >
         <SafeAreaView
-          style={{ flex: 1, backgroundColor: theme.background }}
+          style={{
+            flex: 1,
+            backgroundColor: theme.background,
+          }}
         >
           <View
-            className="px-5 py-4 flex-row items-center"
+            className="flex-row items-center px-5 py-4"
             style={{
               borderBottomWidth: 1,
               borderBottomColor: `${theme.muted}25`,
@@ -148,8 +216,10 @@ export default function SearchableInstitutionPicker({
           >
             <TouchableOpacity
               onPress={close}
-              className="w-10 h-10 rounded-full items-center justify-center mr-3"
-              style={{ backgroundColor: theme.surface }}
+              className="mr-3 h-10 w-10 items-center justify-center rounded-full"
+              style={{
+                backgroundColor: theme.surface,
+              }}
             >
               <Ionicons name="arrow-back" size={22} color={theme.text} />
             </TouchableOpacity>
@@ -161,18 +231,16 @@ export default function SearchableInstitutionPicker({
               >
                 Select your institution
               </Text>
-              <Text
-                className="text-xs mt-1"
-                style={{ color: theme.muted }}
-              >
-                Universities, polytechnics and tertiary colleges in Zimbabwe
+
+              <Text className="mt-1 text-xs" style={{ color: theme.muted }}>
+                Registered educational organizations from Nookly Web
               </Text>
             </View>
           </View>
 
-          <View className="px-5 pt-4 pb-3">
+          <View className="px-5 pb-3 pt-4">
             <View
-              className="rounded-2xl px-4 flex-row items-center"
+              className="flex-row items-center rounded-2xl px-4"
               style={{
                 minHeight: 52,
                 backgroundColor: theme.surface,
@@ -181,121 +249,174 @@ export default function SearchableInstitutionPicker({
               }}
             >
               <Ionicons name="search" size={21} color={theme.muted} />
+
               <TextInput
                 autoFocus
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Search by name, abbreviation or town"
+                placeholder="Search registered institutions"
                 placeholderTextColor={theme.muted}
-                className="flex-1 ml-3 text-base"
+                className="ml-3 flex-1 text-base"
                 style={{ color: theme.text }}
                 autoCapitalize="none"
                 autoCorrect={false}
                 returnKeyType="search"
               />
+
               {!!query && (
                 <TouchableOpacity onPress={() => setQuery("")}>
-                  <Ionicons
-                    name="close-circle"
-                    size={21}
-                    color={theme.muted}
-                  />
+                  <Ionicons name="close-circle" size={21} color={theme.muted} />
                 </TouchableOpacity>
               )}
             </View>
 
-            <Text className="text-xs mt-2" style={{ color: theme.muted }}>
-              {results.length} institution{results.length === 1 ? "" : "s"} found
-            </Text>
+            {!loading && !loadError && (
+              <Text className="mt-2 text-xs" style={{ color: theme.muted }}>
+                {results.length} registered institution
+                {results.length === 1 ? "" : "s"} found
+              </Text>
+            )}
           </View>
 
-          <FlatList
-            data={results}
-            keyExtractor={(item) => item.id}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{
-              paddingHorizontal: 20,
-              paddingBottom: 30,
-            }}
-            ItemSeparatorComponent={() => <View className="h-2" />}
-            ListEmptyComponent={
-              <View className="items-center justify-center py-16 px-8">
-                <Ionicons
-                  name="search-outline"
-                  size={42}
-                  color={theme.muted}
-                />
-                <Text
-                  className="font-rubik-bold text-base mt-4 text-center"
-                  style={{ color: theme.text }}
-                >
-                  No institution found
-                </Text>
-                <Text
-                  className="text-sm mt-2 text-center"
-                  style={{ color: theme.muted }}
-                >
-                  Try the full institution name, an abbreviation or its town.
-                </Text>
-              </View>
-            }
-            renderItem={({ item }) => {
-              const selected = value === item.name;
+          {loading ? (
+            <View className="flex-1 items-center justify-center px-8">
+              <ActivityIndicator size="large" color={theme.primary[300]} />
 
-              return (
-                <TouchableOpacity
-                  activeOpacity={0.82}
-                  onPress={() => selectInstitution(item)}
-                  className="rounded-2xl p-4 flex-row items-center"
-                  style={{
-                    backgroundColor: selected
-                      ? `${theme.primary[300]}12`
-                      : theme.surface,
-                    borderWidth: 1.5,
-                    borderColor: selected
-                      ? theme.primary[300]
-                      : `${theme.muted}22`,
-                  }}
-                >
-                  <View
-                    className="w-11 h-11 rounded-xl items-center justify-center mr-3"
+              <Text className="mt-4 text-sm" style={{ color: theme.muted }}>
+                Loading Nookly institutions...
+              </Text>
+            </View>
+          ) : loadError ? (
+            <View className="flex-1 items-center justify-center px-8">
+              <Ionicons
+                name="cloud-offline-outline"
+                size={46}
+                color={theme.muted}
+              />
+
+              <Text
+                className="mt-4 text-center text-base font-rubik-bold"
+                style={{ color: theme.text }}
+              >
+                Could not load institutions
+              </Text>
+
+              <Text
+                className="mt-2 text-center text-sm"
+                style={{ color: theme.muted }}
+              >
+                {loadError}
+              </Text>
+
+              <TouchableOpacity
+                onPress={() => void loadOrganizations()}
+                className="mt-5 rounded-full px-5 py-3"
+                style={{
+                  backgroundColor: theme.primary[300],
+                }}
+              >
+                <Text className="font-rubik-bold text-white">Retry</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <FlatList
+              data={results}
+              keyExtractor={(item) => item.$id}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{
+                paddingHorizontal: 20,
+                paddingBottom: 30,
+                flexGrow: results.length === 0 ? 1 : undefined,
+              }}
+              ItemSeparatorComponent={() => <View className="h-2" />}
+              ListEmptyComponent={
+                <View className="flex-1 items-center justify-center px-8 py-16">
+                  <Ionicons
+                    name="school-outline"
+                    size={46}
+                    color={theme.muted}
+                  />
+
+                  <Text
+                    className="mt-4 text-center text-base font-rubik-bold"
+                    style={{ color: theme.text }}
+                  >
+                    No registered institution found
+                  </Text>
+
+                  <Text
+                    className="mt-2 text-center text-sm"
+                    style={{ color: theme.muted }}
+                  >
+                    The institution must first complete its organization setup
+                    on Nookly Web.
+                  </Text>
+                </View>
+              }
+              renderItem={({ item }) => {
+                const selected =
+                  organizationId === item.$id ||
+                  (!organizationId &&
+                    normalize(value) === normalize(item.name));
+
+                return (
+                  <TouchableOpacity
+                    activeOpacity={0.82}
+                    onPress={() => selectOrganization(item)}
+                    className="flex-row items-center rounded-2xl p-4"
                     style={{
                       backgroundColor: selected
+                        ? `${theme.primary[300]}12`
+                        : theme.surface,
+                      borderWidth: 1.5,
+                      borderColor: selected
                         ? theme.primary[300]
-                        : `${theme.primary[300]}12`,
+                        : `${theme.muted}22`,
                     }}
                   >
+                    <View
+                      className="mr-3 h-11 w-11 items-center justify-center rounded-xl"
+                      style={{
+                        backgroundColor: selected
+                          ? theme.primary[300]
+                          : `${theme.primary[300]}12`,
+                      }}
+                    >
+                      <Ionicons
+                        name="school-outline"
+                        size={23}
+                        color={selected ? "#FFFFFF" : theme.primary[300]}
+                      />
+                    </View>
+
+                    <View className="flex-1 pr-2">
+                      <Text
+                        className="text-sm font-rubik-bold"
+                        style={{ color: theme.title }}
+                      >
+                        {item.name}
+                      </Text>
+
+                      {!!item.city && (
+                        <Text
+                          className="mt-1 text-xs"
+                          style={{ color: theme.muted }}
+                        >
+                          {item.city}
+                        </Text>
+                      )}
+                    </View>
+
                     <Ionicons
-                      name={categoryIcon(item.category)}
+                      name={selected ? "checkmark-circle" : "chevron-forward"}
                       size={22}
-                      color={selected ? "#FFFFFF" : theme.primary[300]}
+                      color={selected ? theme.primary[300] : theme.muted}
                     />
-                  </View>
-
-                  <View className="flex-1 pr-2">
-                    <Text
-                      className="font-rubik-bold text-sm"
-                      style={{ color: theme.title }}
-                    >
-                      {item.name}
-                    </Text>
-                    <Text
-                      className="text-xs mt-1"
-                      style={{ color: theme.muted }}
-                    >
-                      {item.category} · {item.city}
-                    </Text>
-                  </View>
-
-                  <Ionicons
-                    name={selected ? "checkmark-circle" : "chevron-forward"}
-                    size={22}
-                    color={selected ? theme.primary[300] : theme.muted}
-                  />
-                </TouchableOpacity>
-              );
-            }}
-          />
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          )}
         </SafeAreaView>
       </Modal>
     </View>

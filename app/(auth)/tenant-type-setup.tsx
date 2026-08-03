@@ -1,6 +1,6 @@
 // app/(auth)/tenant-type-setup.tsx
-import CustomInput from "@/components/CustomInput";
 import ErrorModal from "@/components/ErrorModal";
+import SearchableInstitutionPicker from "@/components/SearchableInstitutionPicker";
 import OperationSuccesfull from "@/components/OperationSuccesfull";
 import { Colors } from "@/constants/Colors";
 import {
@@ -35,13 +35,15 @@ const TENANT_OPTIONS: TenantOption[] = [
   {
     value: "student",
     title: "Student",
-    description: "Housing near your school, campus-friendly listings and sharing.",
+    description:
+      "Housing near your school, campus-friendly listings and sharing.",
     icon: "school-outline",
   },
   {
     value: "family",
     title: "Family",
-    description: "More space, family-friendly facilities, safety and neighbourhoods.",
+    description:
+      "More space, family-friendly facilities, safety and neighbourhoods.",
     icon: "people-outline",
   },
   {
@@ -63,6 +65,9 @@ export default function TenantTypeSetup() {
   );
   const [schoolLocation, setSchoolLocation] = useState(
     user?.schoolLocation ?? "",
+  );
+  const [organizationId, setOrganizationId] = useState(
+    user?.organizationId ?? "",
   );
   const [saving, setSaving] = useState(false);
   const [errorVisible, setErrorVisible] = useState(false);
@@ -89,8 +94,11 @@ export default function TenantTypeSetup() {
       return;
     }
 
-    if (tenantType === "student" && !schoolLocation.trim()) {
-      setErrorMessage("Enter your school or university location.");
+    if (
+      tenantType === "student" &&
+      (!schoolLocation.trim() || !organizationId.trim())
+    ) {
+      setErrorMessage("Select an active institution registered on Nookly Web.");
       setErrorVisible(true);
       return;
     }
@@ -105,7 +113,11 @@ export default function TenantTypeSetup() {
       };
 
       if (tenantType === "student") {
-        updates.schoolLocation = schoolLocation.trim().toLowerCase();
+        updates.schoolLocation = schoolLocation.trim();
+        updates.organizationId = organizationId.trim();
+      } else {
+        updates.schoolLocation = "";
+        updates.organizationId = "";
       }
 
       const result = await updateUser(updates as any);
@@ -200,6 +212,7 @@ export default function TenantTypeSetup() {
                   setTenantType(option.value);
                   if (option.value !== "student") {
                     setSchoolLocation("");
+                    setOrganizationId("");
                   }
                 }}
                 className="rounded-2xl p-4 flex-row items-center"
@@ -255,12 +268,13 @@ export default function TenantTypeSetup() {
 
         {tenantType === "student" && (
           <View className="mt-5">
-            <CustomInput
-              label="School or university location"
+            <SearchableInstitutionPicker
               value={schoolLocation}
-              onChangeText={setSchoolLocation}
-              placeholder="e.g. Bindura University"
-              autoCapitalize="words"
+              organizationId={organizationId}
+              onChange={setSchoolLocation}
+              onOrganizationChange={(organization) =>
+                setOrganizationId(organization?.$id || "")
+              }
             />
           </View>
         )}
@@ -295,9 +309,7 @@ export default function TenantTypeSetup() {
           {saving ? (
             <View className="flex-row items-center">
               <ActivityIndicator size="small" color="#FFFFFF" />
-              <Text className="text-white font-rubik-bold ml-2">
-                Saving...
-              </Text>
+              <Text className="text-white font-rubik-bold ml-2">Saving...</Text>
             </View>
           ) : (
             <Text className="text-white text-base font-rubik-bold">

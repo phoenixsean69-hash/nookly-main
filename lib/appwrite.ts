@@ -3,10 +3,7 @@ import {
   normalizeLifestyle,
   rankMatches,
 } from "@/lib/matching";
-import type {
-  LegacyUserMode,
-  TenantType,
-} from "@/lib/userMode";
+import type { LegacyUserMode, TenantType } from "@/lib/userMode";
 import notificationService from "@/services/notification.service";
 import pushFunctionService from "@/services/push-function.service";
 
@@ -144,8 +141,7 @@ export const config = {
   bucketId: process.env.EXPO_PUBLIC_APPWRITE_BUCKET_ID,
   // The free Appwrite plan uses the existing public storage bucket.
   leaseBucketId:
-    process.env.EXPO_PUBLIC_APPWRITE_BUCKET_ID ||
-    "69a20709002844cb4f69",
+    process.env.EXPO_PUBLIC_APPWRITE_BUCKET_ID || "69a20709002844cb4f69",
   favoritesCollectionId:
     process.env.EXPO_PUBLIC_APPWRITE_FAVORITES_COLLECTION_ID,
   likesCollectionId: process.env.EXPO_PUBLIC_APPWRITE_LIKES_COLLECTION,
@@ -256,9 +252,7 @@ async function getActivityRowPermissions(
     );
 
     const ownerReference =
-      typeof property.creatorId === "string"
-        ? property.creatorId.trim()
-        : "";
+      typeof property.creatorId === "string" ? property.creatorId.trim() : "";
 
     if (ownerReference) {
       const ownerUser = await getUserDocumentByIdOrAccountId(ownerReference);
@@ -298,12 +292,9 @@ export interface UploadedLeaseDocument {
   mimeType: "application/pdf";
 }
 
-const MAX_LEASE_DOCUMENT_SIZE =
-  10485760;
+const MAX_LEASE_DOCUMENT_SIZE = 10485760;
 
-const sanitizeLeaseFileName = (
-  value?: string,
-): string => {
+const sanitizeLeaseFileName = (value?: string): string => {
   const cleaned = (value || "lease_document.pdf")
     .trim()
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, "_")
@@ -318,81 +309,46 @@ export const uploadLeaseDocument = async (
   fileAsset: LeaseUploadAsset,
   _tenantAccountId: string,
 ): Promise<UploadedLeaseDocument> => {
-  const fileName = sanitizeLeaseFileName(
-    fileAsset.name,
-  );
+  const fileName = sanitizeLeaseFileName(fileAsset.name);
 
-  const mimeType =
-    fileAsset.mimeType || "application/pdf";
+  const mimeType = fileAsset.mimeType || "application/pdf";
 
-  const fileSize = Number(
-    fileAsset.size || 0,
-  );
+  const fileSize = Number(fileAsset.size || 0);
 
   const isPdf =
-    mimeType === "application/pdf" ||
-    fileName
-      .toLowerCase()
-      .endsWith(".pdf");
+    mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
 
   if (!isPdf) {
-    throw new Error(
-      "Only PDF lease documents are supported.",
-    );
+    throw new Error("Only PDF lease documents are supported.");
   }
 
-  if (
-    !fileAsset.uri ||
-    !Number.isFinite(fileSize) ||
-    fileSize <= 0
-  ) {
-    throw new Error(
-      "The selected lease PDF is empty or invalid.",
-    );
+  if (!fileAsset.uri || !Number.isFinite(fileSize) || fileSize <= 0) {
+    throw new Error("The selected lease PDF is empty or invalid.");
   }
 
-  if (
-    fileSize >
-    MAX_LEASE_DOCUMENT_SIZE
-  ) {
-    throw new Error(
-      "Lease documents must be 10 MB or smaller.",
-    );
+  if (fileSize > MAX_LEASE_DOCUMENT_SIZE) {
+    throw new Error("Lease documents must be 10 MB or smaller.");
   }
 
-  const bucketId =
-    config.bucketId ||
-    config.leaseBucketId;
+  const bucketId = config.bucketId || config.leaseBucketId;
 
   if (!bucketId) {
-    throw new Error(
-      "The Appwrite storage bucket is not configured.",
-    );
+    throw new Error("The Appwrite storage bucket is not configured.");
   }
 
-  console.log(
-    "📄 Uploading lease to the existing public storage bucket...",
-  );
+  console.log("📄 Uploading lease to the existing public storage bucket...");
 
   // The existing free-plan bucket has file security disabled.
   // Do not pass file-level permissions because Appwrite ignores
   // them when file security is off.
-  const response =
-    await storage.createFile(
-      bucketId,
-      ID.unique(),
-      {
-        name: fileName,
-        type: "application/pdf",
-        size: fileSize,
-        uri: fileAsset.uri,
-      },
-    );
+  const response = await storage.createFile(bucketId, ID.unique(), {
+    name: fileName,
+    type: "application/pdf",
+    size: fileSize,
+    uri: fileAsset.uri,
+  });
 
-  console.log(
-    "✅ Lease document uploaded:",
-    response.$id,
-  );
+  console.log("✅ Lease document uploaded:", response.$id);
 
   return {
     fileId: response.$id,
@@ -403,16 +359,13 @@ export const uploadLeaseDocument = async (
   };
 };
 
-export const deleteLeaseDocument = async (
-  fileId: string,
-): Promise<void> => {
+export const deleteLeaseDocument = async (fileId: string): Promise<void> => {
   const normalizedFileId = fileId.trim();
 
   if (!normalizedFileId) return;
 
   await storage.deleteFile(
-    config.bucketId ||
-      config.leaseBucketId!,
+    config.bucketId || config.leaseBucketId!,
     normalizedFileId,
   );
 };
@@ -514,8 +467,7 @@ export const createUser = async ({
             ["student", "family", "single"].includes(rawTenantType || "")
           ? (rawTenantType as TenantType)
           : undefined;
-    const normalizedSchoolLocation =
-      schoolLocation?.trim().toLowerCase() ?? "";
+    const normalizedSchoolLocation = schoolLocation?.trim().toLowerCase() ?? "";
     const isTenantAccount =
       normalizedUserMode === "tenant" || normalizedUserMode === "student";
 
@@ -523,10 +475,7 @@ export const createUser = async ({
       throw new Error("Choose a tenant type before creating the account");
     }
 
-    if (
-      normalizedTenantType === "student" &&
-      !normalizedSchoolLocation
-    ) {
+    if (normalizedTenantType === "student" && !normalizedSchoolLocation) {
       throw new Error("School location is required for student accounts");
     }
 
@@ -555,9 +504,7 @@ export const createUser = async ({
         phone,
         avatar: avatarUrl,
         userMode: normalizedUserMode,
-        ...(normalizedTenantType
-          ? { tenantType: normalizedTenantType }
-          : {}),
+        ...(normalizedTenantType ? { tenantType: normalizedTenantType } : {}),
         ...(normalizedTenantType === "student"
           ? { schoolLocation: normalizedSchoolLocation }
           : {}),
@@ -768,8 +715,7 @@ export async function uploadImage(image: {
       throw new Error("Could not determine the selected image size.");
     }
 
-    const fileName =
-      image.fileName?.trim() || `avatar-${Date.now()}.jpg`;
+    const fileName = image.fileName?.trim() || `avatar-${Date.now()}.jpg`;
 
     const uploadedFile = await storage.createFile(
       config.bucketId,
@@ -788,9 +734,7 @@ export async function uploadImage(image: {
     const projectId = config.projectId?.trim();
 
     if (!endpoint || !projectId) {
-      throw new Error(
-        "The Appwrite endpoint or project ID is not configured.",
-      );
+      throw new Error("The Appwrite endpoint or project ID is not configured.");
     }
 
     const avatarUrl =
@@ -1437,10 +1381,7 @@ export const addReview = async (
     // Notify the property owner through the secure centralized Function.
     // The Function verifies the authenticated reviewer and the exact review
     // inside properties.reviews before creating the in-app notification.
-    if (
-      property.creatorId &&
-      property.creatorId !== currentUser.$id
-    ) {
+    if (property.creatorId && property.creatorId !== currentUser.$id) {
       try {
         const notificationResult =
           await pushFunctionService.notifyPropertyReview(
@@ -1449,28 +1390,17 @@ export const addReview = async (
           );
 
         if (notificationResult.skipped) {
-          console.log(
-            "ℹ️ Property-review notification skipped:",
-            {
-              reason: notificationResult.reason,
-              duplicate:
-                notificationResult.duplicate,
-            },
-          );
+          console.log("ℹ️ Property-review notification skipped:", {
+            reason: notificationResult.reason,
+            duplicate: notificationResult.duplicate,
+          });
         } else {
-          console.log(
-            "✅ Property-review notification processed:",
-            {
-              notificationRowId:
-                notificationResult.notificationRowId,
-              recipientUserId:
-                notificationResult.recipientUserId,
-              acceptedPushes:
-                notificationResult.push?.accepted ?? 0,
-              failedPushes:
-                notificationResult.push?.failed ?? 0,
-            },
-          );
+          console.log("✅ Property-review notification processed:", {
+            notificationRowId: notificationResult.notificationRowId,
+            recipientUserId: notificationResult.recipientUserId,
+            acceptedPushes: notificationResult.push?.accepted ?? 0,
+            failedPushes: notificationResult.push?.failed ?? 0,
+          });
         }
       } catch (notificationError) {
         // The review must remain saved even if notification delivery is
@@ -1903,17 +1833,11 @@ export async function getPropertyById({ id }: { id: string }) {
             ...profile,
             ...linkedUser,
             phone:
-              firstString(
-                linkedUser.phone,
-                profile.phone,
-                profile.T_phone,
-              ) || null,
+              firstString(linkedUser.phone, profile.phone, profile.T_phone) ||
+              null,
             avatar:
-              firstString(
-                linkedUser.avatar,
-                profile.avatar,
-                profile.logo,
-              ) || null,
+              firstString(linkedUser.avatar, profile.avatar, profile.logo) ||
+              null,
           },
           isOrganization,
         );
@@ -1948,8 +1872,8 @@ export async function getPropertyById({ id }: { id: string }) {
         embeddedAgent,
         Boolean(
           embeddedAgent.isOrganization ||
-            embeddedAgent.organizationName ||
-            embeddedAgent.organizationId,
+          embeddedAgent.organizationName ||
+          embeddedAgent.organizationId,
         ),
       );
 
@@ -3306,28 +3230,17 @@ export const requestProperty = async (
         );
 
       if (notificationResult.skipped) {
-        console.log(
-          "ℹ️ Property-request notification skipped:",
-          {
-            reason: notificationResult.reason,
-            duplicate:
-              notificationResult.duplicate,
-          },
-        );
+        console.log("ℹ️ Property-request notification skipped:", {
+          reason: notificationResult.reason,
+          duplicate: notificationResult.duplicate,
+        });
       } else {
-        console.log(
-          "✅ Property-request notification processed:",
-          {
-            notificationRowId:
-              notificationResult.notificationRowId,
-            recipientUserId:
-              notificationResult.recipientUserId,
-            acceptedPushes:
-              notificationResult.push?.accepted ?? 0,
-            failedPushes:
-              notificationResult.push?.failed ?? 0,
-          },
-        );
+        console.log("✅ Property-request notification processed:", {
+          notificationRowId: notificationResult.notificationRowId,
+          recipientUserId: notificationResult.recipientUserId,
+          acceptedPushes: notificationResult.push?.accepted ?? 0,
+          failedPushes: notificationResult.push?.failed ?? 0,
+        });
       }
     } catch (notificationError) {
       // The request must remain saved even if notification delivery is
@@ -3345,9 +3258,7 @@ export const requestProperty = async (
   }
 };
 
-export const markAllNotificationsAsRead = async (
-  userId: string,
-) => {
+export const markAllNotificationsAsRead = async (userId: string) => {
   try {
     const normalizedUserId = userId.trim();
 
@@ -3363,26 +3274,16 @@ export const markAllNotificationsAsRead = async (
     // Secure Function notifications use the authenticated account ID.
     // Older client-created notifications may use the users-table document ID.
     // Resolve and update both so the badge and notification screen stay aligned.
-    const recipientIds = new Set<string>([
-      normalizedUserId,
-    ]);
+    const recipientIds = new Set<string>([normalizedUserId]);
 
     try {
-      const userDocs =
-        await databases.listDocuments(
-          config.databaseId!,
-          config.usersCollectionId!,
-          [
-            Query.equal(
-              "accountId",
-              normalizedUserId,
-            ),
-            Query.limit(1),
-          ],
-        );
+      const userDocs = await databases.listDocuments(
+        config.databaseId!,
+        config.usersCollectionId!,
+        [Query.equal("accountId", normalizedUserId), Query.limit(1)],
+      );
 
-      const userDocument =
-        userDocs.documents[0];
+      const userDocument = userDocs.documents[0];
 
       if (userDocument?.$id) {
         recipientIds.add(userDocument.$id);
@@ -3396,21 +3297,15 @@ export const markAllNotificationsAsRead = async (
 
     const ids = Array.from(recipientIds);
 
-    const unreadNotifs =
-      await databases.listDocuments(
-        config.databaseId!,
-        config.notificationsCollectionId!,
-        [
-          Query.equal(
-            "userId",
-            ids.length === 1
-              ? ids[0]
-              : ids,
-          ),
-          Query.equal("read", false),
-          Query.limit(500),
-        ],
-      );
+    const unreadNotifs = await databases.listDocuments(
+      config.databaseId!,
+      config.notificationsCollectionId!,
+      [
+        Query.equal("userId", ids.length === 1 ? ids[0] : ids),
+        Query.equal("read", false),
+        Query.limit(500),
+      ],
+    );
 
     console.log(
       "📊 Unread notifications to mark:",
@@ -3428,16 +3323,11 @@ export const markAllNotificationsAsRead = async (
       ),
     );
 
-    console.log(
-      "✅ All Appwrite notifications marked as read",
-    );
+    console.log("✅ All Appwrite notifications marked as read");
 
     return true;
   } catch (error) {
-    console.error(
-      "Error marking all notifications as read:",
-      error,
-    );
+    console.error("Error marking all notifications as read:", error);
     return false;
   }
 };

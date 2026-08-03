@@ -1,5 +1,5 @@
 import { warmPersistentQueryCache } from "@/lib/persistentQueryCache";
-﻿import NetInfo from "@react-native-community/netinfo";
+import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ID, Query } from "react-native-appwrite";
 import { create } from "zustand";
@@ -11,10 +11,7 @@ import {
   getDefaultAvatarUrl,
 } from "@/lib/appwrite";
 import { getData, removeData, storeData } from "@/lib/cache";
-import {
-  deleteSecureValue,
-  setSecureValue,
-} from "@/lib/secureStorage";
+import { deleteSecureValue, setSecureValue } from "@/lib/secureStorage";
 import { clearPersistentQueryCache } from "@/lib/persistentQueryCache";
 import {
   clearProfilePageCache,
@@ -47,6 +44,7 @@ export interface User {
   userMode: "tenant" | "landlord" | "driver" | "student";
   tenantType?: "student" | "family" | "single";
   schoolLocation?: string;
+  organizationId?: string;
   email: string;
   phone: string;
   avatar?: string;
@@ -68,6 +66,7 @@ export interface SignUpData {
   userMode: "tenant" | "landlord" | "driver" | "student";
   tenantType?: "student" | "family" | "single";
   schoolLocation?: string;
+  organizationId?: string;
   email: string;
   phone: string;
   password: string;
@@ -99,9 +98,7 @@ export interface AuthState {
   saveUserToStorage: (user: User) => Promise<void>;
   loadUserFromStorage: () => Promise<User | null>;
   removeUserFromStorage: () => Promise<void>;
-  saveOrganizationToStorage: (
-    organization: Organization,
-  ) => Promise<void>;
+  saveOrganizationToStorage: (organization: Organization) => Promise<void>;
   loadOrganizationFromStorage: () => Promise<Organization | null>;
   removeOrganizationFromStorage: () => Promise<void>;
 
@@ -117,10 +114,7 @@ const hasInternetConnection = async (): Promise<boolean> => {
   try {
     const state = await NetInfo.fetch();
 
-    return (
-      state.isConnected === true &&
-      state.isInternetReachable !== false
-    );
+    return state.isConnected === true && state.isInternetReachable !== false;
   } catch {
     return false;
   }
@@ -164,7 +158,9 @@ const normalizeUserRecord = (candidate: User, fallback?: User | null): User => {
           : "tenant";
 
   const normalizeTenantType = (value: unknown): User["tenantType"] => {
-    const normalized = String(value || "").trim().toLowerCase();
+    const normalized = String(value || "")
+      .trim()
+      .toLowerCase();
     return VALID_TENANT_TYPES.has(normalized as any)
       ? (normalized as User["tenantType"])
       : undefined;
@@ -216,10 +212,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
   saveUserToStorage: async (user: User) => {
     try {
-      await AsyncStorage.setItem(
-        STORAGE_KEYS.USER_DATA,
-        JSON.stringify(user),
-      );
+      await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(user));
       console.log("✅ User data saved locally");
     } catch (error) {
       console.error("❌ Failed to save user locally:", error);
@@ -247,9 +240,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  saveOrganizationToStorage: async (
-    organization: Organization,
-  ) => {
+  saveOrganizationToStorage: async (organization: Organization) => {
     try {
       await AsyncStorage.setItem(
         STORAGE_KEYS.ORGANIZATION_DATA,
@@ -260,21 +251,20 @@ const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  loadOrganizationFromStorage:
-    async (): Promise<Organization | null> => {
-      try {
-        const organizationData = await AsyncStorage.getItem(
-          STORAGE_KEYS.ORGANIZATION_DATA,
-        );
+  loadOrganizationFromStorage: async (): Promise<Organization | null> => {
+    try {
+      const organizationData = await AsyncStorage.getItem(
+        STORAGE_KEYS.ORGANIZATION_DATA,
+      );
 
-        if (!organizationData) return null;
+      if (!organizationData) return null;
 
-        return JSON.parse(organizationData) as Organization;
-      } catch (error) {
-        console.error("❌ Failed to load saved organization:", error);
-        return null;
-      }
-    },
+      return JSON.parse(organizationData) as Organization;
+    } catch (error) {
+      console.error("❌ Failed to load saved organization:", error);
+      return null;
+    }
+  },
 
   removeOrganizationFromStorage: async () => {
     try {
@@ -289,12 +279,8 @@ const useAuthStore = create<AuthState>((set, get) => ({
       const normalizedUser = normalizeUserRecord(user, get().user);
 
       await Promise.all([
-        warmProfilePageCache(
-          normalizedUser.accountId,
-        ),
-        warmPersistentQueryCache(
-          normalizedUser.accountId,
-        ),
+        warmProfilePageCache(normalizedUser.accountId),
+        warmPersistentQueryCache(normalizedUser.accountId),
       ]);
 
       await get().saveUserToStorage(normalizedUser);
@@ -319,9 +305,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
-  setOrganization: async (
-    organization: Organization | null,
-  ) => {
+  setOrganization: async (organization: Organization | null) => {
     if (organization) {
       await get().saveOrganizationToStorage(organization);
       await storeData("organization", organization);
@@ -370,9 +354,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  updateOrganization: async (
-    updates: Partial<Organization>,
-  ) => {
+  updateOrganization: async (updates: Partial<Organization>) => {
     const { organization } = get();
 
     if (!organization) {
@@ -422,8 +404,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       let storedUser = await get().loadUserFromStorage();
-      let storedOrganization =
-        await get().loadOrganizationFromStorage();
+      let storedOrganization = await get().loadOrganizationFromStorage();
 
       if (!storedUser) {
         const cachedUser = (await getData("user")) as User | null;
@@ -438,12 +419,8 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       if (storedUser) {
         await Promise.all([
-          warmProfilePageCache(
-            storedUser.accountId,
-          ),
-          warmPersistentQueryCache(
-            storedUser.accountId,
-          ),
+          warmProfilePageCache(storedUser.accountId),
+          warmPersistentQueryCache(storedUser.accountId),
         ]);
 
         await get().saveUserToStorage(storedUser);
@@ -507,8 +484,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       const keys = await AsyncStorage.getAllKeys();
       const removableKeys = keys.filter(
         (key) =>
-          key.startsWith("@rental_") ||
-          key.startsWith("@rentify:session:"),
+          key.startsWith("@rental_") || key.startsWith("@rentify:session:"),
       );
 
       if (removableKeys.length > 0) {
@@ -583,10 +559,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       const userDocuments = await databases.listDocuments(
         config.databaseId!,
         config.usersCollectionId!,
-        [
-          Query.equal("accountId", currentAccount.$id),
-          Query.limit(1),
-        ],
+        [Query.equal("accountId", currentAccount.$id), Query.limit(1)],
       );
 
       if (userDocuments.documents.length === 0) {
@@ -612,33 +585,23 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       if (userDocument.userMode === "landlord") {
         try {
-          const organizationDocuments =
-            await databases.listDocuments(
-              config.databaseId!,
-              config.organizationsCollectionId!,
-              [
-                Query.equal("userId", userDocument.accountId),
-                Query.limit(1),
-              ],
-            );
+          const organizationDocuments = await databases.listDocuments(
+            config.databaseId!,
+            config.organizationsCollectionId!,
+            [Query.equal("userId", userDocument.accountId), Query.limit(1)],
+          );
 
           if (organizationDocuments.documents.length > 0) {
-            organization =
-              organizationDocuments.documents[0] as unknown as Organization;
+            organization = organizationDocuments
+              .documents[0] as unknown as Organization;
           }
         } catch (organizationError) {
-          console.error(
-            "Could not refresh organization:",
-            organizationError,
-          );
+          console.error("Could not refresh organization:", organizationError);
           organization = cachedOrganization;
         }
       }
 
-      await setSecureValue(
-        STORAGE_KEYS.AUTH_TOKEN,
-        currentAccount.$id,
-      );
+      await setSecureValue(STORAGE_KEYS.AUTH_TOKEN, currentAccount.$id);
       await get().saveUserToStorage(userDocument);
       await storeData("user", userDocument);
       await storeData("last_sync", Date.now().toString());
@@ -710,10 +673,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       const userDetails = await databases.listDocuments(
         config.databaseId!,
         config.usersCollectionId!,
-        [
-          Query.equal("accountId", currentAccount.$id),
-          Query.limit(1),
-        ],
+        [Query.equal("accountId", currentAccount.$id), Query.limit(1)],
       );
 
       if (userDetails.documents.length === 0) {
@@ -734,19 +694,15 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       if (user.userMode === "landlord") {
         try {
-          const organizationDocuments =
-            await databases.listDocuments(
-              config.databaseId!,
-              config.organizationsCollectionId!,
-              [
-                Query.equal("userId", user.accountId),
-                Query.limit(1),
-              ],
-            );
+          const organizationDocuments = await databases.listDocuments(
+            config.databaseId!,
+            config.organizationsCollectionId!,
+            [Query.equal("userId", user.accountId), Query.limit(1)],
+          );
 
           if (organizationDocuments.documents.length > 0) {
-            organization =
-              organizationDocuments.documents[0] as unknown as Organization;
+            organization = organizationDocuments
+              .documents[0] as unknown as Organization;
           }
         } catch (organizationError) {
           console.error(
@@ -756,10 +712,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
-      await setSecureValue(
-        STORAGE_KEYS.AUTH_TOKEN,
-        currentAccount.$id,
-      );
+      await setSecureValue(STORAGE_KEYS.AUTH_TOKEN, currentAccount.$id);
       await get().saveUserToStorage(user);
       await storeData("user", user);
       await storeData("last_sync", Date.now().toString());
@@ -830,6 +783,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
             ? (rawTenantType as User["tenantType"])
             : undefined;
       const schoolLocation = userData.schoolLocation?.trim() ?? "";
+      const organizationId = userData.organizationId?.trim() ?? "";
 
       if (normalizedUserMode === "tenant" && !tenantType) {
         set({ isLoading: false });
@@ -840,12 +794,12 @@ const useAuthStore = create<AuthState>((set, get) => ({
         };
       }
 
-      if (tenantType === "student" && !schoolLocation) {
+      if (tenantType === "student" && (!schoolLocation || !organizationId)) {
         set({ isLoading: false });
 
         return {
           success: false,
-          error: "School location is required for student accounts",
+          error: "Select an active institution registered on Nookly Web.",
         };
       }
 
@@ -855,8 +809,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       createdUserDocumentId = userDocumentId;
 
       const avatarUrl =
-        userData.avatar?.trim() ||
-        getDefaultAvatarUrl(userData.name);
+        userData.avatar?.trim() || getDefaultAvatarUrl(userData.name);
 
       const newAccount = await account.create(
         accountId,
@@ -874,7 +827,12 @@ const useAuthStore = create<AuthState>((set, get) => ({
           name: userData.name,
           userMode: normalizedUserMode,
           ...(tenantType ? { tenantType } : {}),
-          ...(tenantType === "student" ? { schoolLocation } : {}),
+          ...(tenantType === "student"
+            ? {
+                schoolLocation,
+                organizationId,
+              }
+            : {}),
           email: userData.email,
           avatar: avatarUrl,
           phone: userData.phone,
@@ -888,10 +846,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
 
       const user = normalizeUserRecord(userDocument as unknown as User);
 
-      await setSecureValue(
-        STORAGE_KEYS.AUTH_TOKEN,
-        newAccount.$id,
-      );
+      await setSecureValue(STORAGE_KEYS.AUTH_TOKEN, newAccount.$id);
       await get().saveUserToStorage(user);
       await storeData("user", user);
       await storeData("last_sync", Date.now().toString());
@@ -921,10 +876,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
                 },
               );
             } catch (agentError) {
-              console.error(
-                "⚠️ Error adding landlord profile:",
-                agentError,
-              );
+              console.error("⚠️ Error adding landlord profile:", agentError);
             }
           };
 
@@ -944,10 +896,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
             createdUserDocumentId,
           );
         } catch (rollbackError) {
-          console.error(
-            "Failed to roll back user document:",
-            rollbackError,
-          );
+          console.error("Failed to roll back user document:", rollbackError);
         }
       }
 
@@ -955,10 +904,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
         try {
           await account.deleteSession("current");
         } catch (rollbackError) {
-          console.error(
-            "Failed to roll back auth session:",
-            rollbackError,
-          );
+          console.error("Failed to roll back auth session:", rollbackError);
         }
       }
 
@@ -977,9 +923,7 @@ const useAuthStore = create<AuthState>((set, get) => ({
       const online = await hasInternetConnection();
 
       if (online && currentUser?.accountId) {
-        const token = await AsyncStorage.getItem(
-          "nookly_expo_push_token",
-        );
+        const token = await AsyncStorage.getItem("nookly_expo_push_token");
 
         if (token) {
           try {
@@ -1023,4 +967,3 @@ const useAuthStore = create<AuthState>((set, get) => ({
 }));
 
 export default useAuthStore;
-

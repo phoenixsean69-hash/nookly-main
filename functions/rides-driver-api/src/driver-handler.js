@@ -70,11 +70,7 @@ const TABLES = {
 };
 
 const requiredConfig = () => {
-  if (
-    !DATABASE_ID ||
-    !USERS_COLLECTION_ID ||
-    !ORGANIZATIONS_COLLECTION_ID
-  ) {
+  if (!DATABASE_ID || !USERS_COLLECTION_ID || !ORGANIZATIONS_COLLECTION_ID) {
     throw new Error(
       "The driver function is missing database, users, or organizations configuration.",
     );
@@ -111,7 +107,6 @@ const isFiniteNumber = (value) =>
   typeof value === "number" && Number.isFinite(value);
 
 const nowIso = () => new Date().toISOString();
-
 
 const VERIFIED_RELATIONSHIP_STATUSES = new Set([
   "active",
@@ -194,12 +189,7 @@ const optionalDate = (value, label) => {
   return date.toISOString();
 };
 
-const listAllRows = async (
-  tablesDB,
-  tableId,
-  queries = [],
-  limit = 500,
-) => {
+const listAllRows = async (tablesDB, tableId, queries = [], limit = 500) => {
   const rows = [];
   const pageSize = Math.min(100, limit);
 
@@ -207,11 +197,7 @@ const listAllRows = async (
     const response = await tablesDB.listRows({
       databaseId: DATABASE_ID,
       tableId,
-      queries: [
-        ...queries,
-        Query.limit(pageSize),
-        Query.offset(offset),
-      ],
+      queries: [...queries, Query.limit(pageSize), Query.offset(offset)],
     });
 
     rows.push(...response.rows);
@@ -251,8 +237,7 @@ const listOrganizationDocuments = async (databases, limit = 1000) => {
 
     if (
       response.documents.length < pageSize ||
-      organizations.length >=
-        Number(response.total ?? organizations.length)
+      organizations.length >= Number(response.total ?? organizations.length)
     ) {
       break;
     }
@@ -261,10 +246,36 @@ const listOrganizationDocuments = async (databases, limit = 1000) => {
   return organizations.slice(0, limit);
 };
 
+const EDUCATION_ORGANIZATION_TYPES = new Set([
+  "school",
+  "university",
+  "college",
+  "polytechnic",
+  "teachers college",
+  "teacher training college",
+  "tertiary college",
+  "tertiary institution",
+  "institution",
+]);
+
+const isEligibleRideOrganization = (organization) => {
+  const isActive = organization?.isActive !== false;
+
+  const organizationType = normalize(
+    organization?.type_of ||
+      organization?.type ||
+      organization?.organizationType ||
+      organization?.category,
+  );
+
+  return isActive && EDUCATION_ORGANIZATION_TYPES.has(organizationType);
+};
+
 const listDriverOrganizations = async (databases) => {
   const organizations = await listOrganizationDocuments(databases);
 
   return organizations
+    .filter(isEligibleRideOrganization)
     .map((organization) => ({
       $id: String(organization.$id || "").trim(),
       name: getOrganizationName(organization),
@@ -290,8 +301,10 @@ const resolveDriverOrganization = async (
   const normalizedOrganizationId = optionalString(organizationId, 36);
 
   if (normalizedOrganizationId) {
+    let organization;
+
     try {
-      return await databases.getDocument({
+      organization = await databases.getDocument({
         databaseId: DATABASE_ID,
         collectionId: ORGANIZATIONS_COLLECTION_ID,
         documentId: normalizedOrganizationId,
@@ -302,18 +315,27 @@ const resolveDriverOrganization = async (
         "That institution is no longer available on Nookly Web. Refresh the institution list and choose again.",
       );
     }
+
+    if (!isEligibleRideOrganization(organization)) {
+      throw statusError(
+        409,
+        "That organization is not an active education institution registered for Nookly Rides.",
+      );
+    }
+
+    return organization;
   }
 
   const target = normalize(institutionName);
 
   if (!target) {
-    throw statusError(
-      400,
-      "Select an institution registered on Nookly Web.",
-    );
+    throw statusError(400, "Select an institution registered on Nookly Web.");
   }
 
-  const organizations = await listOrganizationDocuments(databases);
+  const organizations = (await listOrganizationDocuments(databases)).filter(
+    isEligibleRideOrganization,
+  );
+
   const match = organizations.find((organization) =>
     [
       organization.name,
@@ -329,7 +351,7 @@ const resolveDriverOrganization = async (
   if (!match?.$id) {
     throw statusError(
       409,
-      "That institution has not completed its Nookly organization setup yet.",
+      "That active education institution has not completed its Nookly organization setup yet.",
     );
   }
 
@@ -388,14 +410,8 @@ const upsertDriverOnboarding = async ({
   accountId,
   body,
 }) => {
-  const requestedOrganizationId = optionalString(
-    body.organizationId,
-    36,
-  );
-  const requestedInstitutionName = optionalString(
-    body.institutionName,
-    160,
-  );
+  const requestedOrganizationId = optionalString(body.organizationId, 36);
+  const requestedInstitutionName = optionalString(body.institutionName, 160);
   const driverLicenceFileId = requireFileId(
     body.driverLicenceFileId,
     "Driver licence document",
@@ -439,21 +455,16 @@ const upsertDriverOnboarding = async ({
     "Vehicle passenger capacity",
     { min: 1, max: 200 },
   );
-  const vehicleType =
-    optionalString(body.vehicleType, 32) || "car";
+  const vehicleType = optionalString(body.vehicleType, 32) || "car";
   const manufactureYear =
     body.manufactureYear === null ||
     body.manufactureYear === undefined ||
     body.manufactureYear === ""
       ? undefined
-      : requireInteger(
-          body.manufactureYear,
-          "Vehicle manufacture year",
-          {
-            min: 1900,
-            max: new Date().getFullYear() + 1,
-          },
-        );
+      : requireInteger(body.manufactureYear, "Vehicle manufacture year", {
+          min: 1900,
+          max: new Date().getFullYear() + 1,
+        });
   const insuranceExpiry = optionalDate(
     body.insuranceExpiry,
     "Insurance expiry",
@@ -491,8 +502,7 @@ const upsertDriverOnboarding = async ({
   );
   const vehicleOwnedByAnotherDriver = matchingVehicles.find(
     (vehicle) =>
-      !driver ||
-      String(vehicle.driverId || "") !== String(driver.$id),
+      !driver || String(vehicle.driverId || "") !== String(driver.$id),
   );
 
   if (vehicleOwnedByAnotherDriver) {
@@ -502,8 +512,7 @@ const upsertDriverOnboarding = async ({
     );
   }
 
-  const approvedDriver =
-    normalize(driver?.verificationStatus) === "verified";
+  const approvedDriver = normalize(driver?.verificationStatus) === "verified";
 
   const driverData = cleanData({
     organizationId,
@@ -523,23 +532,17 @@ const upsertDriverOnboarding = async ({
     verificationStatus: approvedDriver ? "verified" : "pending",
     rating: Number(driver?.rating || 0),
     completedTrips: Number(driver?.completedTrips || 0),
-    status: approvedDriver
-      ? String(driver?.status || "active")
-      : "active",
+    status: approvedDriver ? String(driver?.status || "active") : "active",
     emergencyContactName,
     emergencyContactPhone,
     isOnline: approvedDriver ? driver?.isOnline === true : false,
     currentRideId: String(driver?.currentRideId || ""),
     lastSeenAt: timestamp,
     serviceAreas: [institutionName],
-    acceptsPrivateRides:
-      driver?.acceptsPrivateRides === false ? false : true,
-    acceptsSharedRides:
-      driver?.acceptsSharedRides === false ? false : true,
+    acceptsPrivateRides: driver?.acceptsPrivateRides === false ? false : true,
+    acceptsSharedRides: driver?.acceptsSharedRides === false ? false : true,
     pricingModel: String(driver?.pricingModel || "offer"),
-    maxPickupDistanceKm: Number(
-      driver?.maxPickupDistanceKm || 1,
-    ),
+    maxPickupDistanceKm: Number(driver?.maxPickupDistanceKm || 1),
     availabilityNote: approvedDriver
       ? optionalString(driver?.availabilityNote, 500)
       : `Awaiting verification by ${getOrganizationName(organization)}.`,
@@ -583,9 +586,7 @@ const upsertDriverOnboarding = async ({
   const relationshipData = cleanData({
     driverId: driver.$id,
     organizationId,
-    status: approvedRelationship
-      ? String(relationship.status)
-      : "pending",
+    status: approvedRelationship ? String(relationship.status) : "pending",
     notes:
       optionalString(body.applicationNotes, 2000) ||
       "Submitted from Nookly Mobile driver onboarding.",
@@ -613,8 +614,7 @@ const upsertDriverOnboarding = async ({
 
   let vehicle =
     matchingVehicles.find(
-      (candidate) =>
-        String(candidate.driverId || "") === String(driver.$id),
+      (candidate) => String(candidate.driverId || "") === String(driver.$id),
     ) ?? null;
 
   if (!vehicle) {
@@ -656,8 +656,7 @@ const upsertDriverOnboarding = async ({
     roadworthinessStatus: preserveActiveVehicle
       ? String(vehicle?.roadworthinessStatus || "approved")
       : "pending_review",
-    allowsSharedRides:
-      vehicle?.allowsSharedRides === false ? false : true,
+    allowsSharedRides: vehicle?.allowsSharedRides === false ? false : true,
     updatedAt: timestamp,
   });
 
@@ -691,11 +690,7 @@ const upsertDriverOnboarding = async ({
       $id: organizationId,
       name: getOrganizationName(organization),
     },
-    marketplaceReady: isMarketplaceReady(
-      driver,
-      [relationship],
-      [vehicle],
-    ),
+    marketplaceReady: isMarketplaceReady(driver, [relationship], [vehicle]),
     applicationStatus: relationship.status,
   };
 };
