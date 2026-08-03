@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import {
   Client,
   Databases,
@@ -1648,7 +1648,7 @@ export default async ({ req, res, log, error }) => {
         }),
       });
 
-      await queueDriverRidePushEvent(
+      const pushQueue = await queueDriverRidePushEvent(
         client,
         "request_created",
         { requestId: request.$id },
@@ -1658,6 +1658,7 @@ export default async ({ req, res, log, error }) => {
       return ok(res, {
         ...request,
         offerCount: 0,
+        _pushDebug: pushQueue,
       }, 201);
     }
 
