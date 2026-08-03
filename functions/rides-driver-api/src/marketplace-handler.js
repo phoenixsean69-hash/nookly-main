@@ -1648,7 +1648,7 @@ export default async ({ req, res, log, error }) => {
         }),
       });
 
-      const pushQueue = await queueDriverRidePushEvent(
+      await queueDriverRidePushEvent(
         client,
         "request_created",
         { requestId: request.$id },
@@ -1658,7 +1658,6 @@ export default async ({ req, res, log, error }) => {
       return ok(res, {
         ...request,
         offerCount: 0,
-        _pushDebug: pushQueue,
       }, 201);
     }
 

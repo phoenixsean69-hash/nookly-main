@@ -50,7 +50,7 @@
             "$id": "6a31d988001bf962fb57",
             "name": "Nookly Push API",
             "runtime": "node-22",
-            "path": "functions/nookly-push-api",
+            "path": "nookly-push-api-v1.5.0",
             "entrypoint": "src/main.js",
             "execute": [
                 "users"
@@ -74,7 +74,7 @@
             "$id": "rides-driver-api",
             "name": "Nookly Rides Driver API",
             "runtime": "node-22",
-            "path": "functions/nookly-rides-driver-api",
+            "path": "functions/rides-driver-api",
             "entrypoint": "src/main.js",
             "execute": [
                 "users"
@@ -89,7 +89,8 @@
                 "rows.read",
                 "rows.write",
                 "documents.read",
-                "files.write"
+                "files.write",
+                "executions.write"
             ],
             "buildSpecification": "s-2vcpu-2gb",
             "runtimeSpecification": "s-0.5vcpu-512mb",

@@ -1,4 +1,4 @@
-﻿import {
+import {
   Client,
   ExecutionMethod,
   Functions,
@@ -67,13 +67,6 @@ export interface RegisterDeviceResult {
   duplicatesDeactivated?: number;
 }
 
-export interface QueuedPushExecutionResult {
-  queued: true;
-  executionId: string;
-  status: string;
-  route: string;
-}
-
 export interface DeactivateDeviceResult {
   deactivated: number;
 }
@@ -82,9 +75,8 @@ export interface PushTicketSummary {
   requested: number;
   accepted: number;
   failed: number;
-  tickets: Array<{
+  tickets: {
     tokenRowId?: string;
-    token?: string;
     status?: string;
     id?: string;
     message?: string;
@@ -92,16 +84,15 @@ export interface PushTicketSummary {
       error?: string;
       [key: string]: unknown;
     };
-  }>;
-  failures: Array<{
+  }[];
+  failures: {
     tokenRowId?: string;
-    token?: string;
     message?: string;
     details?: {
       error?: string;
       [key: string]: unknown;
     };
-  }>;
+  }[];
   message?: string;
 }
 
@@ -288,29 +279,24 @@ class PushFunctionService {
   async registerDevice(
     token: string,
     deviceType: string,
-  ): Promise<QueuedPushExecutionResult> {
-    const route = "/register-device";
+  ): Promise<RegisterDeviceResult> {
+    const normalizedToken = token.trim();
+    const normalizedDeviceType =
+      deviceType.trim().toLowerCase() || "android";
 
-    const execution = await getFunctions().createExecution({
-      functionId: requireFunctionId(),
-      body: JSON.stringify({
-        token,
-        deviceType,
-      }),
-      async: true,
-      xpath: route,
-      method: ExecutionMethod.POST,
-      headers: {
-        "content-type": "application/json",
+    if (!normalizedToken) {
+      throw new Error(
+        "A push token is required to register this device.",
+      );
+    }
+
+    return executePushRoute<RegisterDeviceResult>(
+      "/register-device",
+      {
+        token: normalizedToken,
+        deviceType: normalizedDeviceType,
       },
-    });
-
-    return {
-      queued: true,
-      executionId: execution.$id,
-      status: String(execution.status ?? "waiting"),
-      route,
-    };
+    );
   }
 
   async deactivateDevice(

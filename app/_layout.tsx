@@ -1,4 +1,4 @@
-﻿import "expo-sqlite/localStorage/install";
+import "expo-sqlite/localStorage/install";
 import "react-native-url-polyfill/auto";
 
 import OfflineStatusBanner from "@/components/OfflineStatusBanner";
@@ -154,7 +154,14 @@ export default function RootLayout() {
         await AsyncStorage.setItem(EXPO_PUSH_TOKEN_STORAGE_KEY, token);
 
         console.log(
-          `✅ Push device registration queued through Nookly Push API (${result.executionId}, ${result.status})`,
+          "Push device registered through Nookly Push API",
+          {
+            tokenRowId: result.tokenRowId,
+            created: result.created,
+            isActive: result.isActive,
+            duplicatesDeactivated:
+              result.duplicatesDeactivated ?? 0,
+          },
         );
       } catch (error) {
         console.error("Push registration error:", error);

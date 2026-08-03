@@ -409,14 +409,12 @@ const sendExpoMessages = async (
 
       tickets.push({
         tokenRowId: tokenRow?.$id,
-        token: tokenRow?.token,
         ...ticket,
       });
 
       if (ticket?.status === "error") {
         failures.push({
           tokenRowId: tokenRow?.$id,
-          token: tokenRow?.token,
           message: ticket.message,
           details: ticket.details,
         });
@@ -606,15 +604,21 @@ const registerDevice = async (
     );
   }
 
+  // Expo tokens identify physical app installations and can remain the
+  // same after logout or account switching. Look up the token globally so
+  // it can be securely reassigned to the currently authenticated account.
   const existingRows = await listAllRows(
     tables,
     PUSH_TOKENS_TABLE_ID,
-    [
-      Query.equal("userId", userId),
-      Query.equal("token", token),
-    ],
+    [Query.equal("token", token)],
     100,
   );
+
+  const ownerPermissions = [
+    Permission.read(Role.user(userId)),
+    Permission.update(Role.user(userId)),
+    Permission.delete(Role.user(userId)),
+  ];
 
   if (existingRows.length > 0) {
     const sorted = [...existingRows].sort(
@@ -638,9 +642,12 @@ const registerDevice = async (
       tableId: PUSH_TOKENS_TABLE_ID,
       rowId: primary.$id,
       data: {
+        userId,
+        token,
         deviceType,
         isActive: true,
       },
+      permissions: ownerPermissions,
     });
 
     for (const duplicate of sorted.slice(1)) {
@@ -669,11 +676,7 @@ const registerDevice = async (
       deviceType,
       isActive: true,
     },
-    permissions: [
-      Permission.read(Role.user(userId)),
-      Permission.update(Role.user(userId)),
-      Permission.delete(Role.user(userId)),
-    ],
+    permissions: ownerPermissions,
   });
 
   return {
