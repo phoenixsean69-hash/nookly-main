@@ -40,9 +40,6 @@ export interface DriverProfile {
   rating?: number;
   completedTrips?: number;
   status: DriverStatus;
-  suspensionReason?: string;
-  suspendedAt?: string;
-  suspendedBy?: string;
   emergencyContactName?: string;
   emergencyContactPhone?: string;
   isOnline?: boolean;
