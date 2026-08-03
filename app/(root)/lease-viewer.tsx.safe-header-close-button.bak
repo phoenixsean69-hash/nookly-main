@@ -3,26 +3,22 @@ import {
 import { downloadLeaseDocument,
   isLeaseDocumentDownloaded,
   subscribeToLeaseDownloads,
-  } from "@/lib/leaseDocumentClient";
+} from "@/lib/leaseDocumentClient";
 import { Ionicons } from "@expo/vector-icons";
-import { router,
-  useLocalSearchParams } from "expo-router";
-import React,
-  { useEffect,
-  useMemo,
-  useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Dimensions,
   Pressable,
+  SafeAreaView,
   StatusBar,
   StyleSheet,
   Text,
   useColorScheme,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Pdf from "react-native-pdf";
 
 const getSingleParam = (
@@ -142,7 +138,6 @@ export default function LeaseViewerScreen() {
   if (!localUri) {
     return (
       <SafeAreaView
-        edges={["top", "bottom"]}
         style={[
           styles.container,
           { backgroundColor: theme.background },
@@ -197,7 +192,6 @@ export default function LeaseViewerScreen() {
 
   return (
     <SafeAreaView
-      edges={["top", "bottom"]}
       style={[
         styles.container,
         { backgroundColor: theme.background },
@@ -227,7 +221,7 @@ export default function LeaseViewerScreen() {
           style={styles.headerButton}
         >
           <Ionicons
-            name="close"
+            name="arrow-back"
             size={24}
             color={theme.text}
           />

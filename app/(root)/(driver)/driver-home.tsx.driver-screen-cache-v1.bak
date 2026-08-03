@@ -1,12 +1,6 @@
 import DriverRideCard from "@/components/driver/DriverRideCard";
 import { Colors } from "@/constants/Colors";
 import {
-  mergeProfilePageCache,
-  peekProfilePageCache,
-  readProfilePageCache,
-  writeProfilePageCache,
-} from "@/lib/profilePageCache";
-import {
   getDriverDashboard,
   updateDriverAvailability,
 } from "@/services/driver.service";
@@ -14,13 +8,7 @@ import useAuthStore from "@/store/auth.store";
 import type { DriverDashboard } from "@/types/driver";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -53,35 +41,17 @@ const getInitials = (name?: string | null): string => {
   return initials || "DR";
 };
 
-interface DriverHomeCacheSnapshot {
-  dashboard: DriverDashboard | null;
-  error: string | null;
-}
-
-const DRIVER_HOME_CACHE_KEY = "driver-home-dashboard";
-
 export default function DriverHomeScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
   const user = useAuthStore((state) => state.user);
-  const accountId = user?.accountId || "";
-  const initialHomeCache = peekProfilePageCache<DriverHomeCacheSnapshot>(
-    accountId,
-    DRIVER_HOME_CACHE_KEY,
-  );
 
-  const [dashboard, setDashboard] = useState<DriverDashboard | null>(
-    () => initialHomeCache?.dashboard ?? null,
-  );
-  const [loading, setLoading] = useState(() => !initialHomeCache?.dashboard);
+  const [dashboard, setDashboard] = useState<DriverDashboard | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
-  const [error, setError] = useState<string | null>(
-    () => initialHomeCache?.error ?? null,
-  );
+  const [error, setError] = useState<string | null>(null);
   const [avatarFailed, setAvatarFailed] = useState(false);
-  const dashboardAvailableRef = useRef(Boolean(initialHomeCache?.dashboard));
-  const networkLoadFinishedRef = useRef(false);
 
   const avatarUri = useMemo(() => {
     const candidates = [
@@ -100,87 +70,28 @@ export default function DriverHomeScreen() {
     setAvatarFailed(false);
   }, [avatarUri]);
 
-  useEffect(() => {
-    let active = true;
-
-    if (!accountId) {
-      return () => {
-        active = false;
-      };
+  const loadDashboard = useCallback(async (refresh = false) => {
+    if (refresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
     }
 
-    void readProfilePageCache<DriverHomeCacheSnapshot>(
-      accountId,
-      DRIVER_HOME_CACHE_KEY,
-    ).then((snapshot) => {
-      if (!active || !snapshot || networkLoadFinishedRef.current) {
-        return;
-      }
+    setError(null);
 
-      if (snapshot.dashboard) {
-        dashboardAvailableRef.current = true;
-        setDashboard(snapshot.dashboard);
-      }
-
-      setError(snapshot.error ?? null);
+    try {
+      setDashboard(await getDriverDashboard());
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not load your driver dashboard.",
+      );
+    } finally {
       setLoading(false);
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [accountId]);
-
-  const loadDashboard = useCallback(
-    async (refresh = false) => {
-      if (refresh) {
-        setRefreshing(true);
-      } else if (!dashboardAvailableRef.current) {
-        setLoading(true);
-      }
-
-      setError(null);
-
-      try {
-        const nextDashboard = await getDriverDashboard();
-
-        networkLoadFinishedRef.current = true;
-        dashboardAvailableRef.current = true;
-        setDashboard(nextDashboard);
-        setError(null);
-
-        if (accountId) {
-          void writeProfilePageCache<DriverHomeCacheSnapshot>(
-            accountId,
-            DRIVER_HOME_CACHE_KEY,
-            {
-              dashboard: nextDashboard,
-              error: null,
-            },
-          );
-        }
-      } catch (caughtError) {
-        const message =
-          caughtError instanceof Error
-            ? caughtError.message
-            : "Could not load your driver dashboard.";
-
-        setError(message);
-
-        if (accountId) {
-          void mergeProfilePageCache<DriverHomeCacheSnapshot>(
-            accountId,
-            DRIVER_HOME_CACHE_KEY,
-            { error: message },
-          );
-        }
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [accountId],
-  );
+      setRefreshing(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -193,45 +104,25 @@ export default function DriverHomeScreen() {
 
     const previousValue = dashboard.profile.isOnline ?? false;
 
-    const nextDashboard: DriverDashboard = {
+    setDashboard({
       ...dashboard,
       profile: {
         ...dashboard.profile,
         isOnline: value,
       },
-    };
-
-    setDashboard(nextDashboard);
+    });
     setAvailabilityLoading(true);
-
-    if (accountId) {
-      void mergeProfilePageCache<DriverHomeCacheSnapshot>(
-        accountId,
-        DRIVER_HOME_CACHE_KEY,
-        { dashboard: nextDashboard },
-      );
-    }
 
     try {
       await updateDriverAvailability(value);
     } catch (caughtError) {
-      const restoredDashboard: DriverDashboard = {
+      setDashboard({
         ...dashboard,
         profile: {
           ...dashboard.profile,
           isOnline: previousValue,
         },
-      };
-
-      setDashboard(restoredDashboard);
-
-      if (accountId) {
-        void mergeProfilePageCache<DriverHomeCacheSnapshot>(
-          accountId,
-          DRIVER_HOME_CACHE_KEY,
-          { dashboard: restoredDashboard },
-        );
-      }
+      });
 
       setError(
         caughtError instanceof Error
@@ -447,7 +338,7 @@ export default function DriverHomeScreen() {
                 <Ionicons
                   name="checkmark-done-outline"
                   size={22}
-                  color="#FF5E0E"
+                  color="#848482"
                 />
                 <Text
                   className="mt-3 text-2xl font-rubik-bold"
@@ -467,7 +358,11 @@ export default function DriverHomeScreen() {
                   borderColor: `${theme.muted}25`,
                 }}
               >
-                <Ionicons name="calendar-outline" size={22} color={"#FF5E0E"} />
+                <Ionicons
+                  name="calendar-outline"
+                  size={22}
+                  color={theme.primary[300]}
+                />
                 <Text
                   className="mt-3 text-2xl font-rubik-bold"
                   style={{ color: theme.title }}

@@ -7,12 +7,6 @@ import {
   sendDriverLocation,
   updateDriverRideStatus,
 } from "@/services/driver.service";
-import {
-  peekProfilePageCache,
-  readProfilePageCache,
-  writeProfilePageCache,
-} from "@/lib/profilePageCache";
-import useAuthStore from "@/store/auth.store";
 import type {
   DriverDashboard,
   DriverRide,
@@ -333,47 +327,23 @@ const buildMapHtml = ({
 </html>`;
 };
 
-interface DriverActiveCacheSnapshot {
-  dashboard: DriverDashboard | null;
-  rideDetails: DriverRideDetails | null;
-  driverCoordinate: DriverCoordinate | null;
-  lastLocationAt: string | null;
-}
-
-const DRIVER_ACTIVE_CACHE_KEY = "driver-active-ride";
-
 export default function DriverActiveRideScreen() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
   const safeAreaInsets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
-  const accountId =
-    useAuthStore((state) => state.user?.accountId) || "";
-  const initialActiveCache =
-    peekProfilePageCache<DriverActiveCacheSnapshot>(
-      accountId,
-      DRIVER_ACTIVE_CACHE_KEY,
-    );
 
-  const [dashboard, setDashboard] = useState<DriverDashboard | null>(
-    () => initialActiveCache?.dashboard ?? null,
-  );
+  const [dashboard, setDashboard] = useState<DriverDashboard | null>(null);
   const [rideDetails, setRideDetails] = useState<DriverRideDetails | null>(
-    () => initialActiveCache?.rideDetails ?? null,
+    null,
   );
-  const [loading, setLoading] = useState(
-    () => !initialActiveCache?.dashboard,
-  );
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
   const [sharingLocation, setSharingLocation] = useState(false);
-  const [lastLocationAt, setLastLocationAt] = useState<string | null>(
-    () => initialActiveCache?.lastLocationAt ?? null,
-  );
+  const [lastLocationAt, setLastLocationAt] = useState<string | null>(null);
   const [driverCoordinate, setDriverCoordinate] =
-    useState<DriverCoordinate | null>(
-      () => initialActiveCache?.driverCoordinate ?? null,
-    );
+    useState<DriverCoordinate | null>(null);
   const [locationPermission, setLocationPermission] =
     useState<LocationPermissionState>("unknown");
   const [locationMessage, setLocationMessage] = useState("");
@@ -392,17 +362,6 @@ export default function DriverActiveRideScreen() {
     null,
   );
   const mapWebView = useRef<WebView>(null);
-  const dashboardAvailableRef = useRef(
-    Boolean(initialActiveCache?.dashboard),
-  );
-  const networkLoadFinishedRef = useRef(false);
-  const rideDetailsRef = useRef<DriverRideDetails | null>(
-    initialActiveCache?.rideDetails ?? null,
-  );
-  const activeCacheTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const lastActiveCacheWriteAtRef = useRef(0);
 
   const bottomClearance =
     Math.max(tabBarHeight, 82) + safeAreaInsets.bottom + 28;
@@ -411,177 +370,55 @@ export default function DriverActiveRideScreen() {
   const detailedRide: DriverRide | DriverRideDetails | null =
     rideDetails ?? activeRide;
 
-  useEffect(() => {
-    rideDetailsRef.current = rideDetails;
-  }, [rideDetails]);
-
-  useEffect(() => {
-    let active = true;
-
-    if (!accountId) {
-      return () => {
-        active = false;
-      };
-    }
-
-    void readProfilePageCache<DriverActiveCacheSnapshot>(
-      accountId,
-      DRIVER_ACTIVE_CACHE_KEY,
-    ).then((snapshot) => {
-      if (
-        !active ||
-        !snapshot ||
-        networkLoadFinishedRef.current
-      ) {
-        return;
-      }
-
-      if (snapshot.dashboard) {
-        dashboardAvailableRef.current = true;
-        setDashboard(snapshot.dashboard);
-      }
-
-      setRideDetails(snapshot.rideDetails ?? null);
-      setDriverCoordinate(snapshot.driverCoordinate ?? null);
-      setLastLocationAt(snapshot.lastLocationAt ?? null);
-      setLoading(false);
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [accountId]);
-
-  useEffect(() => {
-    rideDetailsRef.current = rideDetails;
-  }, [rideDetails]);
-
-  useEffect(() => {
-    let active = true;
-
-    if (!accountId) {
-      return () => {
-        active = false;
-      };
-    }
-
-    void readProfilePageCache<DriverActiveCacheSnapshot>(
-      accountId,
-      DRIVER_ACTIVE_CACHE_KEY,
-    ).then((snapshot) => {
-      if (
-        !active ||
-        !snapshot ||
-        networkLoadFinishedRef.current
-      ) {
-        return;
-      }
-
-      if (snapshot.dashboard) {
-        dashboardAvailableRef.current = true;
-        setDashboard(snapshot.dashboard);
-      }
-
-      setRideDetails(snapshot.rideDetails ?? null);
-      setDriverCoordinate(snapshot.driverCoordinate ?? null);
-      setLastLocationAt(snapshot.lastLocationAt ?? null);
-      setLoading(false);
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [accountId]);
-
   const loadDashboard = useCallback(async (showLoader = true) => {
-    if (showLoader && !dashboardAvailableRef.current) {
-      setLoading(true);
-    }
+    if (showLoader) setLoading(true);
 
     try {
       const nextDashboard = await getDriverDashboard();
-      let nextRideDetails: DriverRideDetails | null = null;
-      let nextDriverCoordinate: DriverCoordinate | null = null;
-      let nextLastLocationAt: string | null = null;
+      setDashboard(nextDashboard);
 
       if (nextDashboard.activeRide) {
         try {
-          nextRideDetails = await getDriverRideDetails(
+          const details = await getDriverRideDetails(
             nextDashboard.activeRide.$id,
           );
+          setRideDetails(details);
         } catch (detailsError) {
-          console.warn(
-            "Could not load active ride details:",
-            detailsError,
-          );
-
-          if (
-            rideDetailsRef.current?.$id ===
-            nextDashboard.activeRide.$id
-          ) {
-            nextRideDetails = rideDetailsRef.current;
-          }
+          console.warn("Could not load active ride details:", detailsError);
+          setRideDetails(null);
         }
 
         const latitude = nextDashboard.activeRide.currentLatitude;
         const longitude = nextDashboard.activeRide.currentLongitude;
 
         if (isFiniteCoordinate(latitude, longitude)) {
-          nextDriverCoordinate = {
+          setDriverCoordinate({
             latitude: Number(latitude),
             longitude: Number(longitude),
-            heading:
-              nextDashboard.activeRide.currentHeading ?? null,
-            speedKph:
-              nextDashboard.activeRide.currentSpeedKph ?? null,
+            heading: nextDashboard.activeRide.currentHeading ?? null,
+            speedKph: nextDashboard.activeRide.currentSpeedKph ?? null,
             accuracyMeters:
               nextDashboard.activeRide.currentAccuracyMeters ?? null,
-          };
-          nextLastLocationAt =
-            nextDashboard.activeRide.lastLocationAt ?? null;
+          });
+          setLastLocationAt(nextDashboard.activeRide.lastLocationAt ?? null);
         }
-      }
-
-      networkLoadFinishedRef.current = true;
-      dashboardAvailableRef.current = true;
-      rideDetailsRef.current = nextRideDetails;
-      setDashboard(nextDashboard);
-      setRideDetails(nextRideDetails);
-      setDriverCoordinate(nextDriverCoordinate);
-      setLastLocationAt(nextLastLocationAt);
-
-      if (accountId) {
-        lastActiveCacheWriteAtRef.current = Date.now();
-
-        void writeProfilePageCache<DriverActiveCacheSnapshot>(
-          accountId,
-          DRIVER_ACTIVE_CACHE_KEY,
-          {
-            dashboard: nextDashboard,
-            rideDetails: nextRideDetails,
-            driverCoordinate: nextDriverCoordinate,
-            lastLocationAt: nextLastLocationAt,
-          },
-        );
+      } else {
+        setRideDetails(null);
+        setDriverCoordinate(null);
+        setLastLocationAt(null);
       }
     } catch (caughtError) {
-      if (!dashboardAvailableRef.current) {
-        Alert.alert(
-          "Could not load ride",
-          caughtError instanceof Error
-            ? caughtError.message
-            : "Please try again.",
-        );
-      } else {
-        setLocationMessage(
-          "Showing your last saved ride while Nookly reconnects.",
-        );
-      }
+      Alert.alert(
+        "Could not load ride",
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Please try again.",
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [accountId]);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
@@ -608,46 +445,6 @@ export default function DriverActiveRideScreen() {
       };
     }, [loadDashboard]),
   );
-
-  useEffect(() => {
-    if (!accountId || !dashboardAvailableRef.current) return;
-
-    if (activeCacheTimerRef.current) {
-      clearTimeout(activeCacheTimerRef.current);
-    }
-
-    const elapsed =
-      Date.now() - lastActiveCacheWriteAtRef.current;
-    const delay = Math.max(0, 30_000 - elapsed);
-
-    activeCacheTimerRef.current = setTimeout(() => {
-      lastActiveCacheWriteAtRef.current = Date.now();
-
-      void writeProfilePageCache<DriverActiveCacheSnapshot>(
-        accountId,
-        DRIVER_ACTIVE_CACHE_KEY,
-        {
-          dashboard,
-          rideDetails,
-          driverCoordinate,
-          lastLocationAt,
-        },
-      );
-    }, delay);
-
-    return () => {
-      if (activeCacheTimerRef.current) {
-        clearTimeout(activeCacheTimerRef.current);
-        activeCacheTimerRef.current = null;
-      }
-    };
-  }, [
-    accountId,
-    dashboard,
-    driverCoordinate,
-    lastLocationAt,
-    rideDetails,
-  ]);
 
   const routeCoordinates = useMemo<MapCoordinate[]>(() => {
     const route = detailedRide?.route;

@@ -618,7 +618,7 @@ export default function TenantRequests() {
         style={{
           backgroundColor: theme.surface,
           borderWidth: 1,
-          borderColor: theme.primary[300] + "50",
+          borderColor: theme.primary[600],
         }}
       >
         <View className="flex-row items-center mb-3">
@@ -656,13 +656,13 @@ export default function TenantRequests() {
             style={{
               backgroundColor: theme.surface,
               borderWidth: 1,
-              borderColor: theme.primary[300],
+              borderColor: theme.primary[600],
             }}
           >
-            <Ionicons name="eye" size={20} color={theme.primary[300]} />
+            <Ionicons name="eye" size={20} color={theme.primary[600]} />
             <Text
               className="font-rubik-bold ml-2"
-              style={{ color: theme.primary[300] }}
+              style={{ color: theme.primary[600] }}
             >
               Preview
             </Text>
@@ -679,7 +679,7 @@ export default function TenantRequests() {
               )
             }
             className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
-            style={{ backgroundColor: theme.primary[300] }}
+            style={{ backgroundColor: theme.primary[600] }}
           >
             <Ionicons name="download" size={20} color="white" />
             <Text className="text-white font-rubik-bold ml-2">
@@ -785,11 +785,11 @@ export default function TenantRequests() {
                       ) : (
                         <View
                           className="w-8 h-8 rounded-full items-center justify-center mr-2"
-                          style={{ backgroundColor: theme.primary[100] }}
+                          style={{ backgroundColor: theme.primary[600] }}
                         >
                           <Text
                             className="font-rubik-bold text-sm"
-                            style={{ color: theme.primary[300] }}
+                            style={{ color: theme.primary[100] }}
                           >
                             {query.writer.charAt(0).toUpperCase()}
                           </Text>
