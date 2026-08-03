@@ -1,18 +1,38 @@
-# Nookly Driver Profile Suspension UI v2
+# Nookly Driver Realtime Sync v1
 
-This fixes the v1 installer interpolation bug and adds the suspension UI.
+This adds a central Driver TablesDB realtime bridge.
+
+## Watched tables
+
+```text
+ride_drivers
+ride_driver_institutions
+ride_vehicles
+rides
+ride_bookings
+```
+
+The active Driver screen refreshes through the existing `/dashboard` API when
+a readable row changes. This keeps the API as the source of truth instead of
+trusting a raw realtime payload.
+
+It also refreshes when:
+
+- A push notification arrives while Nookly is open
+- A push notification is opened
+- Nookly returns to the foreground
+- The internet reconnects
+
+This push fallback is important when Appwrite row permissions intentionally
+allow only the server Function to read Driver tables.
 
 ## Apply
 
-Delete or ignore the old v1 installer, extract this ZIP into the project root,
-then run:
+Extract into the project root and run:
 
 ```powershell
-node .\apply-driver-profile-suspension-ui-v2.mjs
+node .\apply-driver-realtime-sync-v1.mjs
 npx tsc --noEmit
 ```
 
-The installer is idempotent and is safe even if some earlier changes were
-partially applied.
-
-No Function deployment or APK rebuild is required.
+No package, Function deployment, or APK rebuild is required.

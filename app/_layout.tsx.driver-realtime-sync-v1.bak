@@ -2,7 +2,6 @@
 import "react-native-url-polyfill/auto";
 
 import OfflineStatusBanner from "@/components/OfflineStatusBanner";
-import { requestDriverRealtimeRefresh } from "@/lib/driverRealtimeSync";
 import { registerForPushNotifications } from "@/lib/notifications";
 import {
   getModeAwareRoute,
@@ -228,12 +227,10 @@ export default function RootLayout() {
       Notifications.addNotificationReceivedListener((notification) => {
         const { title, body } = notification.request.content;
         console.log(`Notification received: ${title} - ${body}`);
-        requestDriverRealtimeRefresh("push-received");
       });
 
     responseListener.current =
       Notifications.addNotificationResponseReceivedListener((response) => {
-        requestDriverRealtimeRefresh("push-opened");
         handleNotificationNavigation(
           response.notification.request.content.data as Record<string, any>,
         );

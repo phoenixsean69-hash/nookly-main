@@ -13,7 +13,6 @@ import {
   writeProfilePageCache,
 } from "@/lib/profilePageCache";
 import useAuthStore from "@/store/auth.store";
-import { subscribeToDriverRealtimeRefresh } from "@/lib/driverRealtimeSync";
 import type {
   DriverDashboard,
   DriverRide,
@@ -649,14 +648,6 @@ export default function DriverActiveRideScreen() {
     lastLocationAt,
     rideDetails,
   ]);
-
-  useEffect(
-    () =>
-      subscribeToDriverRealtimeRefresh(() => {
-        void loadDashboard(false);
-      }),
-    [loadDashboard],
-  );
 
   const routeCoordinates = useMemo<MapCoordinate[]>(() => {
     const route = detailedRide?.route;

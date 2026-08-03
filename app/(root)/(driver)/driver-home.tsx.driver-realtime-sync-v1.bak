@@ -10,7 +10,6 @@ import {
   getDriverDashboard,
   updateDriverAvailability,
 } from "@/services/driver.service";
-import { subscribeToDriverRealtimeRefresh } from "@/lib/driverRealtimeSync";
 import useAuthStore from "@/store/auth.store";
 import type { DriverDashboard } from "@/types/driver";
 import { Ionicons } from "@expo/vector-icons";
@@ -187,14 +186,6 @@ export default function DriverHomeScreen() {
     useCallback(() => {
       void loadDashboard();
     }, [loadDashboard]),
-  );
-
-  useEffect(
-    () =>
-      subscribeToDriverRealtimeRefresh(() => {
-        void loadDashboard(false);
-      }),
-    [loadDashboard],
   );
 
   const toggleAvailability = async (value: boolean) => {

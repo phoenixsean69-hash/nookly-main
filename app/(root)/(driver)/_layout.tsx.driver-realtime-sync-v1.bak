@@ -1,13 +1,9 @@
 import icons from "@/constants/icons";
 import { Colors } from "@/constants/Colors";
-import {
-  startDriverRealtimeSync,
-  stopDriverRealtimeSync,
-} from "@/lib/driverRealtimeSync";
 import { getUserHomeRoute, isDriverUser } from "@/lib/userMode";
 import useAuthStore from "@/store/auth.store";
 import { Redirect, Tabs } from "expo-router";
-import React, { useEffect } from "react";
+import React from "react";
 import {
   ActivityIndicator,
   Image,
@@ -58,19 +54,6 @@ export default function DriverTabsLayout() {
   const colorScheme = useColorScheme();
   const theme = Colors[colorScheme ?? "light"];
   const { user, isHydrated, isInitialized, isLoading } = useAuthStore();
-
-  useEffect(() => {
-    if (!user?.accountId || !isDriverUser(user)) {
-      stopDriverRealtimeSync();
-      return;
-    }
-
-    startDriverRealtimeSync(user.accountId);
-
-    return () => {
-      stopDriverRealtimeSync();
-    };
-  }, [user?.accountId, user?.userMode]);
 
   if (!isHydrated || !isInitialized || isLoading) {
     return (

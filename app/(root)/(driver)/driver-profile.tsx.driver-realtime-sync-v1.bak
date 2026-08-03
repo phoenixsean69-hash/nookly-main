@@ -17,7 +17,6 @@ import {
   peekProfilePageCache,
   readProfilePageCache,
 } from "@/lib/profilePageCache";
-import { subscribeToDriverRealtimeRefresh } from "@/lib/driverRealtimeSync";
 import useAuthStore from "@/store/auth.store";
 import type { DriverDashboard, DriverOnboardingInput } from "@/types/driver";
 import { Ionicons } from "@expo/vector-icons";
@@ -422,14 +421,6 @@ export default function DriverProfileScreen() {
     useCallback(() => {
       void loadDashboard();
     }, [loadDashboard]),
-  );
-
-  useEffect(
-    () =>
-      subscribeToDriverRealtimeRefresh(() => {
-        void loadDashboard();
-      }),
-    [loadDashboard],
   );
 
   const updateForm = <K extends keyof OnboardingFormState>(
