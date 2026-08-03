@@ -1,0 +1,9 @@
+﻿{
+    "name":  "nookly-rides-combined-api",
+    "version":  "2.0.0",
+    "private":  true,
+    "type":  "module",
+    "dependencies":  {
+                         "node-appwrite":  "^24.0.0"
+                     }
+}

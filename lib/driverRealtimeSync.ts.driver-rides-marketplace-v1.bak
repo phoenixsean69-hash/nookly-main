@@ -44,10 +44,6 @@ const DRIVER_TABLE_IDS = [
     "ride_driver_institutions",
   process.env.EXPO_PUBLIC_APPWRITE_RIDE_VEHICLES_COLLECTION_ID?.trim() ||
     "ride_vehicles",
-  process.env.EXPO_PUBLIC_APPWRITE_RIDE_REQUESTS_COLLECTION_ID?.trim() ||
-    "ride_requests",
-  process.env.EXPO_PUBLIC_APPWRITE_RIDE_OFFERS_COLLECTION_ID?.trim() ||
-    "ride_offers",
   process.env.EXPO_PUBLIC_APPWRITE_RIDES_COLLECTION_ID?.trim() || "rides",
   process.env.EXPO_PUBLIC_APPWRITE_RIDE_BOOKINGS_COLLECTION_ID?.trim() ||
     "ride_bookings",

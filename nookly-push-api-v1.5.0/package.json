@@ -2,9 +2,8 @@
   "name": "nookly-push-api",
   "version": "1.5.0",
   "private": true,
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "node-appwrite": "^24.0.0"
-  },
-  "main": "expo-router/entry"
+  }
 }

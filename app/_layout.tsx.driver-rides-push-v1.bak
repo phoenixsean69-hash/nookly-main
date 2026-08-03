@@ -210,55 +210,6 @@ export default function RootLayout() {
           } as any);
           return;
 
-        case "driver_ride": {
-          const rideEvent =
-            typeof data.rideEvent === "string"
-              ? data.rideEvent
-              : "";
-          const requestId =
-            typeof data.requestId === "string"
-              ? data.requestId
-              : "";
-
-          if (
-            rideEvent === "request_created" &&
-            requestId
-          ) {
-            router.push({
-              pathname:
-                "/rides/driver-request/[requestId]" as any,
-              params: { requestId },
-            });
-            return;
-          }
-
-          router.push({
-            pathname: "/driver-rides" as any,
-            params: {
-              section:
-                rideEvent === "offer_accepted"
-                  ? "confirmed"
-                  : rideEvent === "request_cancelled"
-                    ? "offers"
-                    : "requests",
-              offerFilter:
-                rideEvent === "request_cancelled"
-                  ? "closed"
-                  : "",
-              requestId,
-              offerId:
-                typeof data.offerId === "string"
-                  ? data.offerId
-                  : "",
-              rideId:
-                typeof data.rideId === "string"
-                  ? data.rideId
-                  : "",
-            },
-          });
-          return;
-        }
-
         case "request_response":
         case "alert":
           router.push(homeRoute as any);

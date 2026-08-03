@@ -6,7 +6,6 @@ import {
   Query,
   TablesDB,
 } from "node-appwrite";
-import { queueDriverRidePushEvent } from "./ride-push-events.js";
 
 const env = (name, fallback = "") =>
   process.env[name]?.trim() || fallback;
@@ -1648,13 +1647,6 @@ export default async ({ req, res, log, error }) => {
         }),
       });
 
-      await queueDriverRidePushEvent(
-        client,
-        "request_created",
-        { requestId: request.$id },
-        { log, error },
-      );
-
       return ok(res, {
         ...request,
         offerCount: 0,
@@ -1827,13 +1819,6 @@ export default async ({ req, res, log, error }) => {
           ),
       );
 
-      await queueDriverRidePushEvent(
-        client,
-        "request_cancelled",
-        { requestId: updated.$id },
-        { log, error },
-      );
-
       return ok(res, updated);
     }
 
@@ -1875,17 +1860,6 @@ export default async ({ req, res, log, error }) => {
         offer,
         user,
         accountId,
-      );
-
-      await queueDriverRidePushEvent(
-        client,
-        "offer_accepted",
-        {
-          requestId: result.requestId,
-          offerId: result.offerId,
-          rideId: result.rideId,
-        },
-        { log, error },
       );
 
       return ok(res, result);
