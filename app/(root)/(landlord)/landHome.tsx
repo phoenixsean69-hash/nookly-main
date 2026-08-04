@@ -1,5 +1,6 @@
-﻿// app/(root)/landHome.tsx
+// app/(root)/landHome.tsx
 import FeaturedModal from "@/components/FeaturedModal";
+import NooklyAssistantLauncher from "@/components/assistant/NooklyAssistantLauncher";
 import SearchModal from "@/components/SearchModal";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -387,6 +388,10 @@ export default function LandLordHome() {
                 Search properties...
               </Text>
             </TouchableOpacity>
+
+            <View className="mb-5">
+              <NooklyAssistantLauncher variant="card" />
+            </View>
 
             {/* Quick stats */}
             <View className="flex-row justify-between gap-3 mb-6 mt-2">

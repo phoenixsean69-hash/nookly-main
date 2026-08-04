@@ -1,4 +1,5 @@
-﻿import DealsAlerts from "@/components/DealsAlerts";
+import DealsAlerts from "@/components/DealsAlerts";
+import NooklyAssistantLauncher from "@/components/assistant/NooklyAssistantLauncher";
 import FeaturedModal from "@/components/FeaturedModal";
 import QuickActions from "@/components/QuickActions";
 import QuickTips from "@/components/QuickTips";
@@ -397,6 +398,8 @@ const Home = () => {
         visible={searchModalVisible}
         onClose={() => setSearchModalVisible(false)}
       />
+
+      <NooklyAssistantLauncher />
     </SafeAreaView>
   );
 };
