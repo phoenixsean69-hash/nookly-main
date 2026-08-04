@@ -30,11 +30,22 @@ interface LauncherCopy {
   description: string;
 }
 
+type AssistantRoute =
+  | "/message"
+  | "/s-message"
+  | "/landChat";
+
+type AuthUser =
+  ReturnType<typeof useAuthStore.getState>["user"];
+
 const getLauncherCopy = (
-  user: ReturnType<typeof useAuthStore.getState>["user"],
+  user: AuthUser,
 ): LauncherCopy => {
-  const primaryMode = getPrimaryUserMode(user);
-  const tenantType = getTenantType(user);
+  const primaryMode =
+    getPrimaryUserMode(user);
+
+  const tenantType =
+    getTenantType(user);
 
   if (primaryMode === "landlord") {
     return {
@@ -80,8 +91,24 @@ const getLauncherCopy = (
   }
 };
 
-const openAssistant = () => {
-  router.push("/nookly-assistant" as any);
+const getAssistantRoute = (
+  user: AuthUser,
+): AssistantRoute => {
+  const primaryMode =
+    getPrimaryUserMode(user);
+
+  const tenantType =
+    getTenantType(user);
+
+  if (primaryMode === "landlord") {
+    return "/landChat";
+  }
+
+  if (tenantType === "student") {
+    return "/s-message";
+  }
+
+  return "/message";
 };
 
 const FloatingLauncher = ({
@@ -89,17 +116,19 @@ const FloatingLauncher = ({
   right,
   title,
   theme,
+  onPress,
 }: {
   bottom: number;
   right: number;
   title: string;
   theme: (typeof Colors)["light"];
+  onPress: () => void;
 }) => (
   <Pressable
     accessibilityRole="button"
     accessibilityLabel={title}
     accessibilityHint="Opens Nookly Assistant"
-    onPress={openAssistant}
+    onPress={onPress}
     className="absolute flex-row items-center rounded-full px-4 py-3"
     style={({ pressed }) => ({
       right,
@@ -120,7 +149,8 @@ const FloatingLauncher = ({
     <View
       className="w-8 h-8 rounded-full items-center justify-center mr-2"
       style={{
-        backgroundColor: "rgba(255,255,255,0.20)",
+        backgroundColor:
+          "rgba(255,255,255,0.20)",
       }}
     >
       <Ionicons
@@ -150,20 +180,24 @@ const FloatingLauncher = ({
 const CardLauncher = ({
   copy,
   theme,
+  onPress,
 }: {
   copy: LauncherCopy;
   theme: (typeof Colors)["light"];
+  onPress: () => void;
 }) => (
   <Pressable
     accessibilityRole="button"
     accessibilityLabel={copy.title}
     accessibilityHint="Opens Nookly Assistant"
-    onPress={openAssistant}
+    onPress={onPress}
     className="rounded-3xl p-4"
     style={({ pressed }) => ({
       opacity: pressed ? 0.9 : 1,
-      backgroundColor: `${theme.primary[300]}10`,
-      borderColor: `${theme.primary[300]}32`,
+      backgroundColor:
+        `${theme.primary[300]}10`,
+      borderColor:
+        `${theme.primary[300]}32`,
       borderWidth: 1,
     })}
   >
@@ -171,7 +205,8 @@ const CardLauncher = ({
       <View
         className="w-12 h-12 rounded-2xl items-center justify-center"
         style={{
-          backgroundColor: theme.primary[300],
+          backgroundColor:
+            theme.primary[300],
         }}
       >
         <Ionicons
@@ -205,7 +240,8 @@ const CardLauncher = ({
       <View
         className="w-9 h-9 rounded-full items-center justify-center"
         style={{
-          backgroundColor: `${theme.primary[300]}18`,
+          backgroundColor:
+            `${theme.primary[300]}18`,
         }}
       >
         <Ionicons
@@ -249,7 +285,9 @@ const NooklyAssistantLauncher = ({
   bottom = 96,
   right = 18,
 }: NooklyAssistantLauncherProps) => {
-  const colorScheme = useColorScheme();
+  const colorScheme =
+    useColorScheme();
+
   const theme =
     Colors[colorScheme ?? "light"] as
       (typeof Colors)["light"];
@@ -263,15 +301,27 @@ const NooklyAssistantLauncher = ({
     [user],
   );
 
+  const assistantRoute = useMemo(
+    () => getAssistantRoute(user),
+    [user],
+  );
+
   if (!user) {
     return null;
   }
+
+  const openAssistant = () => {
+    router.push(
+      assistantRoute as any,
+    );
+  };
 
   if (variant === "card") {
     return (
       <CardLauncher
         copy={copy}
         theme={theme}
+        onPress={openAssistant}
       />
     );
   }
@@ -282,6 +332,7 @@ const NooklyAssistantLauncher = ({
       right={right}
       title={copy.title}
       theme={theme}
+      onPress={openAssistant}
     />
   );
 };
