@@ -712,6 +712,457 @@ const createInAppNotification = async (
   }
 };
 
+const buildPropertyCreatedNotificationId = (
+  propertyId,
+  recipientUserId,
+) =>
+  `newprop_${crypto
+    .createHash("sha256")
+    .update(`new-property:${propertyId}:${recipientUserId}`)
+    .digest("hex")
+    .slice(0, 28)}`;
+
+const notifyPropertyCreated = async (
+  req,
+  tables,
+  body,
+  diagnosticLog,
+) => {
+  const landlordAccountId =
+    requireAuthenticatedUser(req);
+
+  const propertiesTableId =
+    requireConfiguredTable(
+      PROPERTIES_TABLE_ID,
+      "Properties table",
+    );
+
+  requireConfiguredTable(
+    USERS_TABLE_ID,
+    "Users table",
+  );
+
+  requireConfiguredTable(
+    NOTIFICATIONS_TABLE_ID,
+    "Notifications table",
+  );
+
+  const propertyId = String(
+    body.propertyId ?? "",
+  ).trim();
+
+  if (!propertyId) {
+    throw statusError(
+      400,
+      "propertyId is required.",
+    );
+  }
+
+  const property = await getRowOrNull(
+    tables,
+    propertiesTableId,
+    propertyId,
+  );
+
+  if (!property) {
+    throw statusError(
+      404,
+      "The newly created property could not be found.",
+    );
+  }
+
+  const ownerAccountId = String(
+    property.creatorId ?? "",
+  ).trim();
+
+  if (!ownerAccountId) {
+    throw statusError(
+      409,
+      "The property does not have a valid owner account ID.",
+    );
+  }
+
+  if (ownerAccountId !== landlordAccountId) {
+    throw statusError(
+      403,
+      "Only the landlord who created this property can announce it.",
+    );
+  }
+
+  const isUnavailable =
+    property.isAvailable === false ||
+    String(
+      property.isAvailable ?? "",
+    )
+      .trim()
+      .toLowerCase() === "false";
+
+  if (isUnavailable) {
+    return {
+      skipped: true,
+      duplicate: false,
+      reason:
+        "The property is unavailable, so tenants were not notified.",
+      propertyId,
+      recipientCount: 0,
+      notificationCreated: 0,
+      push: {
+        requested: 0,
+        accepted: 0,
+        failed: 0,
+        tickets: [],
+        failures: [],
+      },
+    };
+  }
+
+  const tenantRows = await listAllRows(
+    tables,
+    USERS_TABLE_ID,
+    [
+      Query.equal("userMode", [
+        "tenant",
+        "student",
+      ]),
+    ],
+    5000,
+  );
+
+  const candidateRecipientUserIds =
+    tenantRows.map((userRow) => {
+      const accountId = String(
+        userRow.accountId ?? "",
+      ).trim();
+
+      const legacyUserId = String(
+        userRow.userId ?? "",
+      ).trim();
+
+      return accountId || legacyUserId;
+    });
+
+  const isValidAccountId = (accountId) =>
+    /^[A-Za-z0-9][A-Za-z0-9._-]{0,35}$/.test(
+      accountId,
+    );
+
+  const recipientUserIds = [
+    ...new Set(
+      candidateRecipientUserIds
+        .filter(isValidAccountId)
+        .filter(
+          (accountId) =>
+            accountId !== landlordAccountId,
+        ),
+    ),
+  ];
+
+  const invalidRecipientCount =
+    candidateRecipientUserIds.filter(
+      (accountId) =>
+        Boolean(accountId) &&
+        !isValidAccountId(accountId),
+    ).length;
+
+  if (invalidRecipientCount > 0) {
+    diagnosticLog(
+      JSON.stringify({
+        event:
+          "property-created-invalid-recipients-skipped",
+        invalidRecipientCount,
+      }),
+    );
+  }
+
+  const propertyName =
+    String(
+      property.propertyName ??
+        "Property",
+    ).trim() || "Property";
+
+  const address = String(
+    property.address ?? "",
+  ).trim();
+
+  const city = String(
+    property.city ??
+      property.location ??
+      "",
+  ).trim();
+
+  const location =
+    address ||
+    city ||
+    "your area";
+
+  const rawPrice = Number(
+    property.price ?? 0,
+  );
+
+  const price =
+    Number.isFinite(rawPrice) &&
+    rawPrice >= 0
+      ? rawPrice
+      : 0;
+
+  const formattedPrice =
+    price.toLocaleString(
+      "en-US",
+      {
+        maximumFractionDigits: 2,
+      },
+    );
+
+  const priceText =
+    price > 0
+      ? `$${formattedPrice}/month`
+      : "Price on request";
+
+  const rawTotalSlots = Number(
+    property.totalSlots ?? 0,
+  );
+
+  const totalSlots =
+    Number.isFinite(rawTotalSlots)
+      ? Math.max(0, rawTotalSlots)
+      : 0;
+
+  const rawAvailableSlots = Number(
+    property.availableSlots ??
+      totalSlots,
+  );
+
+  const availableSlots =
+    Number.isFinite(rawAvailableSlots)
+      ? Math.max(0, rawAvailableSlots)
+      : totalSlots;
+
+  const image1 =
+    typeof property.image1 === "string"
+      ? property.image1.trim()
+      : "";
+
+  const createdAt =
+    typeof property.$createdAt === "string" &&
+    property.$createdAt.trim()
+      ? property.$createdAt
+      : new Date().toISOString();
+
+  const title =
+    "New Property Listed 🏠";
+
+  const message =
+    `${propertyName} - ${priceText} in ${location}`.slice(
+      0,
+      500,
+    );
+
+  const notificationData = {
+    type: "property",
+    screen: `/properties/${propertyId}`,
+    propertyId,
+    propertyName,
+    landlordId: ownerAccountId,
+    address,
+    location,
+    price,
+    totalSlots,
+    availableSlots,
+    createdAt,
+    ...(image1
+      ? {
+          image1,
+        }
+      : {}),
+  };
+
+  if (recipientUserIds.length === 0) {
+    return {
+      skipped: true,
+      duplicate: false,
+      reason:
+        "No tenant or student accounts were found.",
+      propertyId,
+      recipientCount: 0,
+      notificationCreated: 0,
+      push: {
+        requested: 0,
+        accepted: 0,
+        failed: 0,
+        tickets: [],
+        failures: [],
+      },
+    };
+  }
+
+  const newlyNotifiedUserIds = [];
+  const notificationRowIds = [];
+
+  const inAppBatchSize = 25;
+
+  for (
+    let index = 0;
+    index < recipientUserIds.length;
+    index += inAppBatchSize
+  ) {
+    const batch =
+      recipientUserIds.slice(
+        index,
+        index + inAppBatchSize,
+      );
+
+    const results = await Promise.all(
+      batch.map(
+        async (recipientUserId) => {
+          const rowId =
+            buildPropertyCreatedNotificationId(
+              propertyId,
+              recipientUserId,
+            );
+
+          const result =
+            await createInAppNotification(
+              tables,
+              {
+                rowId,
+                recipientUserId,
+                title,
+                message,
+                type: "property",
+                data: notificationData,
+              },
+            );
+
+          return {
+            rowId,
+            recipientUserId,
+            created: result.created,
+          };
+        },
+      ),
+    );
+
+    for (const result of results) {
+      notificationRowIds.push(
+        result.rowId,
+      );
+
+      if (result.created) {
+        newlyNotifiedUserIds.push(
+          result.recipientUserId,
+        );
+      }
+    }
+  }
+
+  if (newlyNotifiedUserIds.length === 0) {
+    return {
+      skipped: true,
+      duplicate: true,
+      reason:
+        "This property announcement was already processed.",
+      propertyId,
+      recipientCount:
+        recipientUserIds.length,
+      notificationCreated: 0,
+      notificationSampleRowIds:
+        notificationRowIds.slice(0, 10),
+      push: {
+        requested: 0,
+        accepted: 0,
+        failed: 0,
+        tickets: [],
+        failures: [],
+      },
+    };
+  }
+
+  const validatedNotification =
+    validateNotification({
+      title,
+      body: message,
+      data: notificationData,
+    });
+
+  const push = {
+    requested: 0,
+    accepted: 0,
+    failed: 0,
+    tickets: [],
+    failures: [],
+  };
+
+  const pushBatchSize = 1000;
+
+  for (
+    let index = 0;
+    index < newlyNotifiedUserIds.length;
+    index += pushBatchSize
+  ) {
+    const batch =
+      newlyNotifiedUserIds.slice(
+        index,
+        index + pushBatchSize,
+      );
+
+    const batchPush =
+      await sendToUsers(
+        tables,
+        batch,
+        validatedNotification,
+      );
+
+    push.requested +=
+      batchPush.requested;
+
+    push.accepted +=
+      batchPush.accepted;
+
+    push.failed +=
+      batchPush.failed;
+
+    push.tickets.push(
+      ...batchPush.tickets,
+    );
+
+    push.failures.push(
+      ...batchPush.failures,
+    );
+  }
+
+  diagnosticLog(
+    JSON.stringify({
+      event:
+        "property-created-notification",
+      propertyId,
+      landlordAccountId,
+      recipientCount:
+        recipientUserIds.length,
+      newlyNotified:
+        newlyNotifiedUserIds.length,
+      pushRequested:
+        push.requested,
+      pushAccepted:
+        push.accepted,
+      pushFailed:
+        push.failed,
+    }),
+  );
+
+  return {
+    skipped: false,
+    duplicate: false,
+    propertyId,
+    recipientCount:
+      recipientUserIds.length,
+    notificationCreated:
+      newlyNotifiedUserIds.length,
+    notificationSampleRowIds:
+      notificationRowIds.slice(0, 10),
+    push,
+  };
+};
+
 const notifyPropertyLike = async (req, tables, body, diagnosticLog) => {
   const likerAccountId = requireAuthenticatedUser(req);
 
@@ -2157,6 +2608,17 @@ export default async ({ req, res, log, error }) => {
       return ok(res, await notifyDriverRideEvent(req, tables, body, log));
     }
 
+    if (method === "POST" && path === "/property-created") {
+      return ok(
+        res,
+        await notifyPropertyCreated(
+          req,
+          tables,
+          body,
+          log,
+        ),
+      );
+    }
     if (method === "POST" && path === "/property-request") {
       return ok(res, await notifyPropertyRequest(req, tables, body, log));
     }

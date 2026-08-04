@@ -198,10 +198,28 @@ export default function RootLayout() {
           );
           return;
 
-        case "property":
-          router.push(getModeAwareRoute("/explore", currentUser) as any);
-          return;
+        case "property": {
+          const propertyId =
+            typeof data.propertyId === "string"
+              ? data.propertyId.trim()
+              : "";
 
+          if (propertyId) {
+            router.push(
+              `/properties/${propertyId}` as any,
+            );
+            return;
+          }
+
+          // Older property notifications may not include a property ID.
+          router.push(
+            getModeAwareRoute(
+              "/explore",
+              currentUser,
+            ) as any,
+          );
+          return;
+        }
         case "lease":
           router.push({
             pathname: getModeAwareRoute(

@@ -882,72 +882,60 @@ export async function AddListing(
       hasVideos: !!(response.video1 || response.video2 || response.video3),
     });
 
-    // 🚀 SEND PUSH NOTIFICATIONS TO TENANTS (only if available)
+    // Notify all tenant and student accounts through the secure centralized
+    // Push API. The Function verifies that the authenticated landlord owns
+    // this exact property before creating in-app and push notifications.
     if (isAvailable) {
       try {
-        // Extract city/area from address
-        const addressParts = listing.address.split(",");
-        const city =
-          addressParts.length >= 2
-            ? `${addressParts[addressParts.length - 2]?.trim()}, ${addressParts[addressParts.length - 1]?.trim()}`
-            : addressParts[addressParts.length - 1]?.trim() || "Unknown";
+        const notificationResult =
+          await pushFunctionService.notifyPropertyCreated(
+            response.$id,
+          );
 
-        // Get all tenants
-        const tenants = await databases.listDocuments(
-          config.databaseId!,
-          config.usersCollectionId!,
-          [Query.equal("userMode", ["tenant", "student"])],
-        );
-
-        // Filter tenants who might be interested
-        const interestedTenants = tenants.documents.filter((tenant) => {
-          // If priceThreshold is set, only notify tenants whose budget matches
-          if (listing.priceThreshold && listing.priceThreshold > 0) {
-            // You would need to check tenant's budget from their preferences/profile
-            return true;
-          }
-          return true; // Send to all tenants for now
-        });
-
-        // Send notifications in batches
-        const batchSize = 10;
-        for (let i = 0; i < interestedTenants.length; i += batchSize) {
-          const batch = interestedTenants.slice(i, i + batchSize);
-          const userIds = batch.map((tenant) => tenant.accountId);
-
-          await notificationService.sendBulkNotification(
-            userIds,
-            "New Property Listed!",
-            `${listing.propertyName} - $${listing.price}/month in ${city}`,
+        if (notificationResult.skipped) {
+          console.log(
+            "ℹ️ New-property notification skipped:",
             {
-              type: "property",
-              propertyId: response.$id,
-              screen: "explore",
-              priceThreshold: listing.priceThreshold,
-              totalSlots: listing.totalSlots || 0,
-              availableSlots: listing.totalSlots || 0,
+              reason: notificationResult.reason,
+              duplicate:
+                notificationResult.duplicate ??
+                false,
+              propertyId:
+                notificationResult.propertyId,
             },
           );
-
+        } else {
           console.log(
-            `📱 Sent notifications to ${userIds.length} tenants in batch ${i / batchSize + 1}`,
+            "✅ New-property notification processed:",
+            {
+              propertyId:
+                notificationResult.propertyId,
+              recipients:
+                notificationResult.recipientCount,
+              inAppNotifications:
+                notificationResult.notificationCreated,
+              pushRequested:
+                notificationResult.push.requested,
+              pushAccepted:
+                notificationResult.push.accepted,
+              pushFailed:
+                notificationResult.push.failed,
+            },
           );
         }
-
-        console.log(
-          `✅ Push notifications sent to ${interestedTenants.length} tenants`,
-        );
-      } catch (pushError) {
+      } catch (notificationError) {
+        // Property creation remains successful even if notification delivery
+        // is temporarily unavailable.
         console.error(
-          "Failed to send push notifications for new listing:",
-          pushError,
+          "❌ Failed to announce the newly created property:",
+          notificationError,
         );
-        // Don't throw - push notification failure shouldn't break the listing creation
       }
     } else {
-      console.log("⏸️ Property is not available, skipping push notifications");
+      console.log(
+        "⏸️ Property is unavailable, so tenant notifications were skipped.",
+      );
     }
-
     if (onSuccess) {
       onSuccess(response);
     }

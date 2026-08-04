@@ -96,6 +96,16 @@ export interface PushTicketSummary {
   message?: string;
 }
 
+export interface PropertyCreatedNotificationResult {
+  skipped: boolean;
+  duplicate?: boolean;
+  reason?: string;
+  propertyId: string;
+  recipientCount: number;
+  notificationCreated: number;
+  notificationSampleRowIds?: string[];
+  push: PushTicketSummary;
+}
 export interface PropertyLikeNotificationResult {
   skipped: boolean;
   duplicate?: boolean;
@@ -318,6 +328,24 @@ class PushFunctionService {
     });
   }
 
+  async notifyPropertyCreated(
+    propertyId: string,
+  ): Promise<PropertyCreatedNotificationResult> {
+    const normalizedPropertyId = propertyId.trim();
+
+    if (!normalizedPropertyId) {
+      throw new Error(
+        "A property ID is required to announce a newly created property.",
+      );
+    }
+
+    return executePushRoute<PropertyCreatedNotificationResult>(
+      "/property-created",
+      {
+        propertyId: normalizedPropertyId,
+      },
+    );
+  }
   async notifyPropertyLike(
     propertyId: string,
   ): Promise<PropertyLikeNotificationResult> {
