@@ -1,5 +1,4 @@
 import { Card, FeaturedCard } from "@/components/Cards";
-import NooklyAssistantLauncher from "@/components/assistant/NooklyAssistantLauncher";
 import FeaturedModal from "@/components/FeaturedModal";
 import NoResults from "@/components/NoResults";
 import QuickActions from "@/components/QuickActions";
@@ -397,8 +396,6 @@ const StudentHome = () => {
         properties={featured}
         onPropertyPress={handlePropertyPress}
       />
-
-      <NooklyAssistantLauncher />
     </SafeAreaView>
   );
 };
