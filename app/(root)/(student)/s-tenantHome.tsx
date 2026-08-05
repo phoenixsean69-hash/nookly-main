@@ -341,23 +341,38 @@ const StudentHome = () => {
             </View>
           </View>
 
-          <TouchableOpacity
-            onPress={() => router.push("/s-notifications")}
-            className="bg-white/20 p-2.5 rounded-full"
-          >
-            <Image
-              source={icons.bell}
-              className="w-5 h-5"
-              style={{ tintColor: "#fff" }}
-            />
-            {totalUnreadCount > 0 && (
-              <View className="absolute -top-1 -right-1 bg-red-500 rounded-full min-w-[18px] h-[18px] px-1 items-center justify-center">
-                <Text className="text-white text-[10px] font-rubik-bold">
-                  {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
-                </Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          <View className="flex-row items-center">
+            <TouchableOpacity
+              onPress={() => router.push("/s-sos" as any)}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Open emergency SOS"
+              className="h-10 px-3 rounded-full items-center justify-center mr-2"
+              style={{ backgroundColor: "#DC2626" }}
+            >
+              <Text className="text-white text-xs font-rubik-bold">
+                SOS
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push("/s-notifications")}
+              className="bg-white/20 p-2.5 rounded-full"
+            >
+              <Image
+                source={icons.bell}
+                className="w-5 h-5"
+                style={{ tintColor: "#fff" }}
+              />
+              {totalUnreadCount > 0 && (
+                <View className="absolute -top-1 -right-1 bg-red-500 rounded-full min-w-[18px] h-[18px] px-1 items-center justify-center">
+                  <Text className="text-white text-[10px] font-rubik-bold">
+                    {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 

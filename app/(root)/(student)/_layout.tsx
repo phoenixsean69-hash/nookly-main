@@ -293,6 +293,16 @@ const StudentTabsLayout = () => {
       />
 
       <Tabs.Screen
+        name="s-sos"
+        options={{
+          href: null,
+          title: "Emergency SOS",
+          headerShown: false,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
         name="s-rides"
         options={{
           href: null,

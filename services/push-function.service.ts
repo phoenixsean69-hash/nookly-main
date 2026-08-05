@@ -5,6 +5,11 @@ import {
   type Models,
 } from "react-native-appwrite";
 
+import type {
+  StudentSosResult,
+  StudentSosSubmission,
+} from "@/types/student-sos";
+
 const APPWRITE_ENDPOINT =
   process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT?.trim();
 
@@ -461,6 +466,14 @@ class PushFunctionService {
     );
   }
 
+  async sendStudentSos(
+    input: StudentSosSubmission,
+  ): Promise<StudentSosResult> {
+    return executePushRoute<StudentSosResult>(
+      "/student-sos",
+      input as unknown as Record<string, unknown>,
+    );
+  }
 }
 
 const pushFunctionService = new PushFunctionService();
