@@ -432,7 +432,7 @@ const useNooklyAssistantStore =
         try {
           const response =
             await nooklyAssistantService
-              .askOffline(
+              .ask(
                 normalizedMessage,
               );
 

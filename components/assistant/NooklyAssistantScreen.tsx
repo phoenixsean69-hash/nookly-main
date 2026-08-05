@@ -7,6 +7,7 @@ import useNooklyAssistantStore, {
 } from "@/store/nookly-assistant.store";
 import useAuthStore from "@/store/auth.store";
 import { getUserModeLabel } from "@/lib/userMode";
+import { useNetInfo } from "@react-native-community/netinfo";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, {
@@ -298,9 +299,17 @@ const AssistantMessageBubble = ({
           style={{ maxWidth: "92%" }}
         >
           <Ionicons
-            name="cloud-offline-outline"
+            name={
+              response.mode === "online"
+                ? "cloud-done-outline"
+                : "cloud-offline-outline"
+            }
             size={13}
-            color={theme.muted}
+            color={
+              response.mode === "online"
+                ? theme.primary[300]
+                : theme.muted
+            }
           />
           <Text
             className="text-[11px] leading-4 ml-1 flex-1"
@@ -345,6 +354,12 @@ export default function NooklyAssistantScreen() {
     () => getUserModeLabel(user),
     [user],
   );
+
+  const networkState = useNetInfo();
+
+  const isDefinitelyOffline =
+    networkState.isConnected === false ||
+    networkState.isInternetReachable === false;
 
   const scrollToBottom = useCallback(
     (animated = true) => {
@@ -521,12 +536,23 @@ export default function NooklyAssistantScreen() {
               </Text>
 
               <View className="flex-row items-center mt-0.5">
-                <View className="w-2 h-2 rounded-full bg-emerald-500 mr-1.5" />
+                <View
+                  className="w-2 h-2 rounded-full mr-1.5"
+                  style={{
+                    backgroundColor:
+                      isDefinitelyOffline
+                        ? theme.muted
+                        : "#10B981",
+                  }}
+                />
                 <Text
                   className="text-xs"
                   style={{ color: theme.muted }}
                 >
-                  Local intelligence • {roleLabel}
+                  {isDefinitelyOffline
+                    ? "Offline saved data"
+                    : "Live Nookly data"}{" "}
+                  • {roleLabel}
                 </Text>
               </View>
             </View>
@@ -646,7 +672,9 @@ export default function NooklyAssistantScreen() {
                         className="text-xs font-rubik-medium ml-2"
                         style={{ color: theme.muted }}
                       >
-                        Analysing saved Nookly data
+                        {isDefinitelyOffline
+                          ? "Analysing saved Nookly data"
+                          : "Checking live Nookly data"}
                       </Text>
                     </View>
 
@@ -799,7 +827,9 @@ export default function NooklyAssistantScreen() {
                 className="text-[10px] text-center mt-2"
                 style={{ color: theme.muted }}
               >
-                Offline answers use locally saved Nookly data and may not reflect current availability.
+                {isDefinitelyOffline
+                  ? "Offline mode is using locally saved Nookly data."
+                  : "Online mode is using Nookly's current live property data."}
               </Text>
             </View>
           </>
