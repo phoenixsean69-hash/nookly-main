@@ -11,6 +11,10 @@ const DATABASE_ID = env("NOOKLY_DATABASE_ID");
 const PUSH_TOKENS_TABLE_ID = env("NOOKLY_PUSH_TOKENS_COLLECTION_ID");
 const USERS_TABLE_ID = env("NOOKLY_USERS_COLLECTION_ID");
 const NOTIFICATIONS_TABLE_ID = env("NOOKLY_NOTIFICATIONS_COLLECTION_ID");
+const ORGANIZATIONS_TABLE_ID = env(
+  "NOOKLY_ORGANIZATIONS_COLLECTION_ID",
+  "6a2c1643001faac686e9",
+);
 const PROPERTIES_TABLE_ID = env("NOOKLY_PROPERTIES_COLLECTION_ID");
 const LIKES_TABLE_ID = env("NOOKLY_LIKES_COLLECTION_ID");
 const REQUESTS_TABLE_ID = env(
@@ -436,6 +440,674 @@ const requirePrivilegedUser = async (req, tables) => {
   }
 
   return { accountId, userRow };
+};
+
+const STUDENT_SOS_INCIDENT_LABELS = new Map([
+  ["robbery", "Robbery"],
+  ["burglary", "Burglary"],
+  ["being_followed", "Being followed"],
+  ["assault_or_threat", "Assault or threat"],
+  ["medical_emergency", "Medical emergency"],
+  ["unsafe_transport", "Unsafe transport"],
+  ["other_danger", "Other danger"],
+]);
+
+const normalizeSosText = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\\s+/g, " ");
+
+const isStudentUserRow = (userRow) => {
+  const userMode = normalizeSosText(
+    userRow?.userMode ?? userRow?.role,
+  );
+
+  const tenantType = normalizeSosText(
+    userRow?.tenantType,
+  );
+
+  return (
+    userMode === "student" ||
+    tenantType === "student"
+  );
+};
+
+const requireSosCoordinate = (
+  value,
+  label,
+  minimum,
+  maximum,
+) => {
+  const number = Number(value);
+
+  if (
+    !Number.isFinite(number) ||
+    number < minimum ||
+    number > maximum
+  ) {
+    throw statusError(
+      400,
+      `${label} is invalid.`,
+    );
+  }
+
+  return number;
+};
+
+const optionalSosAccuracy = (value) => {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const accuracy = Number(value);
+
+  if (
+    !Number.isFinite(accuracy) ||
+    accuracy < 0 ||
+    accuracy > 10000
+  ) {
+    throw statusError(
+      400,
+      "Location accuracy is invalid.",
+    );
+  }
+
+  return accuracy;
+};
+
+const requireSosClientRequestId = (
+  value,
+) => {
+  const requestId =
+    String(value ?? "").trim();
+
+  if (
+    requestId.length < 8 ||
+    requestId.length > 128 ||
+    !/^[a-zA-Z0-9._:-]+$/.test(
+      requestId,
+    )
+  ) {
+    throw statusError(
+      400,
+      "clientRequestId is invalid.",
+    );
+  }
+
+  return requestId;
+};
+
+const requireRecentLocationTime = (
+  value,
+) => {
+  const raw =
+    String(value ?? "").trim();
+
+  const capturedAt = new Date(raw);
+
+  if (
+    !raw ||
+    Number.isNaN(
+      capturedAt.getTime(),
+    )
+  ) {
+    throw statusError(
+      400,
+      "capturedAt is invalid.",
+    );
+  }
+
+  const age =
+    Date.now() -
+    capturedAt.getTime();
+
+  if (age < -5 * 60 * 1000) {
+    throw statusError(
+      400,
+      "The location timestamp is in the future.",
+    );
+  }
+
+  if (age > 30 * 60 * 1000) {
+    throw statusError(
+      409,
+      "Your location is too old. Refresh it before sending the SOS.",
+    );
+  }
+
+  return capturedAt.toISOString();
+};
+
+const getOrganizationDisplayName = (
+  organization,
+) =>
+  String(
+    organization?.name ??
+      organization?.organizationName ??
+      organization?.institutionName ??
+      organization?.schoolName ??
+      "Institution",
+  ).trim() || "Institution";
+
+const getResolvedAccountId = (
+  userRow,
+  fallback,
+) =>
+  String(
+    userRow?.accountId ??
+      userRow?.userId ??
+      fallback ??
+      "",
+  ).trim();
+
+const resolveStudentInstitution = async (
+  tables,
+  studentUser,
+) => {
+  const organizationTableId =
+    requireConfiguredTable(
+      ORGANIZATIONS_TABLE_ID,
+      "Organizations table",
+    );
+
+  const organizationId =
+    String(
+      studentUser?.organizationId ??
+        "",
+    ).trim();
+
+  if (!organizationId) {
+    throw statusError(
+      409,
+      "Pick your Institution before sending an SOS.",
+    );
+  }
+
+  const organization =
+    await getRowOrNull(
+      tables,
+      organizationTableId,
+      organizationId,
+    );
+
+  if (!organization) {
+    throw statusError(
+      409,
+      "Your linked Institution is no longer registered on Nookly.",
+    );
+  }
+
+  const organizationType =
+    normalizeSosText(
+      organization.type_of ??
+        organization.type ??
+        organization.organizationType ??
+        organization.category,
+    );
+
+  if (
+    organizationType !== "school"
+  ) {
+    throw statusError(
+      409,
+      "Student SOS can only target an Institution registered with type_of = school.",
+    );
+  }
+
+  if (
+    organization.isActive === false ||
+    normalizeSosText(
+      organization.status,
+    ) === "inactive"
+  ) {
+    throw statusError(
+      409,
+      "Your linked Institution is not active on Nookly.",
+    );
+  }
+
+  const ownerCandidates = [
+    organization.userId,
+    organization.accountId,
+    organization.ownerId,
+    organization.creatorId,
+    organization.$id,
+  ]
+    .map((value) =>
+      String(value ?? "").trim(),
+    )
+    .filter(Boolean);
+
+  for (
+    const candidate of ownerCandidates
+  ) {
+    const ownerUser =
+      await getUserRowByAccountId(
+        tables,
+        candidate,
+      );
+
+    if (!ownerUser) {
+      continue;
+    }
+
+    const recipientUserId =
+      getResolvedAccountId(
+        ownerUser,
+        candidate,
+      );
+
+    if (recipientUserId) {
+      return {
+        organization,
+        organizationId:
+          String(
+            organization.$id ??
+              organizationId,
+          ).trim(),
+        organizationName:
+          getOrganizationDisplayName(
+            organization,
+          ),
+        recipientUserId,
+        ownerUser,
+      };
+    }
+  }
+
+  throw statusError(
+    409,
+    "The Institution does not have a linked Nookly owner account.",
+  );
+};
+
+const buildStudentSosAlertId = (
+  studentAccountId,
+  clientRequestId,
+) =>
+  `sos_${crypto
+    .createHash("sha256")
+    .update(
+      `student-sos:${studentAccountId}:${clientRequestId}`,
+    )
+    .digest("hex")
+    .slice(0, 32)}`;
+
+const parseStoredNotificationData = (
+  row,
+) => {
+  const raw = row?.data;
+
+  if (
+    raw &&
+    typeof raw === "object" &&
+    !Array.isArray(raw)
+  ) {
+    return raw;
+  }
+
+  try {
+    const parsed =
+      JSON.parse(
+        String(raw ?? "{}"),
+      );
+
+    return (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+        ? parsed
+        : {}
+    );
+  } catch {
+    return {};
+  }
+};
+
+const submitStudentSos = async (
+  req,
+  tables,
+  body,
+  diagnosticLog,
+) => {
+  const studentAccountId =
+    requireAuthenticatedUser(req);
+
+  requireConfiguredTable(
+    USERS_TABLE_ID,
+    "Users table",
+  );
+
+  requireConfiguredTable(
+    NOTIFICATIONS_TABLE_ID,
+    "Notifications table",
+  );
+
+  const studentUser =
+    await getUserRowByAccountId(
+      tables,
+      studentAccountId,
+    );
+
+  if (!studentUser) {
+    throw statusError(
+      404,
+      "The authenticated student profile could not be found.",
+    );
+  }
+
+  if (
+    !isStudentUserRow(studentUser)
+  ) {
+    throw statusError(
+      403,
+      "Student SOS is available only to student accounts.",
+    );
+  }
+
+  const incidentType =
+    normalizeSosText(
+      body.incidentType,
+    );
+
+  const incidentLabel =
+    STUDENT_SOS_INCIDENT_LABELS.get(
+      incidentType,
+    );
+
+  if (!incidentLabel) {
+    throw statusError(
+      400,
+      "Choose a valid SOS incident type.",
+    );
+  }
+
+  const latitude =
+    requireSosCoordinate(
+      body.latitude,
+      "Latitude",
+      -90,
+      90,
+    );
+
+  const longitude =
+    requireSosCoordinate(
+      body.longitude,
+      "Longitude",
+      -180,
+      180,
+    );
+
+  const accuracy =
+    optionalSosAccuracy(
+      body.accuracy,
+    );
+
+  const capturedAt =
+    requireRecentLocationTime(
+      body.capturedAt,
+    );
+
+  const address =
+    String(body.address ?? "")
+      .trim()
+      .slice(0, 500) ||
+    `Latitude ${latitude.toFixed(
+      6,
+    )}, Longitude ${longitude.toFixed(
+      6,
+    )}`;
+
+  const clientRequestId =
+    requireSosClientRequestId(
+      body.clientRequestId,
+    );
+
+  const institution =
+    await resolveStudentInstitution(
+      tables,
+      studentUser,
+    );
+
+  const studentName =
+    String(
+      studentUser.name ??
+        studentUser.fullName ??
+        "A student",
+    ).trim() || "A student";
+
+  const studentPhone =
+    String(
+      studentUser.phone ?? "",
+    ).trim();
+
+  const studentEmail =
+    String(
+      studentUser.email ?? "",
+    ).trim();
+
+  const alertId =
+    buildStudentSosAlertId(
+      studentAccountId,
+      clientRequestId,
+    );
+
+  const reportedAt =
+    new Date().toISOString();
+
+  const mapUrl =
+    "https://www.openstreetmap.org/" +
+    "?mlat=" +
+    encodeURIComponent(latitude) +
+    "&mlon=" +
+    encodeURIComponent(longitude) +
+    "#map=18/" +
+    encodeURIComponent(latitude) +
+    "/" +
+    encodeURIComponent(longitude);
+
+  const notificationData = {
+    type: "student_sos",
+    screen: "/notifications",
+    alertId,
+    clientRequestId,
+    incidentType,
+    incidentLabel,
+    studentId: studentAccountId,
+    studentName,
+    studentPhone,
+    studentEmail,
+    organizationId:
+      institution.organizationId,
+    organizationName:
+      institution.organizationName,
+    latitude,
+    longitude,
+    accuracy,
+    address,
+    capturedAt,
+    reportedAt,
+    mapUrl,
+  };
+
+  const title =
+    `Emergency SOS: ${incidentLabel}`;
+
+  const message =
+    (
+      `${studentName} reported ${incidentLabel.toLowerCase()}. ` +
+      `Location: ${address}`
+    ).slice(0, 500);
+
+  const inApp =
+    await createInAppNotification(
+      tables,
+      {
+        rowId: alertId,
+        recipientUserId:
+          institution.recipientUserId,
+        title,
+        message,
+        type: "student_sos",
+        data: notificationData,
+      },
+    );
+
+  if (!inApp.created) {
+    const storedData =
+      parseStoredNotificationData(
+        inApp.row,
+      );
+
+    diagnosticLog(
+      JSON.stringify({
+        event:
+          "student-sos-duplicate",
+        alertId,
+        studentAccountId,
+        organizationId:
+          institution.organizationId,
+        recipientUserId:
+          institution.recipientUserId,
+      }),
+    );
+
+    return {
+      alertId,
+      duplicate: true,
+      incidentType:
+        storedData.incidentType ??
+        incidentType,
+      incidentLabel:
+        storedData.incidentLabel ??
+        incidentLabel,
+      organizationId:
+        storedData.organizationId ??
+        institution.organizationId,
+      organizationName:
+        storedData.organizationName ??
+        institution.organizationName,
+      recipientUserId:
+        institution.recipientUserId,
+      latitude:
+        Number(
+          storedData.latitude ??
+            latitude,
+        ),
+      longitude:
+        Number(
+          storedData.longitude ??
+            longitude,
+        ),
+      accuracy:
+        storedData.accuracy ??
+        accuracy,
+      address:
+        storedData.address ??
+        address,
+      mapUrl:
+        storedData.mapUrl ??
+        mapUrl,
+      reportedAt:
+        storedData.reportedAt ??
+        reportedAt,
+      notificationCreated: false,
+      push: {
+        requested: 0,
+        accepted: 0,
+        failed: 0,
+        message:
+          "This SOS request was already recorded.",
+      },
+    };
+  }
+
+  let push;
+
+  try {
+    push = await sendToUser(
+      tables,
+      institution.recipientUserId,
+      validateNotification({
+        title,
+        body: message,
+        data: notificationData,
+      }),
+      diagnosticLog,
+    );
+  } catch (pushError) {
+    diagnosticLog(
+      JSON.stringify({
+        event:
+          "student-sos-push-failed",
+        alertId,
+        studentAccountId,
+        organizationId:
+          institution.organizationId,
+        recipientUserId:
+          institution.recipientUserId,
+        message:
+          pushError instanceof Error
+            ? pushError.message
+            : String(pushError),
+      }),
+    );
+
+    push = {
+      requested: 0,
+      accepted: 0,
+      failed: 1,
+      tickets: [],
+      failures: [],
+      message:
+        "The SOS was recorded, but the mobile push request could not be completed.",
+    };
+  }
+
+  diagnosticLog(
+    JSON.stringify({
+      event: "student-sos-recorded",
+      alertId,
+      incidentType,
+      studentAccountId,
+      organizationId:
+        institution.organizationId,
+      recipientUserId:
+        institution.recipientUserId,
+      pushRequested:
+        push.requested,
+      pushAccepted:
+        push.accepted,
+      pushFailed:
+        push.failed,
+    }),
+  );
+
+  return {
+    alertId,
+    duplicate: false,
+    incidentType,
+    incidentLabel,
+    organizationId:
+      institution.organizationId,
+    organizationName:
+      institution.organizationName,
+    recipientUserId:
+      institution.recipientUserId,
+    latitude,
+    longitude,
+    accuracy,
+    address,
+    mapUrl,
+    reportedAt,
+    notificationCreated: true,
+    push,
+  };
 };
 
 const registerDevice = async (req, tables, body) => {
@@ -2552,6 +3224,7 @@ export default async ({ req, res, log, error }) => {
           pushTokens: Boolean(PUSH_TOKENS_TABLE_ID),
           users: Boolean(USERS_TABLE_ID),
           notifications: Boolean(NOTIFICATIONS_TABLE_ID),
+          organizations: Boolean(ORGANIZATIONS_TABLE_ID),
           properties: Boolean(PROPERTIES_TABLE_ID),
           likes: Boolean(LIKES_TABLE_ID),
           requests: Boolean(REQUESTS_TABLE_ID),
@@ -2601,6 +3274,19 @@ export default async ({ req, res, log, error }) => {
       return ok(
         res,
         await sendToUser(tables, recipientUserId, notification, log),
+      );
+    }
+
+    if (method === "POST" && path === "/student-sos") {
+      return ok(
+        res,
+        await submitStudentSos(
+          req,
+          tables,
+          body,
+          log,
+        ),
+        201,
       );
     }
 

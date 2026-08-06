@@ -753,6 +753,7 @@ export default function SignUp() {
                 {formData.userMode === "tenant" &&
                   formData.tenantType === "student" && (
                     <SearchableInstitutionPicker
+                      studentMode
                       value={formData.schoolLocation}
                       organizationId={formData.organizationId}
                       onChange={(value) => updateField("schoolLocation", value)}

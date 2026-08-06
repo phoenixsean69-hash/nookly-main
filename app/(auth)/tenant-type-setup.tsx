@@ -269,6 +269,7 @@ export default function TenantTypeSetup() {
         {tenantType === "student" && (
           <View className="mt-5">
             <SearchableInstitutionPicker
+              studentMode
               value={schoolLocation}
               organizationId={organizationId}
               onChange={setSchoolLocation}

@@ -12,6 +12,7 @@ export interface StudentSosLocation {
   longitude: number;
   accuracy: number | null;
   capturedAt: string;
+  address: string;
 }
 
 export interface StudentSosSubmission {
@@ -20,6 +21,7 @@ export interface StudentSosSubmission {
   longitude: number;
   accuracy?: number | null;
   capturedAt: string;
+  address?: string;
   clientRequestId: string;
 }
 
@@ -41,6 +43,7 @@ export interface StudentSosResult {
   latitude: number;
   longitude: number;
   accuracy: number | null;
+  address?: string;
   mapUrl: string;
   reportedAt: string;
   notificationCreated: boolean;

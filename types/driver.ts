@@ -101,6 +101,7 @@ export interface DriverOrganizationOption {
   phone?: string;
   avatar?: string;
   city?: string;
+  type_of?: string;
 }
 
 export interface DriverInstitutionLink {

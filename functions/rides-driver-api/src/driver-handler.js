@@ -282,6 +282,7 @@ const listDriverOrganizations = async (databases) => {
       email: optionalString(organization.email, 160),
       phone: optionalString(organization.phone, 32),
       avatar: optionalString(organization.avatar, 2048),
+      type_of: normalize(organization.type_of),
       city: optionalString(
         organization.city ||
           organization.location ||
