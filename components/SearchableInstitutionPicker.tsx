@@ -9,13 +9,13 @@ import {
   Keyboard,
   Modal,
   Pressable,
-  SafeAreaView,
   Text,
   TextInput,
   TouchableOpacity,
   useColorScheme,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface SearchableInstitutionPickerProps {
   value: string;

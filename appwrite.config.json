@@ -57,7 +57,9 @@
             ],
             "enabled": true,
             "logging": true,
-            "events": [],
+            "events": [
+                "tablesdb.*.tables.69bf0bd4000d7ce53294.rows.*.create"
+            ],
             "schedule": "",
             "timeout": 60,
             "commands": "npm install",
@@ -77,7 +79,7 @@
             "path": "functions/rides-driver-api",
             "entrypoint": "src/main.js",
             "execute": [
-                "users"
+                "any"
             ],
             "enabled": true,
             "logging": true,

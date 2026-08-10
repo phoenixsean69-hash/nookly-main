@@ -1,5 +1,4 @@
-import SearchableInstitutionPicker from "@/components/SearchableInstitutionPicker";
-import StudentSosSafetyModeCard from "@/components/student-sos/StudentSosSafetyModeCard";
+﻿import SearchableInstitutionPicker from "@/components/SearchableInstitutionPicker";
 import { Colors } from "@/constants/Colors";
 import { isStudentTenant } from "@/lib/userMode";
 import studentSosService from "@/services/student-sos.service";
@@ -531,7 +530,7 @@ export default function StudentSosScreen() {
         }}
       >
         {!institutionLinked ? (
-          <View>
+          <SafeAreaView>
             <View className="items-center">
               <View
                 className="w-20 h-20 rounded-full items-center justify-center"
@@ -631,11 +630,9 @@ export default function StudentSosScreen() {
                 </Text>
               )}
             </TouchableOpacity>
-          </View>
+          </SafeAreaView>
         ) : (
           <>
-            <StudentSosSafetyModeCard />
-
             <View className="items-center">
               <View
                 className="w-20 h-20 rounded-full items-center justify-center"

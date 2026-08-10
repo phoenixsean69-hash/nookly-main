@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import webPush from "web-push";
 import { Client, ID, Permission, Query, Role, TablesDB } from "node-appwrite";
 
 const EXPO_SEND_URL = "https://exp.host/--/api/v2/push/send";
@@ -1108,6 +1109,937 @@ const submitStudentSos = async (
     notificationCreated: true,
     push,
   };
+};
+
+
+const WEB_PUSH_SUBSCRIPTIONS_TABLE_ID = env(
+  "NOOKLY_WEB_PUSH_SUBSCRIPTIONS_TABLE_ID",
+  "web_push_subscriptions",
+);
+const WEB_PUSH_VAPID_PUBLIC_KEY = env(
+  "NOOKLY_WEB_PUSH_VAPID_PUBLIC_KEY",
+);
+const WEB_PUSH_VAPID_PRIVATE_KEY = env(
+  "NOOKLY_WEB_PUSH_VAPID_PRIVATE_KEY",
+);
+const WEB_PUSH_SUBJECT = env(
+  "NOOKLY_WEB_PUSH_SUBJECT",
+  "mailto:seanmutandi406@gmail.com",
+);
+
+const webPushIsConfigured = () =>
+  Boolean(
+    WEB_PUSH_SUBSCRIPTIONS_TABLE_ID &&
+      WEB_PUSH_VAPID_PUBLIC_KEY &&
+      WEB_PUSH_VAPID_PRIVATE_KEY &&
+      WEB_PUSH_SUBJECT,
+  );
+
+const configureWebPush = () => {
+  if (!webPushIsConfigured()) {
+    return false;
+  }
+
+  webPush.setVapidDetails(
+    WEB_PUSH_SUBJECT,
+    WEB_PUSH_VAPID_PUBLIC_KEY,
+    WEB_PUSH_VAPID_PRIVATE_KEY,
+  );
+
+  return true;
+};
+
+const parseJsonObject = (value) => {
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  ) {
+    return value;
+  }
+
+  if (
+    typeof value !== "string" ||
+    !value.trim()
+  ) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+
+    return (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+    )
+      ? parsed
+      : {};
+  } catch {
+    return {};
+  }
+};
+
+const webPushSubscriptionRowId = (
+  endpoint,
+) =>
+  (
+    "web_" +
+    crypto
+      .createHash("sha256")
+      .update(String(endpoint))
+      .digest("hex")
+      .slice(0, 28)
+  ).slice(0, 36);
+
+const listWebPushSubscriptionRows = async (
+  tables,
+  maximum = 5000,
+) => {
+  requireConfiguredTable(
+    WEB_PUSH_SUBSCRIPTIONS_TABLE_ID,
+    "Web Push subscriptions table",
+  );
+
+  return listAllRows(
+    tables,
+    WEB_PUSH_SUBSCRIPTIONS_TABLE_ID,
+    [],
+    maximum,
+  );
+};
+
+const deactivateWebPushSubscriptionRow = async (
+  tables,
+  rowId,
+) => {
+  if (!rowId) return;
+
+  await tables.updateRow({
+    databaseId: DATABASE_ID,
+    tableId:
+      WEB_PUSH_SUBSCRIPTIONS_TABLE_ID,
+    rowId,
+    data: {
+      isActive: false,
+    },
+  });
+};
+
+const registerWebPushSubscription = async (
+  req,
+  tables,
+  body,
+) => {
+  const userId =
+    requireAuthenticatedUser(req);
+
+  if (!configureWebPush()) {
+    throw statusError(
+      503,
+      "Web Push is not configured on the Nookly Push API.",
+    );
+  }
+
+  const subscription =
+    body.subscription &&
+    typeof body.subscription ===
+      "object" &&
+    !Array.isArray(body.subscription)
+      ? body.subscription
+      : {};
+
+  const endpoint = String(
+    subscription.endpoint ?? "",
+  ).trim();
+
+  const keys =
+    subscription.keys &&
+    typeof subscription.keys ===
+      "object" &&
+    !Array.isArray(subscription.keys)
+      ? subscription.keys
+      : {};
+
+  const p256dh = String(
+    keys.p256dh ?? "",
+  ).trim();
+
+  const auth = String(
+    keys.auth ?? "",
+  ).trim();
+
+  const userAgent = String(
+    subscription.userAgent ?? "",
+  )
+    .trim()
+    .slice(0, 1000);
+
+  if (
+    !endpoint ||
+    !endpoint.startsWith("https://")
+  ) {
+    throw statusError(
+      400,
+      "A valid HTTPS PushSubscription endpoint is required.",
+    );
+  }
+
+  if (!p256dh || !auth) {
+    throw statusError(
+      400,
+      "The PushSubscription encryption keys are required.",
+    );
+  }
+
+  if (
+    endpoint.length > 8192 ||
+    p256dh.length > 512 ||
+    auth.length > 256
+  ) {
+    throw statusError(
+      400,
+      "The PushSubscription exceeds the supported storage limits.",
+    );
+  }
+
+  const endpointHash = crypto
+    .createHash("sha256")
+    .update(endpoint)
+    .digest("hex");
+
+  const rowId =
+    webPushSubscriptionRowId(
+      endpoint,
+    );
+
+  const allRows =
+    await listWebPushSubscriptionRows(
+      tables,
+    );
+
+  let subscriptionsDeactivated = 0;
+
+  for (const row of allRows) {
+    if (
+      String(row.endpointHash ?? "") ===
+        endpointHash &&
+      row.$id !== rowId
+    ) {
+      await deactivateWebPushSubscriptionRow(
+        tables,
+        row.$id,
+      );
+
+      subscriptionsDeactivated += 1;
+      continue;
+    }
+
+    if (
+      String(row.endpointHash ?? "") ===
+        endpointHash &&
+      String(row.userId ?? "") !==
+        userId &&
+      row.isActive === true
+    ) {
+      await deactivateWebPushSubscriptionRow(
+        tables,
+        row.$id,
+      );
+
+      subscriptionsDeactivated += 1;
+    }
+  }
+
+  const data = {
+    userId,
+    endpoint,
+    endpointHash,
+    p256dh,
+    auth,
+    userAgent,
+    isActive: true,
+  };
+
+  const existing =
+    await getRowOrNull(
+      tables,
+      WEB_PUSH_SUBSCRIPTIONS_TABLE_ID,
+      rowId,
+    );
+
+  if (existing) {
+    const updated =
+      await tables.updateRow({
+        databaseId: DATABASE_ID,
+        tableId:
+          WEB_PUSH_SUBSCRIPTIONS_TABLE_ID,
+        rowId,
+        data,
+        permissions: [
+          Permission.read(
+            Role.user(userId),
+          ),
+          Permission.update(
+            Role.user(userId),
+          ),
+          Permission.delete(
+            Role.user(userId),
+          ),
+        ],
+      });
+
+    return {
+      created: false,
+      subscriptionRowId:
+        updated.$id,
+      userId,
+      isActive: true,
+      subscriptionsDeactivated,
+    };
+  }
+
+  const created =
+    await tables.createRow({
+      databaseId: DATABASE_ID,
+      tableId:
+        WEB_PUSH_SUBSCRIPTIONS_TABLE_ID,
+      rowId,
+      data,
+      permissions: [
+        Permission.read(
+          Role.user(userId),
+        ),
+        Permission.update(
+          Role.user(userId),
+        ),
+        Permission.delete(
+          Role.user(userId),
+        ),
+      ],
+    });
+
+  return {
+    created: true,
+    subscriptionRowId:
+      created.$id,
+    userId,
+    isActive: true,
+    subscriptionsDeactivated,
+  };
+};
+
+const deactivateWebPushSubscription = async (
+  req,
+  tables,
+  body,
+) => {
+  const userId =
+    requireAuthenticatedUser(req);
+
+  const endpoint = String(
+    body.endpoint ?? "",
+  ).trim();
+
+  const endpointHash = endpoint
+    ? crypto
+        .createHash("sha256")
+        .update(endpoint)
+        .digest("hex")
+    : "";
+
+  const rows =
+    await listWebPushSubscriptionRows(
+      tables,
+    );
+
+  const ownedRows = rows.filter(
+    (row) =>
+      String(row.userId ?? "") ===
+        userId &&
+      row.isActive === true &&
+      (
+        !endpointHash ||
+        String(
+          row.endpointHash ?? "",
+        ) === endpointHash
+      ),
+  );
+
+  for (const row of ownedRows) {
+    await deactivateWebPushSubscriptionRow(
+      tables,
+      row.$id,
+    );
+  }
+
+  return {
+    deactivated:
+      ownedRows.length,
+  };
+};
+
+const webDestinationForNotification = (
+  type,
+  data,
+  notificationId,
+) => {
+  const explicitUrl = String(
+    data.webUrl ?? data.url ?? "",
+  ).trim();
+
+  if (
+    explicitUrl.startsWith(
+      "/dashboard",
+    )
+  ) {
+    return explicitUrl;
+  }
+
+  const normalizedType =
+    String(
+      type ?? data.type ?? "",
+    )
+      .trim()
+      .toLowerCase();
+
+  const propertyId = String(
+    data.propertyId ?? "",
+  ).trim();
+
+  const reviewId = String(
+    data.reviewId ?? "",
+  ).trim();
+
+  const requestId = String(
+    data.requestId ?? "",
+  ).trim();
+
+  if (
+    normalizedType ===
+    "student_sos"
+  ) {
+    const alertId = String(
+      data.alertId ??
+        notificationId ??
+        "",
+    ).trim();
+
+    return alertId
+      ? "/dashboard/sos?alert=" +
+          encodeURIComponent(
+            notificationId ||
+              alertId,
+          ) +
+          "&map=1"
+      : "/dashboard/sos?map=1";
+  }
+
+  if (
+    normalizedType === "query" ||
+    normalizedType ===
+      "organization_message" ||
+    normalizedType === "message"
+  ) {
+    const queryId = String(
+      data.queryId ?? "",
+    ).trim();
+
+    return queryId
+      ? "/dashboard/messages?message=" +
+          encodeURIComponent(
+            queryId,
+          )
+      : "/dashboard/messages";
+  }
+
+  if (
+    normalizedType === "review" ||
+    normalizedType ===
+      "property_review"
+  ) {
+    if (propertyId) {
+      return (
+        "/dashboard/properties/" +
+        encodeURIComponent(
+          propertyId,
+        ) +
+        (
+          reviewId
+            ? "?review=" +
+              encodeURIComponent(
+                reviewId,
+              )
+            : ""
+        )
+      );
+    }
+
+    return "/dashboard/properties";
+  }
+
+  if (
+    normalizedType === "request" ||
+    normalizedType ===
+      "request_response" ||
+    normalizedType === "lease"
+  ) {
+    return requestId
+      ? "/dashboard/requests?request=" +
+          encodeURIComponent(
+            requestId,
+          )
+      : "/dashboard/requests";
+  }
+
+  if (
+    normalizedType === "like" ||
+    normalizedType ===
+      "property_created" ||
+    normalizedType ===
+      "property_approved" ||
+    normalizedType ===
+      "property_disapproved"
+  ) {
+    return propertyId
+      ? "/dashboard/properties/" +
+          encodeURIComponent(
+            propertyId,
+          )
+      : "/dashboard/properties";
+  }
+
+  const screen = String(
+    data.screen ?? "",
+  ).trim();
+
+  if (
+    screen.startsWith(
+      "/dashboard",
+    )
+  ) {
+    return screen;
+  }
+
+  return "/dashboard";
+};
+
+const sendWebPushToUser = async (
+  tables,
+  recipientUserId,
+  notification,
+  diagnosticLog = () => undefined,
+) => {
+  const userId = String(
+    recipientUserId ?? "",
+  ).trim();
+
+  if (!userId) {
+    throw statusError(
+      400,
+      "recipientUserId is required for Web Push.",
+    );
+  }
+
+  if (!configureWebPush()) {
+    return {
+      requested: 0,
+      accepted: 0,
+      failed: 0,
+      failures: [],
+      message:
+        "Web Push is not configured.",
+    };
+  }
+
+  const rows =
+    await listWebPushSubscriptionRows(
+      tables,
+    );
+
+  const subscriptions = rows.filter(
+    (row) =>
+      String(row.userId ?? "") ===
+        userId &&
+      row.isActive === true,
+  );
+
+  if (
+    subscriptions.length === 0
+  ) {
+    return {
+      requested: 0,
+      accepted: 0,
+      failed: 0,
+      failures: [],
+      message:
+        "No active browser PushSubscription was found for this user.",
+    };
+  }
+
+  const failures = [];
+  let accepted = 0;
+
+  for (
+    const row of subscriptions
+  ) {
+    try {
+      await webPush.sendNotification(
+        {
+          endpoint:
+            String(
+              row.endpoint ?? "",
+            ),
+          keys: {
+            p256dh:
+              String(
+                row.p256dh ?? "",
+              ),
+            auth:
+              String(
+                row.auth ?? "",
+              ),
+          },
+        },
+        JSON.stringify(
+          notification,
+        ),
+        {
+          TTL: 5 * 60,
+          urgency:
+            notification?.data
+              ?.type ===
+            "student_sos"
+              ? "high"
+              : "normal",
+          topic:
+            String(
+              notification.tag ??
+                "",
+            )
+              .replace(
+                /[^A-Za-z0-9_-]/g,
+                "_",
+              )
+              .slice(0, 32) ||
+            undefined,
+        },
+      );
+
+      accepted += 1;
+    } catch (caught) {
+      const statusCode =
+        Number(
+          caught?.statusCode ??
+            caught?.status ??
+            0,
+        );
+
+      failures.push({
+        subscriptionRowId:
+          row.$id,
+        statusCode:
+          statusCode || undefined,
+        message:
+          caught instanceof Error
+            ? caught.message
+            : "Web Push delivery failed.",
+      });
+
+      if (
+        statusCode === 404 ||
+        statusCode === 410
+      ) {
+        await deactivateWebPushSubscriptionRow(
+          tables,
+          row.$id,
+        ).catch(
+          () => undefined,
+        );
+      }
+    }
+  }
+
+  const result = {
+    requested:
+      subscriptions.length,
+    accepted,
+    failed:
+      failures.length,
+    failures,
+  };
+
+  diagnosticLog(
+    JSON.stringify({
+      event:
+        "web-push-result",
+      recipientUserId:
+        userId,
+      requested:
+        result.requested,
+      accepted:
+        result.accepted,
+      failed:
+        result.failed,
+    }),
+  );
+
+  return result;
+};
+
+const isNotificationRowCreateEvent = (
+  req,
+  body,
+) => {
+  const eventName = getHeader(
+    req,
+    "x-appwrite-event",
+  );
+
+  const trigger = getHeader(
+    req,
+    "x-appwrite-trigger",
+  )
+    .trim()
+    .toLowerCase();
+
+  const scopedRowsPath =
+    DATABASE_ID +
+    ".tables." +
+    NOTIFICATIONS_TABLE_ID +
+    ".rows.";
+
+  const eventNameMatches =
+    Boolean(eventName) &&
+    (
+      eventName.includes(
+        "databases." +
+          scopedRowsPath,
+      ) ||
+      eventName.includes(
+        "tablesdb." +
+          scopedRowsPath,
+      )
+    ) &&
+    eventName.endsWith(
+      ".create",
+    );
+
+  const bodyDatabaseId =
+    String(
+      body?.$databaseId ?? "",
+    ).trim();
+
+  const bodyTableId =
+    String(
+      body?.$tableId ?? "",
+    ).trim();
+
+  const bodyMatchesTarget =
+    bodyDatabaseId ===
+      DATABASE_ID &&
+    bodyTableId ===
+      NOTIFICATIONS_TABLE_ID;
+
+  const bodyLooksLikeNotification =
+    Boolean(
+      body &&
+      typeof body === "object" &&
+      String(
+        body.$id ?? "",
+      ).trim() &&
+      String(
+        body.userId ?? "",
+      ).trim(),
+    );
+
+  return (
+    eventNameMatches ||
+    (
+      trigger === "event" &&
+      (
+        bodyMatchesTarget ||
+        bodyLooksLikeNotification
+      )
+    )
+  );
+};
+
+const handleNotificationRowCreateEvent = async (
+  req,
+  tables,
+  body,
+  diagnosticLog,
+) => {
+  if (
+    !isNotificationRowCreateEvent(
+      req,
+      body,
+    )
+  ) {
+    return null;
+  }
+
+  const notificationId = String(
+    body.$id ?? "",
+  ).trim();
+
+  const recipientUserId =
+    String(
+      body.userId ?? "",
+    ).trim();
+
+  const type = String(
+    body.type ?? "",
+  )
+    .trim()
+    .toLowerCase();
+
+  const data =
+    parseJsonObject(
+      body.data,
+    );
+
+  if (
+    !notificationId ||
+    !recipientUserId
+  ) {
+    throw statusError(
+      400,
+      "The notification-row event is missing its notification or recipient ID.",
+    );
+  }
+
+  const title =
+    String(
+      body.title ??
+        "Nookly notification",
+    )
+      .trim()
+      .slice(0, 120) ||
+    "Nookly notification";
+
+  const message =
+    String(
+      body.message ??
+        "You have a new Nookly notification.",
+    )
+      .trim()
+      .slice(0, 500) ||
+    "You have a new Nookly notification.";
+
+  const url =
+    webDestinationForNotification(
+      type,
+      data,
+      notificationId,
+    );
+
+  const payload = {
+    title,
+    body: message,
+    tag:
+      (
+        type +
+        "-" +
+        notificationId
+      ).slice(0, 120),
+    requireInteraction:
+      new Set([
+        "student_sos",
+        "query",
+        "message",
+        "request",
+        "review",
+      ]).has(type),
+    data: {
+      ...data,
+      type:
+        type ||
+        String(
+          data.type ??
+            "notification",
+        ),
+      notificationId,
+      url,
+      webPush: true,
+    },
+  };
+
+  const result =
+    await sendWebPushToUser(
+      tables,
+      recipientUserId,
+      payload,
+      diagnosticLog,
+    );
+
+  // Keep a delivery audit on the durable notification row.
+  await tables.updateRow({
+    databaseId: DATABASE_ID,
+    tableId:
+      NOTIFICATIONS_TABLE_ID,
+    rowId:
+      notificationId,
+    data: {
+      data: JSON.stringify({
+        ...data,
+        _webPush: {
+          requested:
+            result.requested,
+          accepted:
+            result.accepted,
+          failed:
+            result.failed,
+          processedAt:
+            new Date().toISOString(),
+        },
+      }),
+    },
+  });
+
+  return {
+    event:
+      "notification-row-web-push",
+    notificationId,
+    recipientUserId,
+    type,
+    url,
+    webPush: result,
+  };
+};
+
+const testCurrentUserWebPush = async (
+  req,
+  tables,
+  diagnosticLog,
+) => {
+  const userId =
+    requireAuthenticatedUser(req);
+
+  return sendWebPushToUser(
+    tables,
+    userId,
+    {
+      title:
+        "Nookly Web Push is active ✅",
+      body:
+        "This browser is now registered for organization notifications.",
+      tag:
+        "nookly-web-push-test",
+      requireInteraction:
+        false,
+      data: {
+        type:
+          "web_push_test",
+        url:
+          "/dashboard",
+        webPush:
+          true,
+      },
+    },
+    diagnosticLog,
+  );
 };
 
 const registerDevice = async (req, tables, body) => {
@@ -2680,6 +3612,364 @@ const issueLeaseAccess = async (req, tables, body) => {
   };
 };
 
+const normalizePropertyRequestDecision = (
+  value,
+) => {
+  const normalized =
+    String(value ?? "")
+      .trim()
+      .toLowerCase();
+
+  if (
+    [
+      "approved",
+      "approve",
+      "accepted",
+      "accept",
+    ].includes(normalized)
+  ) {
+    return "approved";
+  }
+
+  if (
+    [
+      "rejected",
+      "reject",
+      "declined",
+      "decline",
+    ].includes(normalized)
+  ) {
+    return "rejected";
+  }
+
+  return "";
+};
+
+const notifyPropertyRequestResponse = async (
+  req,
+  tables,
+  body,
+  diagnosticLog,
+) => {
+  const actorAccountId =
+    requireAuthenticatedUser(req);
+
+  await requirePrivilegedUser(
+    req,
+    tables,
+  );
+
+  const requestsTableId =
+    requireConfiguredTable(
+      REQUESTS_TABLE_ID,
+      "Requests table",
+    );
+
+  const propertiesTableId =
+    requireConfiguredTable(
+      PROPERTIES_TABLE_ID,
+      "Properties table",
+    );
+
+  requireConfiguredTable(
+    NOTIFICATIONS_TABLE_ID,
+    "Notifications table",
+  );
+
+  const requestId =
+    String(
+      body.requestId ??
+        body.propertyRequestId ??
+        body.id ??
+        "",
+    ).trim();
+
+  if (!requestId) {
+    throw statusError(
+      400,
+      "requestId is required.",
+    );
+  }
+
+  const requestRow =
+    await getRowOrNull(
+      tables,
+      requestsTableId,
+      requestId,
+    );
+
+  if (!requestRow) {
+    throw statusError(
+      404,
+      "The rental request could not be found.",
+    );
+  }
+
+  const propertyId =
+    String(
+      requestRow.propertyId ??
+        body.propertyId ??
+        "",
+    ).trim();
+
+  if (!propertyId) {
+    throw statusError(
+      409,
+      "The rental request has no linked property.",
+    );
+  }
+
+  const property =
+    await getRowOrNull(
+      tables,
+      propertiesTableId,
+      propertyId,
+    );
+
+  if (!property) {
+    throw statusError(
+      404,
+      "The requested property could not be found.",
+    );
+  }
+
+  const propertyOwnerId =
+    String(
+      property.creatorId ??
+        property.ownerId ??
+        property.userId ??
+        "",
+    ).trim();
+
+  if (
+    !propertyOwnerId ||
+    propertyOwnerId !==
+      actorAccountId
+  ) {
+    throw statusError(
+      403,
+      "You cannot notify a tenant about a request for a property you do not own.",
+    );
+  }
+
+  const storedDecision =
+    normalizePropertyRequestDecision(
+      requestRow.status,
+    );
+
+  const requestedDecision =
+    normalizePropertyRequestDecision(
+      body.decision ??
+        body.status ??
+        body.action,
+    );
+
+  const decision =
+    storedDecision ||
+    requestedDecision;
+
+  if (!decision) {
+    throw statusError(
+      409,
+      "The rental request must be approved or rejected before its tenant can be notified.",
+    );
+  }
+
+  const recipientUserId =
+    String(
+      requestRow.tenantId ??
+        body.recipientUserId ??
+        body.tenantUserId ??
+        body.tenantId ??
+        "",
+    ).trim();
+
+  if (!recipientUserId) {
+    throw statusError(
+      409,
+      "The rental request does not have a linked tenant account.",
+    );
+  }
+
+  const propertyName =
+    String(
+      requestRow.propertyName ??
+        property.propertyName ??
+        body.propertyName ??
+        "the property",
+    ).trim() ||
+    "the property";
+
+  const organizationName =
+    String(
+      body.organizationName ??
+        body.organization ??
+        "The property organization",
+    ).trim() ||
+    "The property organization";
+
+  const rejectionReason =
+    String(
+      body.rejectionReason ??
+        body.reason ??
+        requestRow.rejectionReason ??
+        "",
+    )
+      .trim()
+      .slice(0, 500);
+
+  const approved =
+    decision === "approved";
+
+  const title =
+    approved
+      ? "Rental request approved ✅"
+      : "Rental request rejected";
+
+  const message =
+    approved
+      ? (
+          organizationName +
+          ' approved your rental request for "' +
+          propertyName +
+          '". Open My Requests to view the latest details.'
+        )
+      : (
+          organizationName +
+          ' rejected your rental request for "' +
+          propertyName +
+          '".' +
+          (
+            rejectionReason
+              ? " Reason: " +
+                rejectionReason
+              : ""
+          )
+        );
+
+  const notificationData = {
+    type:
+      "property_request_response",
+    screen:
+      "/myRequests",
+    requestId,
+    propertyId,
+    propertyName,
+    status:
+      decision,
+    decision,
+    rejectionReason:
+      approved
+        ? ""
+        : rejectionReason,
+    organizationId:
+      String(
+        body.organizationId ??
+          "",
+      ).trim(),
+    organizationName,
+    respondedAt:
+      new Date()
+        .toISOString(),
+  };
+
+  const notificationRowId =
+    (
+      "request_response_" +
+      crypto
+        .createHash("sha256")
+        .update(
+          [
+            requestId,
+            decision,
+            recipientUserId,
+          ].join(":"),
+        )
+        .digest("hex")
+        .slice(0, 19)
+    ).slice(0, 36);
+
+  const inApp =
+    await createInAppNotification(
+      tables,
+      {
+        rowId:
+          notificationRowId,
+        recipientUserId,
+        title,
+        message,
+        type:
+          "property_request_response",
+        data:
+          notificationData,
+      },
+    );
+
+  if (!inApp.created) {
+    return {
+      skipped:
+        true,
+      duplicate:
+        true,
+      notificationRowId,
+      recipientUserId,
+      requestId,
+      decision,
+      reason:
+        "This request-decision notification was already processed.",
+    };
+  }
+
+  const push =
+    await sendToUser(
+      tables,
+      recipientUserId,
+      validateNotification({
+        title,
+        body:
+          message,
+        data:
+          notificationData,
+      }),
+      diagnosticLog,
+    );
+
+  diagnosticLog(
+    JSON.stringify({
+      event:
+        "property-request-response",
+      requestId,
+      propertyId,
+      recipientUserId,
+      decision,
+      notificationRowId,
+      pushRequested:
+        push.requested,
+      pushAccepted:
+        push.accepted,
+      pushFailed:
+        push.failed,
+    }),
+  );
+
+  return {
+    skipped:
+      false,
+    duplicate:
+      false,
+    notificationCreated:
+      true,
+    notificationRowId,
+    recipientUserId,
+    requestId,
+    propertyId,
+    decision,
+    data:
+      notificationData,
+    push,
+  };
+};
+
 const checkReceipts = async (body) => {
   const ids = Array.isArray(body.ids)
     ? body.ids
@@ -3235,6 +4525,10 @@ export default async ({ req, res, log, error }) => {
           rides: Boolean(RIDES_TABLE_ID),
           ridesPushSecret: Boolean(RIDES_PUSH_SECRET),
           consoleTestSecret: Boolean(CONSOLE_TEST_SECRET),
+          webPushSubscriptions: Boolean(
+            WEB_PUSH_SUBSCRIPTIONS_TABLE_ID,
+          ),
+          webPushVapid: webPushIsConfigured(),
         },
         time: new Date().toISOString(),
       });
@@ -3250,6 +4544,76 @@ export default async ({ req, res, log, error }) => {
 
     const tables = createTables(req);
     const body = parseBody(req);
+
+    const eventResult =
+      await handleNotificationRowCreateEvent(
+        req,
+        tables,
+        body,
+        log,
+      );
+
+    if (eventResult) {
+      return ok(
+        res,
+        eventResult,
+      );
+    }
+
+    if (
+      method === "GET" &&
+      path === "/web-push/public-key"
+    ) {
+      return ok(res, {
+        ready:
+          webPushIsConfigured(),
+        publicKey:
+          WEB_PUSH_VAPID_PUBLIC_KEY,
+      });
+    }
+
+    if (
+      method === "POST" &&
+      path === "/web-push/register"
+    ) {
+      return ok(
+        res,
+        await registerWebPushSubscription(
+          req,
+          tables,
+          body,
+        ),
+        201,
+      );
+    }
+
+    if (
+      method === "POST" &&
+      path === "/web-push/deactivate"
+    ) {
+      return ok(
+        res,
+        await deactivateWebPushSubscription(
+          req,
+          tables,
+          body,
+        ),
+      );
+    }
+
+    if (
+      method === "POST" &&
+      path === "/web-push/test"
+    ) {
+      return ok(
+        res,
+        await testCurrentUserWebPush(
+          req,
+          tables,
+          log,
+        ),
+      );
+    }
 
     if (method === "POST" && path === "/register-device") {
       return ok(res, await registerDevice(req, tables, body), 201);
@@ -3307,6 +4671,21 @@ export default async ({ req, res, log, error }) => {
     }
     if (method === "POST" && path === "/property-request") {
       return ok(res, await notifyPropertyRequest(req, tables, body, log));
+    }
+
+    if (
+      method === "POST" &&
+      path === "/property-request-response"
+    ) {
+      return ok(
+        res,
+        await notifyPropertyRequestResponse(
+          req,
+          tables,
+          body,
+          log,
+        ),
+      );
     }
 
     if (method === "POST" && path === "/property-review") {

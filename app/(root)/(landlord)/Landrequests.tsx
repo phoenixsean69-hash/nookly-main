@@ -538,7 +538,17 @@ export default function LandlordRequests() {
           console.error("Failed to send push notification:", pushError);
         }
 
-        setRequests((prev) => prev.filter((r) => r.$id !== requestId));
+        // Keep the accepted request visible in the landlord's history.
+        setRequests((prev) =>
+          prev.map((r) =>
+            r.$id === requestId
+              ? {
+                  ...r,
+                  status: "accepted",
+                }
+              : r,
+          ),
+        );
         Alert.alert("Success", "Request accepted successfully!");
       }
     } catch (error) {
@@ -647,8 +657,18 @@ export default function LandlordRequests() {
           console.error("Failed to send push notification:", pushError);
         }
 
-        // Update local state - remove the request from list
-        setRequests((prev) => prev.filter((r) => r.$id !== rejectRequestId));
+        // Keep the rejected request visible in the landlord's history.
+        setRequests((prev) =>
+          prev.map((r) =>
+            r.$id === rejectRequestId
+              ? {
+                  ...r,
+                  status: "rejected",
+                  rejectionReason: rejectionReason.trim(),
+                }
+              : r,
+          ),
+        );
 
         Alert.alert("Success", "Request rejected successfully");
       }

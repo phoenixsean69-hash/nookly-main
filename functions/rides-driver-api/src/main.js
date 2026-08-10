@@ -1,35 +1,24 @@
-﻿/**
- * NOOKLY_COMBINED_RIDES_FUNCTION
- *
- * One Appwrite Function serves:
- * - existing driver dashboard, assigned rides, tracking and incidents;
- * - student ride requests;
- * - driver marketplace requests and offers;
- * - student offer acceptance and confirmed ride creation.
+/**
+ * NOOKLY_DRIVER_APPLICATIONS_FAST_ROUTE
+ * Preserves the existing rides-driver-api and intercepts only the
+ * expensive organization driver-list request.
  */
+import baseHandler from "./main-before-driver-fast-route.js";
+import organizationDriverReviewFast from "./organization-driver-review-fast.js";
 
-import driverHandler from "./driver-handler.js";
-import marketplaceHandler from "./marketplace-handler.js";
-
-const isMarketplacePath = (rawPath) => {
-  const path = String(rawPath || "/").replace(/\/+$/, "") || "/";
-
-  return (
-    path === "/student" ||
-    path.startsWith("/student/") ||
-    path === "/driver/requests" ||
-    path.startsWith("/driver/requests/") ||
-    path === "/driver/offers" ||
-    path.startsWith("/driver/offers/")
-  );
-};
+const normalizePath = (value) =>
+  String(value ?? "/").replace(/\/+$/, "") || "/";
 
 export default async (context) => {
-  const path = context?.req?.path || "/";
+  const method = String(context?.req?.method ?? "GET").toUpperCase();
+  const requestPath = normalizePath(context?.req?.path);
 
-  if (isMarketplacePath(path)) {
-    return marketplaceHandler(context);
+  if (
+    method === "GET" &&
+    requestPath === "/organization/drivers-fast"
+  ) {
+    return organizationDriverReviewFast(context);
   }
 
-  return driverHandler(context);
+  return baseHandler(context);
 };

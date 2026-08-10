@@ -5,58 +5,15 @@ import {
   type Models,
 } from "react-native-appwrite";
 
+import { client } from "@/lib/appwrite-client";
+
 import type {
   StudentSosResult,
   StudentSosSubmission,
 } from "@/types/student-sos";
 
-const APPWRITE_ENDPOINT =
-  process.env.EXPO_PUBLIC_APPWRITE_ENDPOINT?.trim();
-
-const APPWRITE_PROJECT_ID =
-  process.env.EXPO_PUBLIC_APPWRITE_PROJECT_ID?.trim();
-
-const APPWRITE_PLATFORM = "com.shon1123.Nookly";
-
 const PUSH_FUNCTION_ID =
   process.env.EXPO_PUBLIC_APPWRITE_PUSH_FUNCTION_ID?.trim();
-
-/**
- * This service intentionally creates its own Appwrite client.
- *
- * The shared client must not be imported here because lib/appwrite.ts imports
- * this service for property-like notifications. Doing so would create a
- * circular dependency and leave the Functions service without a valid client
- * during app startup.
- */
-function createPushClient(): Client {
-  if (!APPWRITE_ENDPOINT) {
-    throw new Error(
-      "Missing EXPO_PUBLIC_APPWRITE_ENDPOINT in the environment.",
-    );
-  }
-
-  if (!APPWRITE_PROJECT_ID) {
-    throw new Error(
-      "Missing EXPO_PUBLIC_APPWRITE_PROJECT_ID in the environment.",
-    );
-  }
-
-  return new Client()
-    .setEndpoint(APPWRITE_ENDPOINT)
-    .setProject(APPWRITE_PROJECT_ID)
-    .setPlatform(APPWRITE_PLATFORM);
-}
-
-let functionsInstance: Functions | null = null;
-
-function getFunctions(): Functions {
-  if (!functionsInstance) {
-    functionsInstance = new Functions(createPushClient());
-  }
-
-  return functionsInstance;
-}
 
 interface FunctionResponse<T> {
   ok: boolean;
@@ -111,6 +68,17 @@ export interface PropertyCreatedNotificationResult {
   notificationSampleRowIds?: string[];
   push: PushTicketSummary;
 }
+
+let functionsInstance: Functions | null = null;
+
+function getFunctions(): Functions {
+  if (!functionsInstance) {
+    functionsInstance = new Functions(client);
+  }
+
+  return functionsInstance;
+}
+
 export interface PropertyLikeNotificationResult {
   skipped: boolean;
   duplicate?: boolean;

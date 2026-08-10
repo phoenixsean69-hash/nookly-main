@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "node-appwrite": "^24.0.0"
+    "node-appwrite": "^24.0.0",
+    "web-push": "^3.6.7"
   }
 }

@@ -16,7 +16,6 @@ import { openAuthSessionAsync } from "expo-web-browser";
 import {
   Account,
   Avatars,
-  Client,
   Databases,
   ID,
   OAuthProvider,
@@ -26,6 +25,7 @@ import {
   Storage,
 } from "react-native-appwrite";
 import { isAccredited } from "./accreditation";
+import { client } from "./appwrite-client";
 
 const createValidAppwriteId = (): string => {
   let id = ID.unique();
@@ -180,10 +180,7 @@ interface SignInParams {
   password: string;
 }
 
-export const client = new Client()
-  .setEndpoint(config.endpoint!)
-  .setProject(config.projectId!)
-  .setPlatform(config.platform!);
+export { client };
 
 export const account = new Account(client);
 export const databases = new Databases(client);
@@ -1315,6 +1312,8 @@ export const addReview = async (
     const newReview = {
       id: Date.now().toString(),
       propertyId: propertyId,
+      reviewerId: currentUser.$id,
+      userId: currentUser.$id,
       userName: currentUser.name,
       userAvatar: userAvatar,
       review: reviewText,
@@ -1364,7 +1363,6 @@ export const addReview = async (
       console.log(`📊 Total reviews given: ${updatedUserReviews.length}`);
     }
 
-    await trackReviewActivity(propertyId, newReview.id);
 
     // Notify the property owner through the secure centralized Function.
     // The Function verifies the authenticated reviewer and the exact review

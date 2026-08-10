@@ -3,10 +3,10 @@ import { Colors } from "@/constants/Colors";
 import icons from "@/constants/icons";
 import { config, databases, uploadImage } from "@/lib/appwrite";
 import {
-  downloadLeaseDocument,
-  isLeaseDocumentDownloaded,
-  previewLeaseDocument,
-  subscribeToLeaseDownloads,
+    downloadLeaseDocument,
+    isLeaseDocumentDownloaded,
+    previewLeaseDocument,
+    subscribeToLeaseDownloads,
 } from "@/lib/leaseDocumentClient";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,18 +15,18 @@ import { ImagePickerAsset } from "expo-image-picker";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  RefreshControl,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useColorScheme,
-  View,
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    RefreshControl,
+    ScrollView,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useColorScheme,
+    View,
 } from "react-native";
 import { ID, Query } from "react-native-appwrite";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -41,7 +41,7 @@ interface TenantRequest {
   propertyId: string;
   propertyName: string;
   tenantId: string;
-  status: "pending" | "accepted" | "rejected";
+  status: "pending" | "approved" | "accepted" | "rejected";
   createdAt: string;
   proposedPrice?: number;
   originalPrice?: number;
@@ -323,7 +323,7 @@ export default function TenantRequests() {
             propertyId: doc.propertyId,
             propertyName: doc.propertyName,
             tenantId: doc.tenantId,
-            status: doc.status,
+            status: doc.status === "approved" ? "accepted" : doc.status,
             createdAt: doc.$createdAt,
             proposedPrice: doc.proposedPrice,
             originalPrice: doc.originalPrice,
@@ -403,7 +403,8 @@ export default function TenantRequests() {
           label: "Pending",
           border: "#F59E0B50",
         };
-      case "accepted":
+      case "approved":
+        case "accepted":
         return {
           bg: "#10B98120",
           icon: acceptedIcon,
@@ -608,9 +609,17 @@ export default function TenantRequests() {
     }
   };
 
-  // ✅ Render Lease Document Component with Preview & Download
+  // Lease panel for every accepted request.
+  // It shows a waiting state until the landlord sends a document,
+  // then exposes the existing secure preview/download actions.
   const renderLeaseDocument = (request: TenantRequest) => {
-    if (!request.leaseDocumentId) return null;
+    if (request.status !== "accepted") return null;
+
+    const documentId = request.leaseDocumentId?.trim() || "";
+    const hasLeaseDocument = Boolean(documentId);
+    const fileName =
+      request.leaseDocumentName?.trim() || "lease_document.pdf";
+    const leaseBusy = isLeaseActionRunning(request.$id);
 
     return (
       <View
@@ -618,77 +627,148 @@ export default function TenantRequests() {
         style={{
           backgroundColor: theme.surface,
           borderWidth: 1,
-          borderColor: theme.primary[600],
+          borderColor: hasLeaseDocument
+            ? theme.primary[300] + "60"
+            : theme.muted + "35",
         }}
       >
-        <View className="flex-row items-center mb-3">
-          <Text
-            className="text-base font-rubik-bold ml-2"
-            style={{ color: theme.title }}
-          >
-            Lease Document
-          </Text>
-        </View>
-
-        <Text className="text-sm mb-2" style={{ color: theme.muted }}>
-          {request.leaseDocumentName || "Lease Agreement"}
-        </Text>
-
-        <Text className="text-xs mb-3" style={{ color: theme.muted }}>
-          Sent:{" "}
-          {request.leaseSentAt
-            ? new Date(request.leaseSentAt).toLocaleDateString()
-            : "N/A"}
-        </Text>
-
-        {/* Action Buttons */}
-        <View className="flex-row gap-3">
-          {/* ✅ Fixed Preview Button */}
-          <TouchableOpacity
-            onPress={() =>
-              handlePreviewLease(
-                request.$id,
-                request.leaseDocumentId || "",
-                request.leaseDocumentName || "lease_document.pdf",
-              )
-            }
-            className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
+        <View className="flex-row items-center">
+          <View
+            className="w-10 h-10 rounded-full items-center justify-center mr-3"
             style={{
-              backgroundColor: theme.surface,
-              borderWidth: 1,
-              borderColor: theme.primary[600],
+              backgroundColor: hasLeaseDocument
+                ? theme.primary[100]
+                : theme.background,
             }}
           >
-            <Ionicons name="eye" size={20} color={theme.primary[600]} />
-            <Text
-              className="font-rubik-bold ml-2"
-              style={{ color: theme.primary[600] }}
-            >
-              Preview
-            </Text>
-          </TouchableOpacity>
+            <Ionicons
+              name={hasLeaseDocument ? "document-text" : "time-outline"}
+              size={21}
+              color={
+                hasLeaseDocument
+                  ? theme.primary[300]
+                  : theme.muted
+              }
+            />
+          </View>
 
-          {/* ✅ Download Button */}
-          <TouchableOpacity
-            disabled={isLeaseDownloaded(request.leaseDocumentId)}
-            onPress={() =>
-              handleDownloadLease(
-                request.$id,
-                request.leaseDocumentId || "",
-                request.leaseDocumentName || "lease_document.pdf",
-              )
-            }
-            className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
-            style={{ backgroundColor: theme.primary[600] }}
-          >
-            <Ionicons name="download" size={20} color="white" />
-            <Text className="text-white font-rubik-bold ml-2">
-              {isLeaseDownloaded(request.leaseDocumentId)
-                ? "Downloaded"
-                : "Download"}
+          <View className="flex-1">
+            <Text
+              className="text-sm font-rubik-bold"
+              style={{ color: theme.title }}
+            >
+              Lease Document
             </Text>
-          </TouchableOpacity>
+
+            {hasLeaseDocument ? (
+              <>
+                <Text
+                  numberOfLines={1}
+                  className="text-xs mt-1"
+                  style={{ color: theme.muted }}
+                >
+                  {request.leaseDocumentName || "Lease Agreement"}
+                </Text>
+
+                {request.leaseSentAt && (
+                  <Text
+                    className="text-[11px] mt-0.5"
+                    style={{ color: theme.muted }}
+                  >
+                    Sent{" "}
+                    {new Date(request.leaseSentAt).toLocaleDateString()}
+                  </Text>
+                )}
+              </>
+            ) : (
+              <Text
+                className="text-xs mt-1 leading-4"
+                style={{ color: theme.muted }}
+              >
+                Your request was accepted. No lease document has been sent
+                yet. It will appear here once the landlord sends it.
+              </Text>
+            )}
+          </View>
         </View>
+
+        {hasLeaseDocument && (
+          <View className="flex-row gap-2 mt-3">
+            <TouchableOpacity
+              disabled={leaseBusy}
+              onPress={(event) => {
+                event.stopPropagation?.();
+                void handlePreviewLease(
+                  request.$id,
+                  documentId,
+                  fileName,
+                );
+              }}
+              className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
+              style={{
+                backgroundColor: theme.surface,
+                borderWidth: 1,
+                borderColor: theme.primary[300],
+                opacity: leaseBusy ? 0.65 : 1,
+              }}
+            >
+              {isLeasePreviewing(request.$id) ? (
+                <ActivityIndicator
+                  size="small"
+                  color={theme.primary[300]}
+                />
+              ) : (
+                <>
+                  <Ionicons
+                    name="eye"
+                    size={19}
+                    color={theme.primary[300]}
+                  />
+                  <Text
+                    className="ml-2 text-sm font-rubik-bold"
+                    style={{ color: theme.primary[300] }}
+                  >
+                    View
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              disabled={
+                leaseBusy ||
+                isLeaseDownloaded(request.leaseDocumentId)
+              }
+              onPress={(event) => {
+                event.stopPropagation?.();
+                void handleDownloadLease(
+                  request.$id,
+                  documentId,
+                  fileName,
+                );
+              }}
+              className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
+              style={{
+                backgroundColor: theme.primary[300],
+                opacity:
+                  leaseBusy ||
+                  isLeaseDownloaded(request.leaseDocumentId)
+                    ? 0.7
+                    : 1,
+              }}
+            >
+              {isLeaseDownloading(request.$id) ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text className="text-sm font-rubik-bold text-white">
+                  {isLeaseDownloaded(request.leaseDocumentId)
+                    ? "Downloaded"
+                    : "Download"}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };
@@ -888,9 +968,6 @@ export default function TenantRequests() {
                         )}
                       </View>
                     )}
-
-                    {/* Lease Document Section */}
-                    {selectedRequest && renderLeaseDocument(selectedRequest)}
                   </View>
                 </View>
               );
@@ -1452,7 +1529,7 @@ export default function TenantRequests() {
                 <Text className="text-white text-center font-rubik-bold">
                   {isSubmittingQuery || uploadingImages
                     ? "Sending..."
-                    : "Send Question"}
+                    : "Send Query"}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1763,141 +1840,9 @@ export default function TenantRequests() {
                     </Text>
                   </View>
 
-                  {/* Lease controls shown directly on the request card */}
-                  {item.leaseDocumentId && (
-                    <View
-                      className="mt-4 rounded-2xl p-4"
-                      style={{
-                        backgroundColor: theme.primary[100],
-                        borderWidth: 1,
-                        borderColor: theme.primary[300] + "50",
-                      }}
-                    >
-                      <View className="flex-row items-center">
-                        <View
-                          className="w-10 h-10 rounded-full items-center justify-center mr-3"
-                          style={{
-                            backgroundColor: theme.surface,
-                          }}
-                        >
-                          <Ionicons
-                            name="document-text"
-                            size={21}
-                            color={theme.primary[300]}
-                          />
-                        </View>
-
-                        <View className="flex-1">
-                          <Text
-                            className="text-sm font-rubik-bold"
-                            style={{
-                              color: theme.title,
-                            }}
-                          >
-                            Lease ready
-                          </Text>
-
-                          <Text
-                            numberOfLines={1}
-                            className="text-xs mt-0.5"
-                            style={{
-                              color: theme.muted,
-                            }}
-                          >
-                            {item.leaseDocumentName || "Lease agreement.pdf"}
-                          </Text>
-
-                          {item.leaseSentAt && (
-                            <Text
-                              className="text-[11px] mt-0.5"
-                              style={{
-                                color: theme.muted,
-                              }}
-                            >
-                              Sent{" "}
-                              {new Date(item.leaseSentAt).toLocaleDateString()}
-                            </Text>
-                          )}
-                        </View>
-                      </View>
-
-                      <View className="flex-row gap-2 mt-3">
-                        <TouchableOpacity
-                          disabled={isLeaseActionRunning(item.$id)}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            void handlePreviewLease(
-                              item.$id,
-                              item.leaseDocumentId || "",
-                              item.leaseDocumentName || "lease_document.pdf",
-                            );
-                          }}
-                          className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
-                          style={{
-                            backgroundColor: theme.surface,
-                            borderWidth: 1,
-                            borderColor: theme.primary[300],
-                            opacity: isLeaseActionRunning(item.$id) ? 0.65 : 1,
-                          }}
-                        >
-                          {isLeasePreviewing(item.$id) ? (
-                            <ActivityIndicator
-                              size="small"
-                              color={theme.primary[300]}
-                            />
-                          ) : (
-                            <>
-                              <Ionicons
-                                name="eye"
-                                size={19}
-                                color={theme.primary[300]}
-                              />
-                              <Text
-                                className="ml-2 text-sm font-rubik-bold"
-                                style={{
-                                  color: theme.primary[300],
-                                }}
-                              >
-                                View
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          disabled={
-                            isLeaseActionRunning(item.$id) ||
-                            isLeaseDownloaded(item.leaseDocumentId)
-                          }
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            void handleDownloadLease(
-                              item.$id,
-                              item.leaseDocumentId || "",
-                              item.leaseDocumentName || "lease_document.pdf",
-                            );
-                          }}
-                          className="flex-1 py-3 rounded-xl flex-row items-center justify-center"
-                          style={{
-                            backgroundColor: theme.primary[300],
-                            opacity: isLeaseActionRunning(item.$id) ? 0.65 : 1,
-                          }}
-                        >
-                          {isLeaseDownloading(item.$id) ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <>
-                              <Text className="ml-2 text-sm font-rubik-bold text-white">
-                                {isLeaseDownloaded(item.leaseDocumentId)
-                                  ? "Downloaded"
-                                  : "Download"}
-                              </Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
+                  {/* Lease document status / actions for accepted request */}
+                  {item.status === "accepted" &&
+                    renderLeaseDocument(item)}
 
                   {/* Action Buttons */}
                   <View className="flex-row gap-2 mt-3">

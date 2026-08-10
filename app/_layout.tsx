@@ -284,7 +284,22 @@ export default function RootLayout() {
           return;
         }
 
+        // NOOKLY_REQUEST_RESPONSE_PUSH_V1_MOBILE
         case "request_response":
+          router.push({
+            pathname: getModeAwareRoute(
+              "/myRequests",
+              currentUser,
+            ),
+            params: {
+              requestId:
+                typeof data.requestId === "string"
+                  ? data.requestId
+                  : "",
+            },
+          } as any);
+          return;
+
         case "alert":
           router.push(homeRoute as any);
           return;

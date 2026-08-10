@@ -38,3 +38,4 @@ migration-output/
 # Temporary patch and deployment files
 *.bak
 *.tar.gz
+.nookly-secrets/
