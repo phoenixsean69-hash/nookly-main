@@ -176,6 +176,16 @@ const StudentTabsLayout = () => {
       />
 
       <Tabs.Screen
+        name="accreditedLandlords"
+        options={{
+          href: null,
+          title: "Accredited Landlords",
+          headerShown: false,
+          tabBarStyle: { display: "none" },
+        }}
+      />
+
+      <Tabs.Screen
         name="s-detailsEdit"
         options={{
           href: null,
