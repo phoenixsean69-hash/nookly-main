@@ -26,6 +26,7 @@
     }
   },
   "dependencies": {
+    "@bsky.app/video-compressor": "0.2.0",
     "@config-plugins/react-native-blob-util": "12.0.0",
     "@config-plugins/react-native-pdf": "12.0.0",
     "@expo/vector-icons": "^15.0.3",

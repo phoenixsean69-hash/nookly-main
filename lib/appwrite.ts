@@ -755,38 +755,132 @@ export async function uploadVideo(video: {
   uri: string;
   fileName?: string | null;
   mimeType?: string | null;
-  fileSize?: number;
+  fileSize?: number | null;
 }) {
-  if (!video.uri) throw new Error("The selected video is unavailable.");
-
-  const uriWithoutQuery = video.uri.split("?")[0];
-  const uriExtension = uriWithoutQuery
-    .match(/\.([a-zA-Z0-9]+)$/)?.[1]
-    ?.toLowerCase();
-  const mimeExtension = video.mimeType?.split("/")[1]?.split(";")[0];
-  const extension = uriExtension || mimeExtension || "mp4";
-  const rawName =
-    video.fileName?.trim() || `verification-video-${Date.now()}.${extension}`;
-  const fileName = rawName.includes(".") ? rawName : `${rawName}.${extension}`;
-  const mimeType =
-    video.mimeType || `video/${extension === "mov" ? "quicktime" : extension}`;
-
-  const localFile = new ExpoFile(video.uri);
-  const fileSize = video.fileSize || localFile.size;
-  if (!fileSize || fileSize <= 0) {
-    throw new Error("Could not determine the selected video's file size.");
+  if (!video?.uri?.trim()) {
+    throw new Error("The compressed video is unavailable.");
   }
 
-  // Appwrite's React Native SDK streams this local URI directly. Do not read or
-  // convert video bytes to Base64, blobs, or data URLs.
-  const file = await storage.createFile(config.bucketId!, ID.unique(), {
-    uri: video.uri,
-    name: fileName,
-    type: mimeType,
-    size: fileSize,
-  });
+  if (!config.bucketId) {
+    throw new Error("The Appwrite storage bucket is not configured.");
+  }
 
-  return `https://cloud.appwrite.io/v1/storage/buckets/${config.bucketId}/files/${file.$id}/view?project=${config.projectId}`;
+  const localFile = new ExpoFile(video.uri);
+  const fileSize = Number(
+    video.fileSize || localFile.size || 0,
+  );
+
+  if (!Number.isFinite(fileSize) || fileSize <= 0) {
+    throw new Error(
+      "Could not determine the compressed video's file size.",
+    );
+  }
+
+  const maximumVideoBytes = 18 * 1024 * 1024;
+
+  if (fileSize > maximumVideoBytes) {
+    throw new Error(
+      "The compressed verification video is larger than 18 MB.",
+    );
+  }
+
+  const suppliedName =
+    video.fileName?.trim() ||
+    `property-video-${Date.now()}.mp4`;
+
+  const fileName = suppliedName
+    .replace(/\.[^.]+$/, "")
+    .concat(".mp4");
+
+  const mimeType = String(
+    video.mimeType || "video/mp4",
+  )
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+
+  if (mimeType !== "video/mp4") {
+    throw new Error(
+      "Only compressed MP4 property videos may be uploaded.",
+    );
+  }
+
+  const uploadedFile = await storage.createFile(
+    config.bucketId,
+    ID.unique(),
+    {
+      uri: video.uri,
+      name: fileName,
+      type: "video/mp4",
+      size: fileSize,
+    },
+  );
+
+  const endpoint = config.endpoint?.replace(/\/+$/, "");
+  const projectId = config.projectId?.trim();
+
+  if (!endpoint || !projectId) {
+    try {
+      await storage.deleteFile(
+        config.bucketId,
+        uploadedFile.$id,
+      );
+    } catch {
+      // Best effort cleanup only.
+    }
+
+    throw new Error(
+      "The Appwrite endpoint or project ID is not configured.",
+    );
+  }
+
+  return (
+    `${endpoint}/storage/buckets/` +
+    `${encodeURIComponent(config.bucketId)}/files/` +
+    `${encodeURIComponent(uploadedFile.$id)}/view` +
+    `?project=${encodeURIComponent(projectId)}`
+  );
+}
+
+export async function deleteStorageFileFromUrl(
+  fileUrl: string,
+): Promise<void> {
+  if (!fileUrl?.trim() || !config.bucketId) {
+    return;
+  }
+
+  const match = fileUrl.match(
+    /\/storage\/buckets\/[^/]+\/files\/([^/?]+)\/(?:view|preview|download)/i,
+  );
+
+  const encodedFileId = match?.[1];
+
+  if (!encodedFileId) {
+    console.warn(
+      "Could not extract Appwrite storage file ID during rollback:",
+      fileUrl,
+    );
+    return;
+  }
+
+  const fileId = decodeURIComponent(encodedFileId);
+
+  try {
+    await storage.deleteFile(
+      config.bucketId,
+      fileId,
+    );
+    console.log(
+      "✅ Rolled back uploaded media:",
+      fileId,
+    );
+  } catch (error: any) {
+    if (Number(error?.code) === 404) {
+      return;
+    }
+
+    throw error;
+  }
 }
 
 export async function AddListing(

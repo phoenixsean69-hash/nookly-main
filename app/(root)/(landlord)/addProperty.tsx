@@ -5,11 +5,23 @@ import LocationPickerMap, {
 import { Colors } from "@/constants/Colors";
 import { categories, facilities } from "@/constants/data";
 import icons from "@/constants/icons";
-import { AddListing, uploadImage, uploadVideo } from "@/lib/appwrite";
+import {
+  AddListing,
+  deleteStorageFileFromUrl,
+  uploadImage,
+  uploadVideo,
+} from "@/lib/appwrite";
 import useAuthStore from "@/store/auth.store";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { ImagePickerAsset } from "expo-image-picker";
+import {
+  compressPropertyVideo,
+  formatPropertyVideoBytes,
+  formatPropertyVideoDuration,
+  inspectPropertyVideo,
+  type PropertyVideoInspection,
+} from "@/lib/propertyVideoCompression";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
@@ -103,6 +115,11 @@ const AddPropertyScreen = () => {
 
   const [images, setImages] = useState<ImagePickerAsset[]>([]);
   const [videos, setVideos] = useState<ImagePickerAsset[]>([]);
+  const [videoInfo, setVideoInfo] = useState<
+    Record<string, PropertyVideoInspection>
+  >({});
+  const [videoChecking, setVideoChecking] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
   // Modals for success and error messages
@@ -194,36 +211,66 @@ const AddPropertyScreen = () => {
     setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const addPickedVideos = (assets: ImagePickerAsset[]) => {
+  const addPickedVideos = async (
+    assets: ImagePickerAsset[],
+  ) => {
     const availableSlots = 3 - videos.length;
+
+    if (availableSlots <= 0) {
+      Alert.alert(
+        "Limit reached",
+        "You can only add up to 3 verification videos.",
+      );
+      return;
+    }
+
+    setVideoChecking(true);
+
     const accepted: ImagePickerAsset[] = [];
-    let rejectedForDuration = 0;
-    let rejectedForMissingDuration = 0;
+    const inspected: Record<
+      string,
+      PropertyVideoInspection
+    > = {};
+    const rejectedMessages: string[] = [];
 
-    for (const asset of assets.slice(0, availableSlots)) {
-      const durationMs = asset.duration ?? 0;
-      if (durationMs <= 0) {
-        rejectedForMissingDuration += 1;
-      } else if (durationMs > 90_000) {
-        rejectedForDuration += 1;
-      } else {
-        accepted.push(asset);
+    try {
+      for (const asset of assets.slice(0, availableSlots)) {
+        try {
+          const info =
+            await inspectPropertyVideo(asset);
+
+          accepted.push(asset);
+          inspected[asset.uri] = info;
+        } catch (error: any) {
+          rejectedMessages.push(
+            error?.message ||
+              "Nookly could not validate one of the selected videos.",
+          );
+        }
       }
-    }
 
-    if (rejectedForDuration > 0) {
-      Alert.alert(
-        "Video too long",
-        `${rejectedForDuration} video${rejectedForDuration === 1 ? " was" : "s were"} not added because each verification video must be 90 seconds or shorter.`,
-      );
-    } else if (rejectedForMissingDuration > 0) {
-      Alert.alert(
-        "Video duration unavailable",
-        "This device could not verify the selected video's duration. Please record a new video or choose another file.",
-      );
+      if (accepted.length > 0) {
+        setVideos((previous) =>
+          [...previous, ...accepted].slice(0, 3),
+        );
+
+        setVideoInfo((previous) => ({
+          ...previous,
+          ...inspected,
+        }));
+      }
+
+      if (rejectedMessages.length > 0) {
+        Alert.alert(
+          "Some videos were not added",
+          Array.from(
+            new Set(rejectedMessages),
+          ).join("\n\n"),
+        );
+      }
+    } finally {
+      setVideoChecking(false);
     }
-    if (accepted.length > 0)
-      setVideos((prev) => [...prev, ...accepted].slice(0, 3));
   };
 
   const pickVideo = async () => {
@@ -248,7 +295,7 @@ const AddPropertyScreen = () => {
         allowsMultipleSelection: true,
         selectionLimit: 3 - videos.length,
       });
-      if (!result.canceled) addPickedVideos(result.assets);
+      if (!result.canceled) await addPickedVideos(result.assets);
     } catch (error) {
       console.error("Failed to choose verification video:", error);
       Alert.alert(
@@ -280,7 +327,7 @@ const AddPropertyScreen = () => {
         videoMaxDuration: 90,
         videoQuality: ImagePicker.UIImagePickerControllerQualityType.Medium,
       });
-      if (!result.canceled) addPickedVideos(result.assets);
+      if (!result.canceled) await addPickedVideos(result.assets);
     } catch (error) {
       console.error("Failed to record verification video:", error);
       Alert.alert(
@@ -291,7 +338,19 @@ const AddPropertyScreen = () => {
   };
 
   const removeVideo = (index: number) => {
-    setVideos((prev) => prev.filter((_, i) => i !== index));
+    const video = videos[index];
+
+    setVideos((prev) =>
+      prev.filter((_, i) => i !== index),
+    );
+
+    if (video?.uri) {
+      setVideoInfo((previous) => {
+        const next = { ...previous };
+        delete next[video.uri];
+        return next;
+      });
+    }
   };
 
   const formatVideoDuration = (duration?: number | null) => {
@@ -344,6 +403,14 @@ const AddPropertyScreen = () => {
 
     if (images.length === 0) {
       Alert.alert("Error", "Please upload at least one image");
+      return false;
+    }
+
+    if (videoChecking) {
+      Alert.alert(
+        "Videos are still being checked",
+        "Please wait until Nookly finishes checking the selected videos.",
+      );
       return false;
     }
 
@@ -413,7 +480,9 @@ const AddPropertyScreen = () => {
     }
 
     if (!user) {
-      setErrorMessage("You must be logged in to add a listing");
+      setErrorMessage(
+        "You must be logged in to add a listing",
+      );
       setErrorModalVisible(true);
       return;
     }
@@ -424,51 +493,115 @@ const AddPropertyScreen = () => {
       return;
     }
 
+    const uploadedMediaUrls: string[] = [];
+
+    const rollbackUploadedMedia = async () => {
+      if (uploadedMediaUrls.length === 0) {
+        return;
+      }
+
+      setUploadStatus(
+        "Rolling back incomplete property uploads...",
+      );
+
+      const results = await Promise.allSettled(
+        [...uploadedMediaUrls]
+          .reverse()
+          .map((url) =>
+            deleteStorageFileFromUrl(url),
+          ),
+      );
+
+      const failed = results.filter(
+        (result) =>
+          result.status === "rejected",
+      );
+
+      if (failed.length > 0) {
+        console.error(
+          "Some uploaded files could not be rolled back:",
+          failed,
+        );
+      }
+    };
+
     setLoading(true);
+    setUploadStatus("Preparing property media...");
+
     try {
-      // Upload images
       const uploadedImageUrls: string[] = [];
-      for (let i = 0; i < images.length; i++) {
-        const img = images[i];
-        try {
-          console.log(`Uploading image ${i + 1}/${images.length}...`);
-          const imageUrl = await uploadImage(img);
-          uploadedImageUrls.push(imageUrl);
-        } catch (error) {
-          console.error(`Failed to upload image ${i + 1}:`, error);
-          setErrorMessage(`Failed to upload image ${i + 1}`);
-          setErrorModalVisible(true);
-          setLoading(false);
-          return;
-        }
+
+      for (let i = 0; i < images.length; i += 1) {
+        const image = images[i];
+
+        setUploadStatus(
+          `Uploading Image ${i + 1} of ${images.length}...`,
+        );
+
+        const imageUrl =
+          await uploadImage(image);
+
+        uploadedImageUrls.push(imageUrl);
+        uploadedMediaUrls.push(imageUrl);
       }
 
-      // Upload local video URIs directly through Appwrite (never Base64).
       const uploadedVideoUrls: string[] = [];
-      for (let i = 0; i < videos.length; i++) {
-        try {
-          const videoUrl = await uploadVideo(videos[i]);
-          uploadedVideoUrls.push(videoUrl);
-        } catch (error: any) {
-          console.error(`Failed to upload verification video ${i + 1}:`, error);
-          setErrorMessage(
-            error?.message
-              ? `Video ${i + 1} failed: ${error.message}`
-              : `Failed to upload verification video ${i + 1}. Check the Appwrite bucket size limit and try again.`,
+
+      for (let i = 0; i < videos.length; i += 1) {
+        const source = videos[i];
+
+        setUploadStatus(
+          `Inspecting Video ${i + 1} of ${videos.length}...`,
+        );
+
+        const sourceInfo =
+          videoInfo[source.uri] ||
+          (await inspectPropertyVideo(source));
+
+        const compressed =
+          await compressPropertyVideo(
+            source,
+            {
+              onProgress: (progress) => {
+                const percent = Math.round(
+                  progress * 100,
+                );
+
+                setUploadStatus(
+                  `Compressing Video ${i + 1} of ${videos.length} (${percent}%)...`,
+                );
+              },
+            },
           );
-          setErrorModalVisible(true);
-          setLoading(false);
-          return;
-        }
+
+        setUploadStatus(
+          `Uploading Video ${i + 1} of ${videos.length} · ` +
+            `${formatPropertyVideoBytes(sourceInfo.sourceBytes)} → ` +
+            `${formatPropertyVideoBytes(compressed.fileSize)}...`,
+        );
+
+        const videoUrl = await uploadVideo({
+          uri: compressed.uri,
+          fileName: compressed.fileName,
+          mimeType: compressed.mimeType,
+          fileSize: compressed.fileSize,
+        });
+
+        uploadedVideoUrls.push(videoUrl);
+        uploadedMediaUrls.push(videoUrl);
       }
 
-      // Combine predefined and custom facilities
-      const allFacilities = [...selectedFacilities];
+      setUploadStatus(
+        "Saving property details...",
+      );
 
-      // Prepare listing data
+      const allFacilities = [
+        ...selectedFacilities,
+      ];
+
       const listingData: any = {
         propertyName: propertyName.trim(),
-        type: type,
+        type,
         description: description.trim(),
         address: getFullAddress(),
         price: Number(price),
@@ -480,51 +613,90 @@ const AddPropertyScreen = () => {
         creatorId: user.accountId,
       };
 
-      // Pinned map coordinates
       if (coords) {
-        listingData.latitude = coords.latitude;
-        listingData.longitude = coords.longitude;
+        listingData.latitude =
+          coords.latitude;
+        listingData.longitude =
+          coords.longitude;
       }
 
-      // Add price threshold if provided
-      if (priceThreshold && priceThreshold.trim() !== "") {
-        listingData.priceThreshold = Number(priceThreshold);
+      if (
+        priceThreshold &&
+        priceThreshold.trim() !== ""
+      ) {
+        listingData.priceThreshold =
+          Number(priceThreshold);
       }
 
-      // Add totalSlots for Boarding and House
-      if (type === "Boarding" || type === "House") {
-        listingData.totalSlots = Number(totalSlots);
+      if (
+        type === "Boarding" ||
+        type === "House"
+      ) {
+        listingData.totalSlots =
+          Number(totalSlots);
         listingData.occupiedSlots = 0;
-        listingData.availableSlots = Number(totalSlots);
+        listingData.availableSlots =
+          Number(totalSlots);
       }
 
-      // Add boarding house specific fields
       if (isBoardingHouse) {
-        listingData.roomFor = Number(roomFor);
-        listingData.curfew = curfewAmPm ? `${curfew} ${curfewAmPm}` : "";
+        listingData.roomFor =
+          Number(roomFor);
+        listingData.curfew = curfewAmPm
+          ? `${curfew} ${curfewAmPm}`
+          : "";
       }
 
-      // Assign image URLs
-      if (uploadedImageUrls[0]) listingData.image1 = uploadedImageUrls[0];
-      if (uploadedImageUrls[1]) listingData.image2 = uploadedImageUrls[1];
-      if (uploadedImageUrls[2]) listingData.image3 = uploadedImageUrls[2];
-      listingData.video1 = uploadedVideoUrls[0];
-      listingData.video2 = uploadedVideoUrls[1];
-      if (uploadedVideoUrls[2]) listingData.video3 = uploadedVideoUrls[2];
+      if (uploadedImageUrls[0]) {
+        listingData.image1 =
+          uploadedImageUrls[0];
+      }
 
-      console.log("Full listing data:", listingData);
+      if (uploadedImageUrls[1]) {
+        listingData.image2 =
+          uploadedImageUrls[1];
+      }
 
-      // Add the listing
+      if (uploadedImageUrls[2]) {
+        listingData.image3 =
+          uploadedImageUrls[2];
+      }
+
+      listingData.video1 =
+        uploadedVideoUrls[0];
+      listingData.video2 =
+        uploadedVideoUrls[1];
+
+      if (uploadedVideoUrls[2]) {
+        listingData.video3 =
+          uploadedVideoUrls[2];
+      }
+
+      console.log(
+        "Full listing data:",
+        listingData,
+      );
+
       await AddListing(listingData);
 
+      setUploadStatus("");
       setSuccessModalVisible(true);
-    } catch (error) {
-      console.error("Error saving listing:", error);
-      setErrorMessage(
-        "Failed to save listing. Please check your connection and try again.",
+    } catch (error: any) {
+      console.error(
+        "Error saving listing:",
+        error,
       );
+
+      await rollbackUploadedMedia();
+
+      setErrorMessage(
+        error?.message ||
+          "Failed to save listing. The incomplete media upload was rolled back. Please try again.",
+      );
+
       setErrorModalVisible(true);
     } finally {
+      setUploadStatus("");
       setLoading(false);
     }
   };
@@ -550,6 +722,9 @@ const AddPropertyScreen = () => {
     setCustomFacilities([]);
     setImages([]);
     setVideos([]);
+    setVideoInfo({});
+    setVideoChecking(false);
+    setUploadStatus("");
     setCoords(null);
   };
 
@@ -2208,7 +2383,13 @@ const AddPropertyScreen = () => {
                       className="text-xs mt-1"
                       style={{ color: theme.muted }}
                     >
-                      {formatVideoDuration(video.duration)} · Video {index + 1}
+                      {videoInfo[video.uri]
+                        ? `${formatPropertyVideoDuration(
+                            videoInfo[video.uri].durationSeconds,
+                          )} · ${formatPropertyVideoBytes(
+                            videoInfo[video.uri].sourceBytes,
+                          )} · ${videoInfo[video.uri].width}×${videoInfo[video.uri].height}`
+                        : `${formatVideoDuration(video.duration)} · Video ${index + 1}`}
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -2226,6 +2407,25 @@ const AddPropertyScreen = () => {
                 </View>
               ))}
 
+              {videoChecking && (
+                <View
+                  className="flex-row items-center mt-1 mb-2"
+                >
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.primary[300]}
+                  />
+                  <Text
+                    className="text-xs font-rubik-medium ml-2"
+                    style={{
+                      color: theme.primary[300],
+                    }}
+                  >
+                    Checking selected video...
+                  </Text>
+                </View>
+              )}
+
               {videos.length < 2 && (
                 <Text
                   className="text-xs font-rubik-medium mt-1"
@@ -2242,15 +2442,15 @@ const AddPropertyScreen = () => {
                 className="text-xs text-center mb-2"
                 style={{ color: theme.muted }}
               >
-                Uploading and compressing images, this can take a moment for
-                larger files...
+{uploadStatus ||
+                  "Preparing property media..."}
               </Text>
             )}
 
             {/* Submit Button */}
             <TouchableOpacity
               onPress={handleSubmit}
-              disabled={loading}
+              disabled={loading || videoChecking}
               className={`py-4 rounded-lg mb-8 ${loading ? "bg-gray-400" : "bg-primary-300"}`}
               style={{
                 backgroundColor: loading ? theme.muted : theme.primary[300],
